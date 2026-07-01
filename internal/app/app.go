@@ -20,8 +20,9 @@ type Dependencies struct {
 	ResolveBinary   func(dir string) (string, error)
 	RunCommand      func(name string, args []string) error
 	MkdirAll        func(path string, perm os.FileMode) error
-	PathExists      func(path string) bool
-	Stdout          io.Writer
+	PathExists       func(path string) bool
+	InputAccessible  func(path string) bool
+	Stdout           io.Writer
 	Stderr          io.Writer
 	InstallSendTo   func(executablePath string) (string, error)
 	UninstallSendTo func() error
@@ -49,6 +50,9 @@ func Execute(args []string, deps Dependencies) int {
 	}
 	if deps.PathExists == nil {
 		deps.PathExists = pathExists
+	}
+	if deps.InputAccessible == nil {
+		deps.InputAccessible = checkInputAccessible
 	}
 
 	fs := flag.NewFlagSet("videopress", flag.ContinueOnError)
@@ -118,6 +122,12 @@ func Execute(args []string, deps Dependencies) int {
 			continue
 		}
 
+		if !deps.InputAccessible(input) {
+			fmt.Fprintf(deps.Stderr, "输入文件不存在或不可读: %s\n", input)
+			failures++
+			continue
+		}
+
 		output, err := compress.BuildOutputPath(input, preset.Name, deps.PathExists)
 		if err != nil {
 			fmt.Fprintf(deps.Stderr, "生成输出路径失败 %s: %v\n", input, err)
@@ -144,6 +154,9 @@ func Execute(args []string, deps Dependencies) int {
 
 	fmt.Fprintf(deps.Stdout, "处理完成: 成功 %d, 失败 %d\n", successes, failures)
 	if failures > 0 {
+		return 1
+	}
+	if successes == 0 {
 		return 1
 	}
 	return 0

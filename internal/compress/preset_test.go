@@ -50,6 +50,14 @@ func TestPresetByNameReturnsExpectedConfig(t *testing.T) {
 	if quality.AudioBitrate != "128k" {
 		t.Fatalf("expected audio bitrate 128k, got %s", quality.AudioBitrate)
 	}
+
+	upper, err := PresetByName("STANDARD")
+	if err != nil {
+		t.Fatalf("PresetByName(STANDARD) returned error: %v", err)
+	}
+	if upper.MaxDimension != 1080 {
+		t.Fatalf("expected max dimension 1080 for STANDARD, got %d", upper.MaxDimension)
+	}
 }
 
 func TestPresetByNameRejectsUnknownPreset(t *testing.T) {

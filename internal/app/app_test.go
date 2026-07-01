@@ -14,6 +14,8 @@ type recordedCall struct {
 	args []string
 }
 
+func accessibleInput(_ string) bool { return true }
+
 func TestExecuteUsesStandardPresetByDefault(t *testing.T) {
 	var calls []recordedCall
 	var createdDirs []string
@@ -34,9 +36,10 @@ func TestExecuteUsesStandardPresetByDefault(t *testing.T) {
 			createdDirs = append(createdDirs, path)
 			return nil
 		},
-		PathExists: func(path string) bool { return false },
-		Stdout:     stdout,
-		Stderr:     stderr,
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          stderr,
 	})
 
 	if exitCode != 0 {
@@ -74,9 +77,10 @@ func TestExecuteSkipsNonVideoFilesButKeepsGoing(t *testing.T) {
 			calls = append(calls, recordedCall{name: name, args: args})
 			return nil
 		},
-		MkdirAll:   func(path string, perm os.FileMode) error { return nil },
-		PathExists: func(path string) bool { return false },
-		Stdout:     stdout,
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
 		Stderr:     stderr,
 	})
 
@@ -103,9 +107,10 @@ func TestExecuteReturnsNonZeroWhenCompressionFails(t *testing.T) {
 		RunCommand: func(name string, args []string) error {
 			return errors.New("ffmpeg failed")
 		},
-		MkdirAll:   func(path string, perm os.FileMode) error { return nil },
-		PathExists: func(path string) bool { return false },
-		Stdout:     &bytes.Buffer{},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          &bytes.Buffer{},
 		Stderr:     stderr,
 	})
 
@@ -114,5 +119,66 @@ func TestExecuteReturnsNonZeroWhenCompressionFails(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "ffmpeg failed") {
 		t.Fatalf("expected failure message, got %s", stderr.String())
+	}
+}
+
+func TestExecutePrintsVersion(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := Execute([]string{"--version"}, Dependencies{
+		Stdout: stdout,
+		Stderr: stderr,
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if strings.TrimSpace(stdout.String()) != Version {
+		t.Fatalf("expected version %s, got %q", Version, stdout.String())
+	}
+}
+
+func TestExecuteReturnsNonZeroWhenAllInputsSkipped(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := Execute([]string{`C:\videos\readme.txt`}, Dependencies{
+		ExecutableDir:  `C:\tools`,
+		ExecutablePath: `C:\tools\videopress.exe`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		Stdout: stdout,
+		Stderr: stderr,
+	})
+
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "跳过非视频文件") {
+		t.Fatalf("expected skip message, got %s", stdout.String())
+	}
+}
+
+func TestExecuteFailsWhenInputNotAccessible(t *testing.T) {
+	stderr := &bytes.Buffer{}
+
+	exitCode := Execute([]string{`C:\videos\clip.mp4`}, Dependencies{
+		ExecutableDir:  `C:\tools`,
+		ExecutablePath: `C:\tools\videopress.exe`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		InputAccessible: func(path string) bool { return false },
+		Stdout:          &bytes.Buffer{},
+		Stderr:          stderr,
+	})
+
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "输入文件不存在或不可读") {
+		t.Fatalf("expected inaccessible message, got %s", stderr.String())
 	}
 }

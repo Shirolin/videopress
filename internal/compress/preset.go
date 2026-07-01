@@ -1,6 +1,9 @@
 package compress
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type Preset struct {
 	Name         string
@@ -35,7 +38,7 @@ var presets = map[string]Preset{
 }
 
 func PresetByName(name string) (Preset, error) {
-	preset, ok := presets[name]
+	preset, ok := presets[strings.ToLower(name)]
 	if !ok {
 		return Preset{}, fmt.Errorf("unknown preset: %s", name)
 	}

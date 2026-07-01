@@ -17,5 +17,5 @@ func ResolveBinary(executableDir string, lookPath LookPathFunc) (string, error) 
 		return filepath.Clean(path), nil
 	}
 
-	return "", fmt.Errorf("ffmpeg not found; please install ffmpeg and ensure it is available in PATH or next to videopress.exe")
+	return "", fmt.Errorf("未找到 ffmpeg，请安装 ffmpeg 并确保其在 PATH 中或与 videopress.exe 同目录")
 }
