@@ -307,6 +307,17 @@ func Execute(args []string, deps Dependencies) int {
 		return 1
 	}
 
+	presetExplicit := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "preset" {
+			presetExplicit = true
+		}
+	})
+
+	if *sendToMode && !presetExplicit && isTerminal(deps.Stdout) {
+		*presetName = showInteractiveMenu(deps.Stdout)
+	}
+
 	preset, err := compress.PresetByName(*presetName)
 	if err != nil {
 		fmt.Fprintln(deps.Stderr, red(err.Error()))
@@ -514,21 +525,24 @@ func Execute(args []string, deps Dependencies) int {
 
 	// 打印最后的色彩汇总表格
 	fmt.Fprintln(deps.Stdout, "\n"+magenta("================================ TASK SUMMARY ================================"))
-	fmt.Fprintf(deps.Stdout, " %-20s | %-6s | %-10s | %-10s | %-6s | %-6s\n", "视频文件", "状态", "原始大小", "压缩大小", "节省", "耗时")
+	fmt.Fprintf(deps.Stdout, " %s | %s | %s | %s | %s | %s\n",
+		padString("视频文件", 20, true),
+		"状态  ",
+		padString("原始大小", 12, true),
+		padString("压缩大小", 12, true),
+		padString("节省", 8, true),
+		padString("耗时", 8, true),
+	)
 	fmt.Fprintln(deps.Stdout, magenta("------------------------------------------------------------------------------"))
 	for _, r := range allReports {
 		var statusStr string
-		var padding string
 		switch r.Status {
 		case "成功":
-			statusStr = green("成功")
-			padding = "  "
+			statusStr = green("成功") + "  "
 		case "跳过":
-			statusStr = yellow("跳过")
-			padding = "  "
+			statusStr = yellow("跳过") + "  "
 		case "失败":
-			statusStr = red("失败")
-			padding = "  "
+			statusStr = red("失败") + "  "
 		}
 
 		displayInput := r.InputName
@@ -553,14 +567,13 @@ func Execute(args []string, deps Dependencies) int {
 			durationStr = r.Duration.Round(time.Millisecond).String()
 		}
 
-		fmt.Fprintf(deps.Stdout, " %-20s | %s%s | %-10.1fMB | %-10s | %-6s | %-6s\n",
-			displayInput,
+		fmt.Fprintf(deps.Stdout, " %s | %s | %s | %s | %s | %s\n",
+			padString(displayInput, 20, true),
 			statusStr,
-			padding,
-			float64(r.SourceSize)/(1024*1024),
-			targetSizeStr,
-			savedStr,
-			durationStr,
+			padString(fmt.Sprintf("%.1fMB", float64(r.SourceSize)/(1024*1024)), 12, true),
+			padString(targetSizeStr, 12, true),
+			padString(savedStr, 8, true),
+			padString(durationStr, 8, true),
 		)
 	}
 	fmt.Fprintln(deps.Stdout, magenta("=============================================================================="))
@@ -573,9 +586,48 @@ func Execute(args []string, deps Dependencies) int {
 	}
 
 	if *sendToMode {
-		fmt.Fprintln(deps.Stdout, "\n处理完成。按回车键退出...")
-		var b [1]byte
-		deps.Stdin.Read(b[:])
+		fmt.Fprintln(deps.Stdout)
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		countdown := 5
+
+		doneChan := make(chan bool)
+		inputChan := make(chan bool)
+
+		go func() {
+			for {
+				select {
+				case <-doneChan:
+					return
+				default:
+					if hasKey() {
+						_ = readKey() // 消费按键
+						inputChan <- true
+						return
+					}
+					time.Sleep(50 * time.Millisecond)
+				}
+			}
+		}()
+
+		fmt.Fprintf(deps.Stdout, "处理完成。%d 秒后自动关闭（或按任意键立即关闭）...   \r", countdown)
+
+		for countdown > 0 {
+			select {
+			case <-ticker.C:
+				countdown--
+				if countdown <= 0 {
+					close(doneChan)
+					fmt.Fprint(deps.Stdout, "\n")
+					return exitCode
+				}
+				fmt.Fprintf(deps.Stdout, "处理完成。%d 秒后自动关闭（或按任意键立即关闭）...   \r", countdown)
+			case <-inputChan:
+				close(doneChan)
+				fmt.Fprint(deps.Stdout, "\n")
+				return exitCode
+			}
+		}
 	}
 
 	return exitCode
@@ -597,4 +649,28 @@ func isVideoFile(path string) bool {
 	default:
 		return false
 	}
+}
+
+func getDisplayWidth(s string) int {
+	w := 0
+	for _, r := range s {
+		if r > 127 {
+			w += 2
+		} else {
+			w += 1
+		}
+	}
+	return w
+}
+
+func padString(s string, width int, leftAlign bool) string {
+	curW := getDisplayWidth(s)
+	if curW >= width {
+		return s
+	}
+	padding := strings.Repeat(" ", width-curW)
+	if leftAlign {
+		return s + padding
+	}
+	return padding + s
 }

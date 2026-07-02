@@ -314,8 +314,8 @@ func TestExecuteSendToMode(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if !strings.Contains(stdout.String(), "处理完成。按回车键退出...") {
-		t.Fatalf("expected sendto exit prompt, got %s", stdout.String())
+	if !strings.Contains(stdout.String(), "秒后自动关闭") {
+		t.Fatalf("expected sendto exit prompt with countdown, got %s", stdout.String())
 	}
 }
 
