@@ -40,7 +40,7 @@ var presets = map[string]Preset{
 func PresetByName(name string) (Preset, error) {
 	preset, ok := presets[strings.ToLower(name)]
 	if !ok {
-		return Preset{}, fmt.Errorf("unknown preset: %s", name)
+		return Preset{}, fmt.Errorf("未知的预设: %s", name)
 	}
 	return preset, nil
 }

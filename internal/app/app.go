@@ -20,12 +20,27 @@ type Dependencies struct {
 	ResolveBinary   func(dir string) (string, error)
 	RunCommand      func(name string, args []string) error
 	MkdirAll        func(path string, perm os.FileMode) error
-	PathExists       func(path string) bool
-	InputAccessible  func(path string) bool
-	Stdout           io.Writer
+	PathExists      func(path string) bool
+	InputAccessible func(path string) bool
+	Stdout          io.Writer
 	Stderr          io.Writer
 	InstallSendTo   func(executablePath string) (string, error)
 	UninstallSendTo func() error
+}
+
+func printUsage(w io.Writer) {
+	fmt.Fprintln(w, "用法: videopress.exe [选项] <视频文件...>")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "选项:")
+	fmt.Fprintln(w, "  --preset small|standard|quality  压缩规格（默认 standard，大小写不敏感）")
+	fmt.Fprintln(w, "  --install-sendto                 安装 SendTo 右键快捷方式")
+	fmt.Fprintln(w, "  --uninstall-sendto               移除 SendTo 快捷方式")
+	fmt.Fprintln(w, "  --version                        显示版本号")
+	fmt.Fprintln(w, "  -h, --help                       显示此帮助")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "退出码:")
+	fmt.Fprintln(w, "  0  全部成功")
+	fmt.Fprintln(w, "  1  存在失败、全部跳过或非视频文件")
 }
 
 func Execute(args []string, deps Dependencies) int {
@@ -55,6 +70,13 @@ func Execute(args []string, deps Dependencies) int {
 		deps.InputAccessible = checkInputAccessible
 	}
 
+	for _, arg := range args {
+		if arg == "-h" || arg == "--help" {
+			printUsage(deps.Stdout)
+			return 0
+		}
+	}
+
 	fs := flag.NewFlagSet("videopress", flag.ContinueOnError)
 	fs.SetOutput(deps.Stderr)
 
@@ -64,6 +86,8 @@ func Execute(args []string, deps Dependencies) int {
 	showVersion := fs.Bool("version", false, "show version")
 
 	if err := fs.Parse(args); err != nil {
+		fmt.Fprintf(deps.Stderr, "未知选项: %v\n\n", err)
+		printUsage(deps.Stderr)
 		return 1
 	}
 	if *showVersion {
@@ -98,7 +122,7 @@ func Execute(args []string, deps Dependencies) int {
 
 	files := fs.Args()
 	if len(files) == 0 {
-		fmt.Fprintln(deps.Stderr, "用法: videopress.exe [--preset small|standard|quality] <files...>")
+		printUsage(deps.Stderr)
 		return 1
 	}
 
@@ -164,7 +188,8 @@ func Execute(args []string, deps Dependencies) int {
 
 func isVideoFile(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".mp4", ".mov", ".mkv", ".avi", ".m4v", ".wmv", ".webm":
+	case ".mp4", ".mov", ".mkv", ".avi", ".m4v", ".wmv", ".webm",
+		".ts", ".flv", ".mpg", ".mpeg", ".3gp":
 		return true
 	default:
 		return false

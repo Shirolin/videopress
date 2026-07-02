@@ -6,7 +6,7 @@ Windows 下基于 FFmpeg 的快速视频压缩工具。
 
 ## 功能
 
-- 三档压缩规格：`small`、`standard`、`quality`
+- 三档压缩规格：`small`、`standard`、`quality`（大小写不敏感）
 - 默认输出到源文件旁的 `compressed` 子目录
 - 永不覆盖原文件
 - 支持多文件批量处理
@@ -15,8 +15,10 @@ Windows 下基于 FFmpeg 的快速视频压缩工具。
 ## 依赖
 
 - Windows 10/11
-- Go 1.26+
-- 已安装 `ffmpeg`，并可通过 `PATH` 找到
+- Go 1.26+（自行构建时）
+- 已安装 `ffmpeg`，可通过以下任一方式提供：
+  - 系统 `PATH` 中可找到 `ffmpeg`
+  - 与 `videopress.exe` 同目录放置 `ffmpeg.exe`
 
 ## 预设说明
 
@@ -32,6 +34,7 @@ videopress.exe --preset small C:\videos\a.mp4 C:\videos\b.mov
 videopress.exe --install-sendto
 videopress.exe --uninstall-sendto
 videopress.exe --version
+videopress.exe -h
 ```
 
 默认输出文件名格式：
@@ -42,11 +45,24 @@ videopress.exe --version
 
 如果目标文件已存在，会自动追加 `-1`、`-2`。
 
+### 退出码
+
+- `0`：全部压缩成功
+- `1`：存在失败、输入无效，或所有文件均为非视频格式被跳过
+
+### 支持的视频格式
+
+`.mp4` `.mov` `.mkv` `.avi` `.m4v` `.wmv` `.webm` `.ts` `.flv` `.mpg` `.mpeg` `.3gp`
+
 ## 构建
 
 ```powershell
 go build -o .\bin\videopress.exe .\cmd\videopress
 ```
+
+## 发布版
+
+GitHub [Releases](https://github.com/Shirolin/videopress/releases) 提供预编译的 `videopress.exe`，无需安装 Go。仍需单独安装或放置 `ffmpeg.exe`。
 
 ## SendTo 使用
 
@@ -67,3 +83,5 @@ go build -o .\bin\videopress.exe .\cmd\videopress
 ```powershell
 .\bin\videopress.exe --uninstall-sendto
 ```
+
+> 注意：SendTo 快捷方式记录的是安装时的 `videopress.exe` 绝对路径。移动可执行文件后需重新运行 `--install-sendto`。

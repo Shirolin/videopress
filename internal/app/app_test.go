@@ -139,6 +139,45 @@ func TestExecutePrintsVersion(t *testing.T) {
 	}
 }
 
+func TestExecutePrintsHelp(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	for _, arg := range []string{"-h", "--help"} {
+		stdout.Reset()
+		stderr.Reset()
+		exitCode := Execute([]string{arg}, Dependencies{
+			Stdout: stdout,
+			Stderr: stderr,
+		})
+		if exitCode != 0 {
+			t.Fatalf("expected exit code 0 for %s, got %d", arg, exitCode)
+		}
+		if !strings.Contains(stdout.String(), "用法: videopress.exe") {
+			t.Fatalf("expected help output for %s, got %q", arg, stdout.String())
+		}
+	}
+}
+
+func TestExecuteUnknownFlagShowsHelp(t *testing.T) {
+	stderr := &bytes.Buffer{}
+
+	exitCode := Execute([]string{"--unknown"}, Dependencies{
+		Stdout: &bytes.Buffer{},
+		Stderr: stderr,
+	})
+
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d", exitCode)
+	}
+	if !strings.Contains(stderr.String(), "未知选项") {
+		t.Fatalf("expected unknown flag message, got %s", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "用法: videopress.exe") {
+		t.Fatalf("expected help in stderr, got %s", stderr.String())
+	}
+}
+
 func TestExecuteReturnsNonZeroWhenAllInputsSkipped(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}

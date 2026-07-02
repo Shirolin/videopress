@@ -11,7 +11,7 @@ type PathExistsFunc func(path string) bool
 func BuildOutputPath(inputPath string, preset string, exists PathExistsFunc) (string, error) {
 	ext := filepath.Ext(inputPath)
 	if ext == "" {
-		return "", fmt.Errorf("input file has no extension: %s", inputPath)
+		return "", fmt.Errorf("输入文件没有扩展名: %s", inputPath)
 	}
 
 	baseDir := filepath.Dir(inputPath)

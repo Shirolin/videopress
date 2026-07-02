@@ -47,7 +47,7 @@ func UninstallAt(sendToDir string, remove RemoveFunc) error {
 func sendToDir() (string, error) {
 	appData := os.Getenv("APPDATA")
 	if appData == "" {
-		return "", fmt.Errorf("APPDATA is not set")
+		return "", fmt.Errorf("未设置 APPDATA 环境变量")
 	}
 	return filepath.Join(appData, "Microsoft", "Windows", "SendTo"), nil
 }
