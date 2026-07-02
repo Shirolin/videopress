@@ -352,8 +352,15 @@ func Execute(args []string, deps Dependencies) int {
 	fmt.Fprintln(deps.Stdout, magenta("========================================"))
 	fmt.Fprintln(deps.Stdout, magenta("         Videopress 视频压缩工具        "))
 	fmt.Fprintln(deps.Stdout, magenta("========================================"))
+	var maxDimStr string
+	if preset.MaxDimension > 0 {
+		maxDimStr = fmt.Sprintf("%dpx", preset.MaxDimension)
+	} else {
+		maxDimStr = "无限制"
+	}
 	fmt.Fprintf(deps.Stdout, " 预设规格: %s\n", cyan(preset.Name))
-	fmt.Fprintf(deps.Stdout, " 最大分辨率: %s\n", cyan(fmt.Sprintf("%dpx", preset.MaxDimension)))
+	fmt.Fprintf(deps.Stdout, " 缩放比例: %s\n", cyan(fmt.Sprintf("%.0f%%", preset.ScaleFactor*100)))
+	fmt.Fprintf(deps.Stdout, " 最大分辨率限制: %s\n", cyan(maxDimStr))
 	fmt.Fprintf(deps.Stdout, " 并发限制: %s\n", cyan(fmt.Sprintf("%d", limit)))
 	if *hwAccel {
 		fmt.Fprintf(deps.Stdout, " 硬件编码: %s\n", green(hwEncoder))

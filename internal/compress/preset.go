@@ -7,6 +7,7 @@ import (
 
 type Preset struct {
 	Name         string
+	ScaleFactor  float64
 	MaxDimension int
 	CRF          int
 	Preset       string
@@ -16,21 +17,24 @@ type Preset struct {
 var presets = map[string]Preset{
 	"small": {
 		Name:         "small",
-		MaxDimension: 720,
+		ScaleFactor:  0.33,
+		MaxDimension: 480,
 		CRF:          30,
 		Preset:       "veryfast",
 		AudioBitrate: "64k",
 	},
 	"standard": {
 		Name:         "standard",
-		MaxDimension: 1080,
+		ScaleFactor:  0.50,
+		MaxDimension: 720,
 		CRF:          27,
 		Preset:       "faster",
 		AudioBitrate: "96k",
 	},
 	"quality": {
 		Name:         "quality",
-		MaxDimension: 1440,
+		ScaleFactor:  1.00,
+		MaxDimension: 0,
 		CRF:          24,
 		Preset:       "medium",
 		AudioBitrate: "128k",

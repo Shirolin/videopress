@@ -32,8 +32,8 @@ func TestBuildArgsForStandardPreset(t *testing.T) {
 		}
 	}
 
-	if !strings.Contains(joined, "scale='if(gt(iw,ih),trunc(min(1080,iw)/2)*2,-2)':'if(gt(iw,ih),-2,trunc(min(1080,ih)/2)*2)'") {
-		t.Fatalf("expected scale filter for 1080 max dimension, got %s", joined)
+	if !strings.Contains(joined, "scale='if(gt(iw,ih),trunc(min(iw*0.50,720)/2)*2,-2)':'if(gt(iw,ih),-2,trunc(min(ih*0.50,720)/2)*2)'") {
+		t.Fatalf("expected scale filter for 0.50 scale factor and 720 max dimension, got %s", joined)
 	}
 }
 

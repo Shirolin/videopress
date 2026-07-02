@@ -10,8 +10,11 @@ func TestPresetByNameReturnsExpectedConfig(t *testing.T) {
 	if small.Name != "small" {
 		t.Fatalf("expected preset name small, got %s", small.Name)
 	}
-	if small.MaxDimension != 720 {
-		t.Fatalf("expected max dimension 720, got %d", small.MaxDimension)
+	if small.ScaleFactor != 0.33 {
+		t.Fatalf("expected scale factor 0.33, got %f", small.ScaleFactor)
+	}
+	if small.MaxDimension != 480 {
+		t.Fatalf("expected max dimension 480, got %d", small.MaxDimension)
 	}
 	if small.CRF != 30 {
 		t.Fatalf("expected crf 30, got %d", small.CRF)
@@ -27,8 +30,11 @@ func TestPresetByNameReturnsExpectedConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PresetByName(standard) returned error: %v", err)
 	}
-	if standard.MaxDimension != 1080 {
-		t.Fatalf("expected max dimension 1080, got %d", standard.MaxDimension)
+	if standard.ScaleFactor != 0.50 {
+		t.Fatalf("expected scale factor 0.50, got %f", standard.ScaleFactor)
+	}
+	if standard.MaxDimension != 720 {
+		t.Fatalf("expected max dimension 720, got %d", standard.MaxDimension)
 	}
 	if standard.CRF != 27 {
 		t.Fatalf("expected crf 27, got %d", standard.CRF)
@@ -41,8 +47,11 @@ func TestPresetByNameReturnsExpectedConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PresetByName(quality) returned error: %v", err)
 	}
-	if quality.MaxDimension != 1440 {
-		t.Fatalf("expected max dimension 1440, got %d", quality.MaxDimension)
+	if quality.ScaleFactor != 1.00 {
+		t.Fatalf("expected scale factor 1.00, got %f", quality.ScaleFactor)
+	}
+	if quality.MaxDimension != 0 {
+		t.Fatalf("expected max dimension 0, got %d", quality.MaxDimension)
 	}
 	if quality.CRF != 24 {
 		t.Fatalf("expected crf 24, got %d", quality.CRF)
@@ -55,8 +64,8 @@ func TestPresetByNameReturnsExpectedConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PresetByName(STANDARD) returned error: %v", err)
 	}
-	if upper.MaxDimension != 1080 {
-		t.Fatalf("expected max dimension 1080 for STANDARD, got %d", upper.MaxDimension)
+	if upper.MaxDimension != 720 {
+		t.Fatalf("expected max dimension 720 for STANDARD, got %d", upper.MaxDimension)
 	}
 }
 

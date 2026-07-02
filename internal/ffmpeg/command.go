@@ -7,11 +7,20 @@ import (
 )
 
 func BuildArgs(inputPath string, outputPath string, preset compress.Preset, hwEncoder string, copyAudio bool) []string {
-	scaleFilter := fmt.Sprintf(
-		"scale='if(gt(iw,ih),trunc(min(%d,iw)/2)*2,-2)':'if(gt(iw,ih),-2,trunc(min(%d,ih)/2)*2)'",
-		preset.MaxDimension,
-		preset.MaxDimension,
-	)
+	var scaleFilter string
+	if preset.MaxDimension > 0 {
+		scaleFilter = fmt.Sprintf(
+			"scale='if(gt(iw,ih),trunc(min(iw*%.2f,%d)/2)*2,-2)':'if(gt(iw,ih),-2,trunc(min(ih*%.2f,%d)/2)*2)'",
+			preset.ScaleFactor, preset.MaxDimension,
+			preset.ScaleFactor, preset.MaxDimension,
+		)
+	} else {
+		scaleFilter = fmt.Sprintf(
+			"scale='if(gt(iw,ih),trunc(iw*%.2f/2)*2,-2)':'if(gt(iw,ih),-2,trunc(ih*%.2f/2)*2)'",
+			preset.ScaleFactor,
+			preset.ScaleFactor,
+		)
+	}
 
 	args := []string{
 		"-hide_banner",
