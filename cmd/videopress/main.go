@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"videopress/internal/app"
+	"videopress/internal/env"
 	"videopress/internal/sendto"
 )
 
@@ -22,6 +23,8 @@ func main() {
 		Stderr:          os.Stderr,
 		InstallSendTo:   sendto.Install,
 		UninstallSendTo: sendto.Uninstall,
+		AddToPath:       env.AddToPath,
+		RemoveFromPath:  env.RemoveFromPath,
 	})
 	os.Exit(exitCode)
 }

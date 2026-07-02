@@ -424,3 +424,47 @@ func TestExecuteUninstallSendTo(t *testing.T) {
 		t.Fatalf("expected success message in stdout, got %s", stdout.String())
 	}
 }
+
+func TestExecuteInstallPath(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stdin := strings.NewReader("\n")
+
+	exitCode := Execute([]string{"--install-path"}, Dependencies{
+		ExecutableDir: `C:\tools`,
+		AddToPath: func(dir string) (bool, error) {
+			return true, nil
+		},
+		Stdout: stdout,
+		Stderr: &bytes.Buffer{},
+		Stdin:  stdin,
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "【成功】") {
+		t.Fatalf("expected success message in stdout, got %s", stdout.String())
+	}
+}
+
+func TestExecuteUninstallPath(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stdin := strings.NewReader("\n")
+
+	exitCode := Execute([]string{"--uninstall-path"}, Dependencies{
+		ExecutableDir: `C:\tools`,
+		RemoveFromPath: func(dir string) (bool, error) {
+			return true, nil
+		},
+		Stdout: stdout,
+		Stderr: &bytes.Buffer{},
+		Stdin:  stdin,
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "【成功】") {
+		t.Fatalf("expected success message in stdout, got %s", stdout.String())
+	}
+}

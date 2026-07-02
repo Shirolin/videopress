@@ -47,6 +47,8 @@ type Dependencies struct {
 	Stdin                  io.Reader
 	InstallSendTo          func(executablePath string) (string, error)
 	UninstallSendTo        func() error
+	AddToPath              func(dir string) (bool, error)
+	RemoveFromPath         func(dir string) (bool, error)
 }
 
 type JobReport struct {
@@ -72,6 +74,8 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  --copy-audio, -a                 直接复制音频流，不重编码")
 	fmt.Fprintln(w, "  --install-sendto                 安装 SendTo 右键快捷方式")
 	fmt.Fprintln(w, "  --uninstall-sendto               移除 SendTo 快捷方式")
+	fmt.Fprintln(w, "  --install-path                   添加程序目录到用户 Path 环境变量")
+	fmt.Fprintln(w, "  --uninstall-path                 从用户 Path 环境变量移除程序目录")
 	fmt.Fprintln(w, "  --version                        显示版本号")
 	fmt.Fprintln(w, "  -h, --help                       显示此帮助")
 	fmt.Fprintln(w)
@@ -172,6 +176,16 @@ func Execute(args []string, deps Dependencies) int {
 	if deps.Stdin == nil {
 		deps.Stdin = os.Stdin
 	}
+	if deps.AddToPath == nil {
+		deps.AddToPath = func(dir string) (bool, error) {
+			return false, fmt.Errorf("未配置 AddToPath")
+		}
+	}
+	if deps.RemoveFromPath == nil {
+		deps.RemoveFromPath = func(dir string) (bool, error) {
+			return false, fmt.Errorf("未配置 RemoveFromPath")
+		}
+	}
 
 	for _, arg := range args {
 		if arg == "-h" || arg == "--help" {
@@ -195,6 +209,8 @@ func Execute(args []string, deps Dependencies) int {
 	sendToMode := fs.Bool("sendto", false, "enable SendTo prompt on exit")
 	installSendTo := fs.Bool("install-sendto", false, "install SendTo shortcut")
 	uninstallSendTo := fs.Bool("uninstall-sendto", false, "remove SendTo shortcut")
+	installPath := fs.Bool("install-path", false, "add executable directory to User Path")
+	uninstallPath := fs.Bool("uninstall-path", false, "remove executable directory from User Path")
 	showVersion := fs.Bool("version", false, "show version")
 
 	if err := fs.Parse(args); err != nil {
@@ -233,6 +249,47 @@ func Execute(args []string, deps Dependencies) int {
 			return 1
 		}
 		fmt.Fprintln(deps.Stdout, green("【成功】已成功移除 SendTo 右键快捷方式。"))
+		fmt.Fprintln(deps.Stdout, "\n处理完成。按回车键退出...")
+		var b [1]byte
+		deps.Stdin.Read(b[:])
+		return 0
+	}
+	if *installPath {
+		if deps.AddToPath == nil {
+			fmt.Fprintln(deps.Stderr, red("当前构建未启用环境变量配置"))
+			return 1
+		}
+		added, err := deps.AddToPath(deps.ExecutableDir)
+		if err != nil {
+			fmt.Fprintln(deps.Stderr, red(err.Error()))
+			return 1
+		}
+		if added {
+			fmt.Fprintf(deps.Stdout, "%s 已将目录添加至当前用户的 Path 环境变量: %s\n", green("【成功】"), green(deps.ExecutableDir))
+			fmt.Fprintln(deps.Stdout, "\n提示：现在您可以在新打开的终端（CMD/PowerShell）中，直接通过 `videopress` 命令运行本软件！")
+		} else {
+			fmt.Fprintf(deps.Stdout, "%s 环境变量 Path 中已存在该目录: %s\n", yellow("【提示】"), deps.ExecutableDir)
+		}
+		fmt.Fprintln(deps.Stdout, "\n处理完成。按回车键退出...")
+		var b [1]byte
+		deps.Stdin.Read(b[:])
+		return 0
+	}
+	if *uninstallPath {
+		if deps.RemoveFromPath == nil {
+			fmt.Fprintln(deps.Stderr, red("当前构建未启用环境变量配置"))
+			return 1
+		}
+		removed, err := deps.RemoveFromPath(deps.ExecutableDir)
+		if err != nil {
+			fmt.Fprintln(deps.Stderr, red(err.Error()))
+			return 1
+		}
+		if removed {
+			fmt.Fprintf(deps.Stdout, "%s 已成功从 Path 环境变量中移除该目录: %s\n", green("【成功】"), green(deps.ExecutableDir))
+		} else {
+			fmt.Fprintf(deps.Stdout, "%s 环境变量 Path 中未找到该目录: %s\n", yellow("【提示】"), deps.ExecutableDir)
+		}
 		fmt.Fprintln(deps.Stdout, "\n处理完成。按回车键退出...")
 		var b [1]byte
 		deps.Stdin.Read(b[:])
