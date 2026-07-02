@@ -49,7 +49,7 @@ func UninstallAt(sendToDir string, remove RemoveFunc) error {
 
 func createLnk(lnkPath string, targetPath string, arguments string) error {
 	psCmd := fmt.Sprintf(
-		`$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%s'); $Shortcut.TargetPath = '%s'; $Shortcut.Arguments = '%s'; $Shortcut.Save()`,
+		`$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%s'); $Shortcut.TargetPath = '%s'; $Shortcut.Arguments = '%s'; $Shortcut.IconLocation = 'shell32.dll,216'; $Shortcut.Save()`,
 		lnkPath, targetPath, arguments,
 	)
 	cmd := exec.Command("powershell", "-NoProfile", "-Command", psCmd)
