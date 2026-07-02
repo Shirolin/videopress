@@ -42,16 +42,21 @@
 1. 下载并构建 [videopress.exe](https://github.com/Shirolin/videopress)。
 2. 下载并安装 [FFmpeg](https://ffmpeg.org/download.html)。确保 `ffmpeg.exe` 已加入系统环境变量 `PATH`，或者直接将 `ffmpeg.exe` 放置在与 `videopress.exe` 相同的目录下。
 
-### 2. 绑定右键菜单
+### 2. 集成到系统（二选一或同时配置）
+
+#### 💡 选项 A：绑定右键“发送到”菜单（适合日常日常交互）
 在 `videopress.exe` 所在目录打开终端，运行：
 ```powershell
 .\videopress.exe --install-sendto
 ```
-提示安装成功后，你可以双击或回车关闭窗口。
+* **如何使用**：在资源管理器中，选择你想要压缩的视频文件（支持多选），**右键 -> 发送到 -> 快速压缩视频** 即可自动开始压缩，你将在弹出的控制台中看到精美的动态进度条。
 
-### 3. 一键视频压缩
-在资源管理器中，选择你想要压缩的视频文件（支持多选），**右键 -> 发送到 -> 快速压缩视频**。  
-压缩任务会自动启动，你将在控制台中看到精美的实时进度条。
+#### 💻 选项 B：配置环境变量 Path（适合命令行效率用户）
+在 `videopress.exe` 所在目录打开终端，运行：
+```powershell
+.\videopress.exe --install-path
+```
+* **如何使用**：重新打开一个终端（CMD/PowerShell）后，你可以在**任意目录**下直接运行 `videopress <视频路径>`，无需再键入长长的程序路径。
 
 ---
 
