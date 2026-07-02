@@ -3,12 +3,13 @@ package sendto
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 )
 
-const launcherName = "快速压缩视频.cmd"
+const launcherName = "快速压缩视频.lnk"
 
-type WriteFileFunc func(name string, data []byte, perm os.FileMode) error
+type CreateLnkFunc func(lnkPath string, targetPath string, arguments string) error
 type RemoveFunc func(name string) error
 
 func Install(executablePath string) (string, error) {
@@ -16,7 +17,7 @@ func Install(executablePath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return InstallAt(sendToDir, executablePath, os.WriteFile)
+	return InstallAt(sendToDir, executablePath, createLnk)
 }
 
 func Uninstall() error {
@@ -27,21 +28,32 @@ func Uninstall() error {
 	return UninstallAt(sendToDir, os.Remove)
 }
 
-func InstallAt(sendToDir string, executablePath string, writeFile WriteFileFunc) (string, error) {
+func InstallAt(sendToDir string, executablePath string, createLnk CreateLnkFunc) (string, error) {
 	launcherPath := filepath.Join(sendToDir, launcherName)
-	content := fmt.Sprintf("@echo off\r\n\"%s\" %%*\r\n", executablePath)
-	if err := writeFile(launcherPath, []byte(content), 0o644); err != nil {
+	if err := createLnk(launcherPath, executablePath, "--sendto"); err != nil {
 		return "", err
 	}
 	return launcherPath, nil
 }
 
 func UninstallAt(sendToDir string, remove RemoveFunc) error {
-	launcherPath := filepath.Join(sendToDir, launcherName)
-	if err := remove(launcherPath); err != nil && !os.IsNotExist(err) {
-		return err
-	}
+	lnkPath := filepath.Join(sendToDir, launcherName)
+	_ = remove(lnkPath)
+
+	// 兼容老版本清除
+	oldCmdPath := filepath.Join(sendToDir, "快速压缩视频.cmd")
+	_ = remove(oldCmdPath)
+
 	return nil
+}
+
+func createLnk(lnkPath string, targetPath string, arguments string) error {
+	psCmd := fmt.Sprintf(
+		`$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%s'); $Shortcut.TargetPath = '%s'; $Shortcut.Arguments = '%s'; $Shortcut.Save()`,
+		lnkPath, targetPath, arguments,
+	)
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", psCmd)
+	return cmd.Run()
 }
 
 func sendToDir() (string, error) {

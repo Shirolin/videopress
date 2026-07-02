@@ -111,13 +111,13 @@ func TestExecuteReturnsNonZeroWhenCompressionFails(t *testing.T) {
 		PathExists:      func(path string) bool { return false },
 		InputAccessible: accessibleInput,
 		Stdout:          &bytes.Buffer{},
-		Stderr:     stderr,
+		Stderr:          stderr,
 	})
 
 	if exitCode != 1 {
 		t.Fatalf("expected exit code 1, got %d", exitCode)
 	}
-	if !strings.Contains(stderr.String(), "ffmpeg failed") {
+	if !strings.Contains(stderr.String(), "压缩失败:") {
 		t.Fatalf("expected failure message, got %s", stderr.String())
 	}
 }
@@ -219,5 +219,208 @@ func TestExecuteFailsWhenInputNotAccessible(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "输入文件不存在或不可读") {
 		t.Fatalf("expected inaccessible message, got %s", stderr.String())
+	}
+}
+
+func TestExecuteGPUAccel(t *testing.T) {
+	var calls []recordedCall
+	stdout := &bytes.Buffer{}
+
+	exitCode := Execute([]string{"--hw", `C:\videos\clip.mp4`}, Dependencies{
+		ExecutableDir:  `C:\tools`,
+		ExecutablePath: `C:\tools\videopress.exe`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		DetectGPUEncoder: func(ffmpegPath string, runCmd func(string, []string) error) string {
+			return "h264_nvenc"
+		},
+		RunCommand: func(name string, args []string) error {
+			calls = append(calls, recordedCall{name: name, args: args})
+			return nil
+		},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          &bytes.Buffer{},
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	joined := strings.Join(calls[0].args, " ")
+	if !strings.Contains(joined, "-c:v h264_nvenc") {
+		t.Fatalf("expected hardware encoder in args, got %s", joined)
+	}
+	if !strings.Contains(stdout.String(), "h264_nvenc") {
+		t.Fatalf("expected GPU encoder h264_nvenc in output, got %s", stdout.String())
+	}
+}
+
+func TestExecuteConcurrency(t *testing.T) {
+	var calls []recordedCall
+	stdout := &bytes.Buffer{}
+
+	exitCode := Execute([]string{"--concurrency", "2", `C:\videos\clip1.mp4`, `C:\videos\clip2.mp4`}, Dependencies{
+		ExecutableDir:  `C:\tools`,
+		ExecutablePath: `C:\tools\videopress.exe`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			calls = append(calls, recordedCall{name: name, args: args})
+			return nil
+		},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          &bytes.Buffer{},
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d, stdout: %s", exitCode, stdout.String())
+	}
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 calls, got %d", len(calls))
+	}
+}
+
+func TestExecuteSendToMode(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stdin := strings.NewReader("\n")
+
+	exitCode := Execute([]string{"--sendto", `C:\videos\clip.mp4`}, Dependencies{
+		ExecutableDir:  `C:\tools`,
+		ExecutablePath: `C:\tools\videopress.exe`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			return nil
+		},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          &bytes.Buffer{},
+		Stdin:           stdin,
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "处理完成。按回车键退出...") {
+		t.Fatalf("expected sendto exit prompt, got %s", stdout.String())
+	}
+}
+
+func TestExecuteCopyAudio(t *testing.T) {
+	var calls []recordedCall
+	exitCode := Execute([]string{"--copy-audio", `C:\videos\clip.mp4`}, Dependencies{
+		ExecutableDir:  `C:\tools`,
+		ExecutablePath: `C:\tools\videopress.exe`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			calls = append(calls, recordedCall{name: name, args: args})
+			return nil
+		},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	joined := strings.Join(calls[0].args, " ")
+	if !strings.Contains(joined, "-c:a copy") {
+		t.Fatalf("expected copy audio parameter in args, got %s", joined)
+	}
+}
+
+func TestExecuteSkipExisting(t *testing.T) {
+	var calls []recordedCall
+	stdout := &bytes.Buffer{}
+
+	exitCode := Execute([]string{"--skip-existing", `C:\videos\clip.mp4`}, Dependencies{
+		ExecutableDir:  `C:\tools`,
+		ExecutablePath: `C:\tools\videopress.exe`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			calls = append(calls, recordedCall{name: name, args: args})
+			return nil
+		},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return strings.Contains(path, "clip.standard.compressed.mp4") },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          &bytes.Buffer{},
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("expected 0 ffmpeg calls because file should be skipped, got %d", len(calls))
+	}
+	if !strings.Contains(stdout.String(), "跳过已存在的文件") {
+		t.Fatalf("expected skip log, got %s", stdout.String())
+	}
+}
+
+func TestExecuteInstallSendTo(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stdin := strings.NewReader("\n")
+
+	exitCode := Execute([]string{"--install-sendto"}, Dependencies{
+		ExecutablePath: `C:\tools\videopress.exe`,
+		InstallSendTo: func(executablePath string) (string, error) {
+			return `C:\sendto\快速压缩视频.lnk`, nil
+		},
+		Stdout: stdout,
+		Stderr: &bytes.Buffer{},
+		Stdin:  stdin,
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "【成功】") {
+		t.Fatalf("expected success message in stdout, got %s", stdout.String())
+	}
+}
+
+func TestExecuteUninstallSendTo(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stdin := strings.NewReader("\n")
+
+	exitCode := Execute([]string{"--uninstall-sendto"}, Dependencies{
+		UninstallSendTo: func() error {
+			return nil
+		},
+		Stdout: stdout,
+		Stderr: &bytes.Buffer{},
+		Stdin:  stdin,
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "【成功】") {
+		t.Fatalf("expected success message in stdout, got %s", stdout.String())
 	}
 }

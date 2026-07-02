@@ -13,7 +13,7 @@ func TestBuildArgsForStandardPreset(t *testing.T) {
 		t.Fatalf("PresetByName returned error: %v", err)
 	}
 
-	args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset)
+	args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", false)
 	joined := strings.Join(args, " ")
 
 	required := []string{
@@ -32,7 +32,43 @@ func TestBuildArgsForStandardPreset(t *testing.T) {
 		}
 	}
 
-	if !strings.Contains(joined, "scale='if(gt(iw,ih),min(1080,iw),-2)':'if(gt(iw,ih),-2,min(1080,ih))'") {
+	if !strings.Contains(joined, "scale='if(gt(iw,ih),trunc(min(1080,iw)/2)*2,-2)':'if(gt(iw,ih),-2,trunc(min(1080,ih)/2)*2)'") {
 		t.Fatalf("expected scale filter for 1080 max dimension, got %s", joined)
+	}
+}
+
+func TestBuildArgsForGPUEncoders(t *testing.T) {
+	preset, _ := compress.PresetByName("standard")
+
+	tests := []struct {
+		encoder  string
+		expected []string
+	}{
+		{"h264_nvenc", []string{"-c:v h264_nvenc", "-rc constqp", "-qp 27"}},
+		{"h264_qsv", []string{"-c:v h264_qsv", "-global_quality 27"}},
+		{"h264_amf", []string{"-c:v h264_amf", "-rc cqp", "-qp_i 27", "-qp_p 27"}},
+	}
+
+	for _, tt := range tests {
+		args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, tt.encoder, false)
+		joined := strings.Join(args, " ")
+		for _, part := range tt.expected {
+			if !strings.Contains(joined, part) {
+				t.Errorf("expected encoder %s args to contain %q, got %s", tt.encoder, part, joined)
+			}
+		}
+	}
+}
+
+func TestBuildArgsWithCopyAudio(t *testing.T) {
+	preset, _ := compress.PresetByName("standard")
+	args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", true)
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-c:a copy") {
+		t.Fatalf("expected copy audio parameter, got %s", joined)
+	}
+	if strings.Contains(joined, "-c:a aac") {
+		t.Fatalf("should not contain aac codec, got %s", joined)
 	}
 }
