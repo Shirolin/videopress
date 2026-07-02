@@ -1,6 +1,41 @@
+# Binaries and Build Artifacts
 bin/
 dist/
-compressed/
 *.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 *.test
+*.prof
+
+# Local FFmpeg Binaries (prevent heavy media tools checkin)
+ffmpeg
+ffmpeg.exe
+ffprobe
+ffprobe.exe
+
+# Testing and Coverage
 coverage.out
+*.coverprofile
+*.test
+
+# Local Output & Logs
+compressed/
+*.log
+compress_summary.log
+
+# IDEs and Text Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.user
+*.sln
+*.docstates
+
+# Windows System Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
