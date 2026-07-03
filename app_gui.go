@@ -2,13 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 
-	"videopress/internal/compress"
 	"videopress/internal/engine"
 	"videopress/internal/env"
-	"videopress/internal/ffmpeg"
 	"videopress/internal/sendto"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
