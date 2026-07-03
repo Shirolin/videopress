@@ -421,14 +421,6 @@ func Execute(args []string, deps Dependencies) int {
 			continue
 		}
 
-		if err := deps.MkdirAll(filepath.Dir(output), 0o755); err != nil {
-			fmt.Fprintf(deps.Stderr, "%s 创建输出目录失败 %s: %v\n", red("错误:"), output, err)
-			mu.Lock()
-			failures++
-			mu.Unlock()
-			continue
-		}
-
 		outputMap[filepath.Base(input)] = output
 		engineFiles = append(engineFiles, input)
 	}

@@ -8,6 +8,9 @@ dist/
 *.dylib
 *.test
 *.prof
+.gopath/
+frontend/node_modules/
+frontend/dist/
 
 # Local FFmpeg Binaries (prevent heavy media tools checkin)
 ffmpeg
