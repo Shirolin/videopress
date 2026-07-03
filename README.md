@@ -4,32 +4,34 @@
   <img src="https://img.shields.io/badge/Platform-Windows-0078d7?style=flat-square&logo=windows" alt="Platform">
   <img src="https://img.shields.io/badge/Language-Go%201.26+-00add8?style=flat-square&logo=go" alt="Language">
   <img src="https://img.shields.io/badge/FFmpeg-Required-green?style=flat-square&logo=ffmpeg" alt="FFmpeg">
+  <img src="https://img.shields.io/badge/Framework-Wails%20v2-red?style=flat-square" alt="Wails">
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License">
 </p>
 
-**Videopress** 是一个专为 Windows 控制台和资源管理器设计的、基于 FFmpeg 的高颜值视频压缩工具。  
-它免去了记忆 FFmpeg 复杂参数的烦恼，只提供精心调校的常用预设规格，同时支持并发队列、硬件加速自动探测以及完美的 Windows 右键菜单绑定，是博客作者、社交媒体运营人员和前端开发者的效率利器。
+**Videopress** 是一个专为 Windows 系统设计的、基于 FFmpeg 的高颜值视频压缩工具。
+它完美融合了**桌面图形界面 (GUI)** 与**控制台命令行 (CLI)** 双入口，不仅能满足日常拖拽和右键菜单快速压缩，还能完美适配终端效率工具流。
+它免去了记忆 FFmpeg 复杂参数的烦恼，只提供精心调校的常用预设规格，同时支持并发队列、硬件加速自动探测以及系统右键集成。
 
 ---
 
 ## 🛠 运行工作流
 
 ```text
- ┌──────────┐      右键菜单 / 命令行      ┌────────────┐      自动探测 GPU      ┌─────────────┐
- │ 视频源文件 ├─────────────────────────>│ Videopress ├───────────────────────>│ 硬件加速编码 │
- └──────────┘                            └─────┬──────┘  (NVENC / QSV / AMF)   └──────┬──────┘
-                                               │                                      │
-                                               ▼                                      ▼
-                                         ┌────────────┐                         ┌─────────────┐
-                                         │  并发队列  │                         │ FFmpeg 压缩 │
-                                         │ (Worker)   │                         └──────┬──────┘
-                                         └─────┬──────┘                                │
-                                               │                                      │
-                                               ▼                                      ▼
-                                         ┌────────────┐                         ┌─────────────┐
-                                         │ 终端UI表格 │<────────────────────────┤ 压缩完成输出 │
-                                         │  运行日志  │                         │(compressed/)│
-                                         └────────────┘                         └─────────────┘
+ ┌──────────┐      右键菜单 / 命令行 / GUI 拖拽      ┌────────────┐      自动探测 GPU      ┌─────────────┐
+ │ 视频源文件 ├────────────────────────────────────>│ Videopress ├───────────────────────>│ 硬件加速编码 │
+ └──────────┘                                        └─────┬──────┘  (NVENC / QSV / AMF)   └──────┬──────┘
+                                                           │                                      │
+                                                           ▼                                      ▼
+                                                     ┌────────────┐                         ┌─────────────┐
+                                                     │  并发队列  │                         │ FFmpeg 压缩 │
+                                                     │ (Worker)   │                         └──────┬──────┘
+                                                     └─────┬──────┘                                │
+                                                           │                                      │
+                                                           ▼                                      ▼
+                                                     ┌────────────┐                         ┌─────────────┐
+                                                     │ GUI / CLI  │<────────────────────────┤ 压缩完成输出 │
+                                                     │ 进度与摘要  │                         │(compressed/)│
+                                                     └────────────┘                         └─────────────┘
 ```
 
 ---
@@ -39,32 +41,34 @@
 只需三步，即可将软件集成进你的 Windows 系统：
 
 ### 1. 准备依赖
-1. 下载并构建 [videopress.exe](https://github.com/Shirolin/videopress)。
+1. 下载或编译得到 `videopress.exe`。
 2. 下载并安装 [FFmpeg](https://ffmpeg.org/download.html)。确保 `ffmpeg.exe` 已加入系统环境变量 `PATH`，或者直接将 `ffmpeg.exe` 放置在与 `videopress.exe` 相同的目录下。
 
 ### 2. 集成到系统（二选一或同时配置）
 
-#### 💡 选项 A：绑定右键“发送到”菜单（适合日常日常交互）
+#### 💡 选项 A：绑定右键“发送到”菜单（适合日常交互）
 在 `videopress.exe` 所在目录打开终端，运行：
 ```powershell
 .\videopress.exe --install-sendto
 ```
-* **如何使用**：在资源管理器中，选择你想要压缩的视频文件（支持多选），**右键 -> 发送到 -> 快速压缩视频** 即可自动开始压缩，你将在弹出的控制台中看到精美的动态进度条。
+* **如何使用**：在资源管理器中，选择你想要压缩的视频文件（支持多选），**右键 -> 发送到 -> 快速压缩视频** 即可自动开始压缩。程序会自动识别调用环境，在控制台弹出精美的动态进度条。
 
 #### 💻 选项 B：配置环境变量 Path（适合命令行效率用户）
 在 `videopress.exe` 所在目录打开终端，运行：
 ```powershell
 .\videopress.exe --install-path
 ```
-* **如何使用**：重新打开一个终端（CMD/PowerShell）后，你可以在**任意目录**下直接运行 `videopress <视频路径>`，无需再键入长长的程序路径。
+* **如何使用**：重新打开一个终端（CMD/PowerShell）后，你可以在**任意目录**下直接运行 `videopress <视频路径>` 启动命令行压缩，或直接运行 `videopress` 打开高颜值图形界面。
 
 ---
 
 ## ✨ 核心特性
 
-* 🎨 **高颜值交互**：基于 ANSI 彩色高亮和零抖动的绿色平滑进度条设计。压缩完成后渲染出对齐的摘要表格（展示原始大小、压缩大小、存储节省率、耗时）。
+* 🖥 **双入口无缝切换**：
+  * **GUI 模式**：双击程序或不带参数运行时，展示基于 Wails + Svelte 开发的现代化深色毛玻璃美感图形界面。支持文件拖拽、压缩队列管理、全局设置配置及 GPU 加速检测切换。
+  * **CLI 模式**：在终端附带视频文件路径运行时，自动进入控制台模式，实时渲染无抖动的平滑进度条，并在完成后输出直观的压缩率摘要表格。
 * 🚀 **GPU 硬件加速**：自动检测你显卡支持的硬编技术（NVIDIA `h264_nvenc`、Intel `h264_qsv`、AMD `h264_amf`）。检测到后自动开启加速，未检测到时安全 fallback 到 CPU 编码。
-* 🧵 **高效并发**：通过 Worker Pool 机制实现多视频文件并发压缩。并发数大于 1 时，进度条展示将优雅地降级为整洁的动态状态日志，避免终端闪烁。
+* 🧵 **高效并发**：通过 Worker Pool 机制实现多视频文件并发压缩。CLI 模式下并发数大于 1 时，进度条展示将优雅地降级为整洁的动态状态日志，避免终端闪烁。
 * 📝 **自动日志归档**：压缩结束后，程序会在对应的输出目录自动创建/追加 `compress_summary.log`，供随时复盘压缩率和处理耗时。
 * 🌐 **环境变量一键绑定**：支持通过 `--install-path` 自动将当前程序目录追加到 Windows 当前用户的 `Path` 环境变量中，同时支持 `--uninstall-path` 安全移除，实现跨终端随处调用。
 * 🛠 **大白话错误提取**：FFmpeg 执行出错时自动丢弃上千行繁杂堆栈，只提取易读的中文错误原因（如“宽度或高度必须是偶数”）。
@@ -117,11 +121,26 @@ videopress.exe --install-path
 
 若需从源码构建，请确保你的本地已安装 Go 1.26+ 环境：
 
+### 命令行版本直接编译（不包含 GUI 界面）
+
+若你仅需要纯命令行版本，可直接使用 Go 编译：
 ```powershell
-# 克隆仓库并构建
-git clone https://github.com/Shirolin/videopress.git
-cd videopress
-go build -o .\bin\videopress.exe .\cmd\videopress
+# 编译 CLI 静态程序
+go build -o .\bin\videopress.exe .\main.go
 ```
 
+### GUI+CLI 双入口完整版编译（推荐）
 
+完整版需要使用 [Wails CLI](https://wails.io/zh-Hans/docs/gettingstarted/installation) 工具进行构建（需本地安装 Node.js 以编译前端 Svelte）：
+
+```powershell
+# 1. 安装 Wails CLI（如未安装）
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+# 2. 启动本地热重载开发环境
+wails dev
+
+# 3. 编译发布 Windows 完整版单文件程序
+wails build
+```
+编译生成的 `videopress.exe` 将输出在根目录下，双击即可启动高颜值 GUI 界面，拖入命令行即可执行 CLI 压缩。
