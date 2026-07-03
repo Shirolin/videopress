@@ -6,7 +6,7 @@ import (
 )
 
 func TestBuildOutputPathUsesCompressedSubdirectory(t *testing.T) {
-	output, err := BuildOutputPath(`C:\videos\demo.mp4`, "standard", nil, false)
+	output, err := BuildOutputPath(`C:\videos\demo.mp4`, "standard", nil, false, "")
 	if err != nil {
 		t.Fatalf("BuildOutputPath returned error: %v", err)
 	}
@@ -22,7 +22,7 @@ func TestBuildOutputPathAppendsSequenceWhenTargetExists(t *testing.T) {
 		return filepath.Clean(path) == filepath.Clean(`C:\videos\compressed\demo.standard.compressed.mp4`)
 	}
 
-	output, err := BuildOutputPath(`C:\videos\demo.mp4`, "standard", exists, false)
+	output, err := BuildOutputPath(`C:\videos\demo.mp4`, "standard", exists, false, "")
 	if err != nil {
 		t.Fatalf("BuildOutputPath returned error: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestBuildOutputPathAppendsSequenceWhenTargetExists(t *testing.T) {
 }
 
 func TestBuildOutputPathRejectsMissingExtension(t *testing.T) {
-	_, err := BuildOutputPath(`C:\videos\demo`, "standard", nil, false)
+	_, err := BuildOutputPath(`C:\videos\demo`, "standard", nil, false, "")
 	if err == nil {
 		t.Fatal("expected error for missing extension")
 	}
@@ -42,7 +42,7 @@ func TestBuildOutputPathRejectsMissingExtension(t *testing.T) {
 
 func TestBuildOutputPathWithForce(t *testing.T) {
 	exists := func(path string) bool { return true }
-	output, err := BuildOutputPath(`C:\videos\demo.mp4`, "standard", exists, true)
+	output, err := BuildOutputPath(`C:\videos\demo.mp4`, "standard", exists, true, "")
 	if err != nil {
 		t.Fatalf("BuildOutputPath returned error: %v", err)
 	}

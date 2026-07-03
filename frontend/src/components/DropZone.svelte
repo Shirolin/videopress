@@ -2,10 +2,14 @@
   import { createEventDispatcher } from 'svelte';
   import { SelectFiles } from '../../wailsjs/go/main/App.js';
 
+  export let compact = false;
+  export let disabled = false;
+
   const dispatch = createEventDispatcher();
   let isDragOver = false;
 
   async function handleClick() {
+    if (disabled) return;
     try {
       const files = await SelectFiles();
       if (files && files.length > 0) {
@@ -18,6 +22,7 @@
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
+    if (disabled) return;
     isDragOver = true;
   }
 
@@ -28,18 +33,15 @@
   function handleDrop(e: DragEvent) {
     e.preventDefault();
     isDragOver = false;
+    if (disabled) return;
     
-    // In Wails, dragging files onto the window is handled by HTML5 drag and drop
-    // We can extract files from e.dataTransfer
     if (e.dataTransfer && e.dataTransfer.files) {
       const files: string[] = [];
       for (let i = 0; i < e.dataTransfer.files.length; i++) {
-        // Under Wails/webview2, HTML5 Drag & Drop file.path gives the absolute path of the file
         const file = e.dataTransfer.files[i];
         if (file.path) {
           files.push(file.path);
         } else {
-          // Fallback if path is empty (though webview2 should provide it)
           files.push(file.name);
         }
       }
@@ -51,22 +53,40 @@
 </script>
 
 <div 
-  class="drop-zone glass-panel neon-hover {isDragOver ? 'drag-over' : ''}"
+  class="drop-zone glass-panel neon-hover {compact ? 'compact' : ''} {isDragOver ? 'drag-over' : ''} {disabled ? 'disabled' : ''}"
   on:click={handleClick}
   on:dragover={handleDragOver}
   on:dragleave={handleDragLeave}
   on:drop={handleDrop}
 >
-  <div class="icon-container">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="upload-icon">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-  </div>
-  <h3>拖拽视频文件到此处</h3>
-  <p>支持多选，或者点击选择文件</p>
-  <p class="file-types">支持 MP4, MOV, MKV, AVI, WEBM 等</p>
+  {#if disabled}
+    <div class="compact-content">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon-small" style="color: var(--text-muted)">
+        <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <span class="compact-text" style="color: var(--text-muted)">正在进行视频压缩，请稍候...</span>
+    </div>
+  {:else if compact}
+    <div class="compact-content">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon-small">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
+      </svg>
+      <span class="compact-text">点击或拖拽视频到此处添加更多视频</span>
+    </div>
+  {:else}
+    <div class="icon-container">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="upload-icon">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
+      </svg>
+    </div>
+    <h3>拖拽视频文件到此处</h3>
+    <p>支持多选，或者点击选择文件</p>
+    <p class="file-types">支持 MP4, MOV, MKV, AVI, WEBM 等视频格式</p>
+  {/if}
 </div>
 
 <style>
@@ -75,53 +95,105 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 2.5rem;
+    padding: 2.2rem;
     border-style: dashed;
-    border-width: 2px;
+    border-width: 1.5px;
+    border-color: rgba(255, 255, 255, 0.15);
     cursor: pointer;
     text-align: center;
-    transition: all 0.25s ease;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     height: 180px;
-    margin-bottom: 1.5rem;
+    background: rgba(255, 255, 255, 0.015);
+    border-radius: 12px;
+  }
+
+  .drop-zone.compact {
+    height: 52px;
+    padding: 0;
+    border-width: 1px;
+    background: rgba(168, 85, 247, 0.03);
+    border-color: rgba(168, 85, 247, 0.2);
+  }
+
+  .drop-zone.compact:hover {
+    border-color: rgba(168, 85, 247, 0.45);
+    background: rgba(168, 85, 247, 0.06);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.1);
   }
 
   .drag-over {
-    border-color: var(--accent-purple);
-    background: rgba(168, 85, 247, 0.05);
-    box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
+    border-color: var(--accent-purple) !important;
+    background: rgba(168, 85, 247, 0.08) !important;
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.2) !important;
+  }
+
+  .compact-content {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .compact-text {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent-purple);
+  }
+
+  .upload-icon-small {
+    width: 15px;
+    height: 15px;
+    color: var(--accent-purple);
   }
 
   .icon-container {
-    margin-bottom: 1rem;
+    margin-bottom: 0.8rem;
     color: var(--text-secondary);
-    transition: transform 0.2s ease;
+    transition: transform 0.25s ease;
   }
 
-  .drop-zone:hover .icon-container {
+  .drop-zone:hover:not(.compact) .icon-container {
     transform: translateY(-4px);
     color: var(--accent-purple);
   }
 
   .upload-icon {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
   }
 
   h3 {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 600;
     margin-bottom: 0.25rem;
     color: var(--text-primary);
+    letter-spacing: -0.01em;
   }
 
   p {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--text-secondary);
   }
 
   .file-types {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--text-muted);
-    margin-top: 0.5rem;
+    margin-top: 0.4rem;
+  }
+
+  .drop-zone.disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    border-style: solid;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    background: rgba(255, 255, 255, 0.005) !important;
+    box-shadow: none !important;
+  }
+  .drop-zone.disabled .compact-text {
+    color: var(--text-muted) !important;
+  }
+  .drop-zone.disabled .upload-icon-small,
+  .drop-zone.disabled .upload-icon {
+    color: var(--text-muted) !important;
   }
 </style>
+

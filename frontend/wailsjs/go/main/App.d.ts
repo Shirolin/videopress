@@ -9,9 +9,21 @@ export function DetectFFmpeg():Promise<string>;
 
 export function DetectGPUEncoder():Promise<string>;
 
+export function DownloadFFmpeg():Promise<void>;
+
+export function GetInitialFiles():Promise<Array<string>>;
+
+export function GetIntegrationStatus():Promise<Record<string, boolean>>;
+
 export function GetPresets():Promise<Array<main.PresetInfo>>;
 
+export function InstallContextMenu():Promise<void>;
+
+export function InstallDesktopShortcut():Promise<void>;
+
 export function InstallSendTo():Promise<string>;
+
+export function InstallStartMenuShortcut():Promise<void>;
 
 export function OpenFolder(arg1:string):Promise<void>;
 
@@ -19,6 +31,14 @@ export function RemoveFromPath():Promise<boolean>;
 
 export function SelectFiles():Promise<Array<string>>;
 
+export function SelectFolder():Promise<string>;
+
 export function StartCompress(arg1:engine.JobRequest):Promise<Array<engine.JobReport>>;
 
+export function UninstallContextMenu():Promise<void>;
+
+export function UninstallDesktopShortcut():Promise<void>;
+
 export function UninstallSendTo():Promise<void>;
+
+export function UninstallStartMenuShortcut():Promise<void>;

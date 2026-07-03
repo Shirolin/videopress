@@ -32,6 +32,7 @@ export namespace engine {
 	    ForceMode: boolean;
 	    SkipExisting: boolean;
 	    Concurrency: number;
+	    OutputDir: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new JobRequest(source);
@@ -46,6 +47,7 @@ export namespace engine {
 	        this.ForceMode = source["ForceMode"];
 	        this.SkipExisting = source["SkipExisting"];
 	        this.Concurrency = source["Concurrency"];
+	        this.OutputDir = source["OutputDir"];
 	    }
 	}
 

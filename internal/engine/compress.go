@@ -38,6 +38,7 @@ func DefaultDependencies(execDir string) Dependencies {
 		},
 		RunCommand: func(name string, args []string) error {
 			cmd := exec.Command(name, args...)
+			prepareCmd(cmd)
 			return cmd.Run()
 		},
 		GetDuration: ffmpeg.GetDuration,
@@ -72,6 +73,7 @@ func NewCompressEngine(deps Dependencies) *CompressEngine {
 	if deps.RunCommand == nil {
 		deps.RunCommand = func(name string, args []string) error {
 			cmd := exec.Command(name, args...)
+			prepareCmd(cmd)
 			return cmd.Run()
 		}
 	}
@@ -173,7 +175,7 @@ func (e *CompressEngine) Run(req JobRequest, onProgress func(ProgressEvent)) ([]
 			continue
 		}
 
-		defaultOutput, err := compress.BuildOutputPath(input, preset.Name, nil, true)
+		defaultOutput, err := compress.BuildOutputPath(input, preset.Name, nil, true, req.OutputDir)
 		if err == nil && req.SkipExisting && !req.ForceMode && e.deps.PathExists(defaultOutput) {
 			mu.Lock()
 			allReports = append(allReports, JobReport{
@@ -193,7 +195,7 @@ func (e *CompressEngine) Run(req JobRequest, onProgress func(ProgressEvent)) ([]
 			continue
 		}
 
-		output, err := compress.BuildOutputPath(input, preset.Name, e.deps.PathExists, req.ForceMode)
+		output, err := compress.BuildOutputPath(input, preset.Name, e.deps.PathExists, req.ForceMode, req.OutputDir)
 		if err != nil {
 			mu.Lock()
 			allReports = append(allReports, JobReport{
@@ -303,6 +305,7 @@ func (e *CompressEngine) runCommandWithProgress(ffmpegPath string, args []string
 	finalArgs = append(finalArgs, "-progress", "-")
 
 	cmd := exec.Command(ffmpegPath, finalArgs...)
+	prepareCmd(cmd)
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -322,12 +325,17 @@ func (e *CompressEngine) runCommandWithProgress(ffmpegPath string, args []string
 	}
 
 	if duration > 0 {
+		lastPercent := -1.0
 		ffmpeg.TrackProgress(stdoutPipe, duration, func(percent float64) {
 			if onProgress != nil {
-				onProgress(ProgressEvent{
-					File:    prefix,
-					Percent: percent,
-				})
+				// 进度变化 >= 0.5% 或者达到 100% 才发送，避免频繁 IPC
+				if percent-lastPercent >= 0.5 || percent >= 100.0 {
+					lastPercent = percent
+					onProgress(ProgressEvent{
+						File:    prefix,
+						Percent: percent,
+					})
+				}
 			}
 		})
 	} else {

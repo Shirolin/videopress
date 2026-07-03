@@ -1,12 +1,20 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import CustomSelect from './CustomSelect.svelte';
   import { 
     GetPresets, 
     DetectGPUEncoder, 
     InstallSendTo, 
     UninstallSendTo, 
     AddToPath, 
-    RemoveFromPath 
+    RemoveFromPath,
+    InstallDesktopShortcut,
+    UninstallDesktopShortcut,
+    InstallStartMenuShortcut,
+    UninstallStartMenuShortcut,
+    InstallContextMenu,
+    UninstallContextMenu,
+    GetIntegrationStatus
   } from '../../wailsjs/go/main/App.js';
 
   export let preset: string = 'standard';
@@ -21,6 +29,41 @@
   let statusMessage: string = '';
   let statusType: 'success' | 'info' | 'error' = 'info';
 
+  // System integration status
+  let isSendToInstalled = false;
+  let isDesktopInstalled = false;
+  let isStartMenuInstalled = false;
+  let isContextMenuInstalled = false;
+  let isPathConfigured = false;
+
+  // Map presets list to CustomSelect format
+  $: presetOptions = presetsList.map(p => ({
+    value: p.name,
+    label: p.name,
+    desc: p.description
+  }));
+
+  // Concurrency list for CustomSelect
+  const concurrencyOptions = [
+    { value: 1, label: '1 线程', desc: '单任务队列，最佳进度条体验' },
+    { value: 2, label: '2 并发', desc: '支持 2 任务并发压缩' },
+    { value: 4, label: '4 并发', desc: '支持 4 任务并发压缩' },
+    { value: 8, label: '8 并发', desc: '高并发，建议多核处理器使用' }
+  ];
+
+  async function updateIntegrationStatus() {
+    try {
+      const status = await GetIntegrationStatus();
+      isSendToInstalled = status.sendto;
+      isDesktopInstalled = status.desktop;
+      isStartMenuInstalled = status.startmenu;
+      isContextMenuInstalled = status.contextmenu;
+      isPathConfigured = status.path;
+    } catch (e) {
+      console.error("Failed to query integration status:", e);
+    }
+  }
+
   onMount(async () => {
     try {
       presetsList = await GetPresets();
@@ -28,6 +71,7 @@
       if (detectedGPU !== 'libx264') {
         hwAccel = true; // Auto-enable if GPU encoder found
       }
+      await updateIntegrationStatus();
     } catch (e) {
       console.error("Mount error:", e);
     }
@@ -41,146 +85,257 @@
     }, 4000);
   }
 
-  async function handleInstallSendTo() {
+  async function toggleSendTo() {
     try {
-      const res = await InstallSendTo();
-      showStatus(`右键菜单安装成功: ${res}`, 'success');
+      if (isSendToInstalled) {
+        await UninstallSendTo();
+        showStatus('已成功移除 SendTo 右键发送快捷方式', 'success');
+      } else {
+        await InstallSendTo();
+        showStatus('已成功创建 SendTo 右键发送快捷方式', 'success');
+      }
+      await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus(`安装失败: ${e}`, 'error');
+      showStatus(`操作失败: ${e.message || e}`, 'error');
     }
   }
 
-  async function handleUninstallSendTo() {
+  async function toggleDesktopShortcut() {
     try {
-      await UninstallSendTo();
-      showStatus('右键菜单已成功卸载', 'success');
+      if (isDesktopInstalled) {
+        await UninstallDesktopShortcut();
+        showStatus('已删除桌面快捷方式', 'success');
+      } else {
+        await InstallDesktopShortcut();
+        showStatus('已成功创建桌面快捷方式', 'success');
+      }
+      await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus(`卸载失败: ${e}`, 'error');
+      showStatus(`操作失败: ${e.message || e}`, 'error');
     }
   }
 
-  async function handleAddToPath() {
+  async function toggleStartMenuShortcut() {
     try {
-      const added = await AddToPath();
-      if (added) {
+      if (isStartMenuInstalled) {
+        await UninstallStartMenuShortcut();
+        showStatus('已从开始菜单移除快捷方式', 'success');
+      } else {
+        await InstallStartMenuShortcut();
+        showStatus('已成功添加至开始菜单', 'success');
+      }
+      await updateIntegrationStatus();
+    } catch (e: any) {
+      showStatus(`操作失败: ${e.message || e}`, 'error');
+    }
+  }
+
+  async function toggleContextMenu() {
+    try {
+      if (isContextMenuInstalled) {
+        await UninstallContextMenu();
+        showStatus('已从系统卸载右键直接压缩菜单', 'success');
+      } else {
+        await InstallContextMenu();
+        showStatus('已成功将“使用 Videopress 压缩”加入右键菜单！', 'success');
+      }
+      await updateIntegrationStatus();
+    } catch (e: any) {
+      showStatus(`操作失败: ${e.message || e}`, 'error');
+    }
+  }
+
+  async function togglePathEnv() {
+    try {
+      if (isPathConfigured) {
+        await RemoveFromPath();
+        showStatus('已从系统环境变量 Path 中移除', 'success');
+      } else {
+        await AddToPath();
         showStatus('成功添加到系统环境变量 Path', 'success');
-      } else {
-        showStatus('系统环境变量 Path 中已存在该路径', 'info');
       }
+      await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus(`配置失败: ${e}`, 'error');
-    }
-  }
-
-  async function handleRemoveFromPath() {
-    try {
-      const removed = await RemoveFromPath();
-      if (removed) {
-        showStatus('已成功从系统环境变量 Path 中移除', 'success');
-      } else {
-        showStatus('系统环境变量 Path 中未找到该路径', 'info');
-      }
-    } catch (e: any) {
-      showStatus(`移除失败: ${e}`, 'error');
+      showStatus(`操作失败: ${e.message || e}`, 'error');
     }
   }
 </script>
 
 <div class="settings-container glass-panel">
-  <div class="section-title">压缩设置</div>
-  
-  <div class="setting-row">
-    <div class="label-group">
-      <span class="label">压缩规格</span>
-      <span class="desc">选择视频输出的分辨率和码率预设</span>
+  <div class="settings-scroll-area">
+    <div class="section-title">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="title-icon"><polygon points="6 2 18 2 18 6 6 6 6 2"></polygon><rect x="3" y="6" width="18" height="16" rx="2"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
+      压缩核心设置
     </div>
-    <select bind:value={preset}>
-      {#each presetsList as p}
-        <option value={p.name}>{p.name} - {p.description}</option>
-      {/each}
-    </select>
-  </div>
-
-  <div class="setting-row">
-    <div class="label-group">
-      <span class="label">最大并发任务数</span>
-      <span class="desc">同时压缩的视频数量，建议根据CPU核心数设置</span>
-    </div>
-    <select bind:value={concurrency}>
-      <option value={1}>1 (单线程，完美进度条)</option>
-      <option value={2}>2</option>
-      <option value={4}>4 (多任务并发)</option>
-      <option value={8}>8</option>
-    </select>
-  </div>
-
-  <div class="grid-toggles">
-    <label class="toggle-card">
-      <input type="checkbox" bind:checked={hwAccel} />
-      <div class="toggle-content">
-        <span class="title">GPU 硬件加速</span>
-        <span class="desc">
-          {#if detectedGPU && detectedGPU !== 'libx264'}
-            已检测到可用 GPU 编码: <span class="gpu-active">{detectedGPU}</span>
-          {:else}
-            未检测到 GPU 编码，使用 CPU (libx264)
-          {/if}
-        </span>
+    
+    <div class="setting-row">
+      <div class="label-group">
+        <span class="label">压缩预设规格</span>
+        <span class="desc">预设了不同的码率与分辨率配置</span>
       </div>
-    </label>
-
-    <label class="toggle-card">
-      <input type="checkbox" bind:checked={copyAudio} />
-      <div class="toggle-content">
-        <span class="title">音频流直通</span>
-        <span class="desc">不重新编码音频，保留原音质并提升速度</span>
-      </div>
-    </label>
-
-    <label class="toggle-card">
-      <input type="checkbox" bind:checked={forceMode} />
-      <div class="toggle-content">
-        <span class="title">强制覆盖同名</span>
-        <span class="desc">覆盖已存在的同名压缩文件，不产生递增副本</span>
-      </div>
-    </label>
-
-    <label class="toggle-card">
-      <input type="checkbox" bind:checked={skipExisting} />
-      <div class="toggle-content">
-        <span class="title">增量跳过模式</span>
-        <span class="desc">如果输出目录已存在同名压缩文件，则直接跳过</span>
-      </div>
-    </label>
-  </div>
-
-  <div class="section-title margin-top">Windows 系统集成</div>
-  <div class="sys-actions">
-    <div class="action-card">
-      <div class="action-meta">
-        <span class="title">右键“发送到”菜单</span>
-        <span class="desc">一键将系统右键发送到绑定至本软件，右键点击视频即可压缩。</span>
-      </div>
-      <div class="action-buttons">
-        <button class="btn btn-secondary" on:click={handleInstallSendTo}>安装</button>
-        <button class="btn btn-muted" on:click={handleUninstallSendTo}>卸载</button>
-      </div>
+      <CustomSelect bind:value={preset} options={presetOptions} />
     </div>
 
-    <div class="action-card">
-      <div class="action-meta">
-        <span class="title">环境变量 Path 绑定</span>
-        <span class="desc">自动将程序所在路径添加至系统的 Path 中，方便从任何终端调用。</span>
+    <div class="setting-row">
+      <div class="label-group">
+        <span class="label">最大并发任务数</span>
+        <span class="desc">同时压缩的视频数量，建议根据核心数合理配置</span>
       </div>
-      <div class="action-buttons">
-        <button class="btn btn-secondary" on:click={handleAddToPath}>配置</button>
-        <button class="btn btn-muted" on:click={handleRemoveFromPath}>移除</button>
+      <CustomSelect bind:value={concurrency} options={concurrencyOptions} />
+    </div>
+
+    <div class="grid-toggles">
+      <label class="toggle-card {hwAccel ? 'checked' : ''}">
+        <div class="checkbox-container">
+          <input type="checkbox" bind:checked={hwAccel} />
+        </div>
+        <div class="toggle-content">
+          <span class="title">GPU 硬件加速</span>
+          <span class="desc">
+            {#if detectedGPU && detectedGPU !== 'libx264'}
+              已启用显卡加速: <span class="gpu-active">{detectedGPU}</span>
+            {:else}
+              无显卡加速，自动 Fallback 至 CPU 编码
+            {/if}
+          </span>
+        </div>
+      </label>
+
+      <label class="toggle-card {copyAudio ? 'checked' : ''}">
+        <div class="checkbox-container">
+          <input type="checkbox" bind:checked={copyAudio} />
+        </div>
+        <div class="toggle-content">
+          <span class="title">音频流直通 (Copy Audio)</span>
+          <span class="desc">直接复制原片音轨，节省音频重编码开销</span>
+        </div>
+      </label>
+
+      <label class="toggle-card {forceMode ? 'checked' : ''}">
+        <div class="checkbox-container">
+          <input type="checkbox" bind:checked={forceMode} />
+        </div>
+        <div class="toggle-content">
+          <span class="title">强制覆盖同名文件</span>
+          <span class="desc">直接重写已有的同名输出文件，不生成序号副本</span>
+        </div>
+      </label>
+
+      <label class="toggle-card {skipExisting ? 'checked' : ''}">
+        <div class="checkbox-container">
+          <input type="checkbox" bind:checked={skipExisting} />
+        </div>
+        <div class="toggle-content">
+          <span class="title">增量跳过模式</span>
+          <span class="desc">如检测到输出文件夹已存在同名压缩文件则跳过</span>
+        </div>
+      </label>
+    </div>
+
+    <div class="section-title margin-top">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="title-icon"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>
+      Windows 系统集成与快捷设置
+    </div>
+    <div class="sys-actions">
+      <!-- 1. 右键直达菜单 -->
+      <div class="action-card">
+        <div class="action-meta">
+          <div class="action-title-row">
+            <span class="title">右键直接视频压缩 (推荐)</span>
+            <span class="status-badge {isContextMenuInstalled ? 'success' : 'muted'}">
+              {isContextMenuInstalled ? '已开启' : '已关闭'}
+            </span>
+          </div>
+          <span class="desc">在资源管理器中直接右键点击任意视频文件，直接在菜单选择“使用 Videopress 压缩”。</span>
+        </div>
+        <div class="action-buttons">
+          <button class="btn {isContextMenuInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleContextMenu}>
+            {isContextMenuInstalled ? '卸载移除' : '一键开启'}
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. 桌面快捷方式 -->
+      <div class="action-card">
+        <div class="action-meta">
+          <div class="action-title-row">
+            <span class="title">桌面快捷方式</span>
+            <span class="status-badge {isDesktopInstalled ? 'success' : 'muted'}">
+              {isDesktopInstalled ? '已创建' : '未创建'}
+            </span>
+          </div>
+          <span class="desc">在 Windows 系统桌面上创建 Videopress 的快捷启动方式。</span>
+        </div>
+        <div class="action-buttons">
+          <button class="btn {isDesktopInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleDesktopShortcut}>
+            {isDesktopInstalled ? '删除图标' : '一键创建'}
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. 开始菜单快捷方式 -->
+      <div class="action-card">
+        <div class="action-meta">
+          <div class="action-title-row">
+            <span class="title">添加至开始菜单</span>
+            <span class="status-badge {isStartMenuInstalled ? 'success' : 'muted'}">
+              {isStartMenuInstalled ? '已添加' : '未添加'}
+            </span>
+          </div>
+          <span class="desc">在 Windows 开始菜单的程序列表中添加 Videopress，可在搜索框快速搜索唤醒。</span>
+        </div>
+        <div class="action-buttons">
+          <button class="btn {isStartMenuInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleStartMenuShortcut}>
+            {isStartMenuInstalled ? '取消固定' : '一键添加'}
+          </button>
+        </div>
+      </div>
+
+      <!-- 4. 右键 SendTo 发送到菜单 -->
+      <div class="action-card">
+        <div class="action-meta">
+          <div class="action-title-row">
+            <span class="title">发送到快捷菜单 (SendTo)</span>
+            <span class="status-badge {isSendToInstalled ? 'success' : 'muted'}">
+              {isSendToInstalled ? '已开启' : '已关闭'}
+            </span>
+          </div>
+          <span class="desc">在资源管理器右键选中文件 -> 发送到 -> 快速压缩视频。</span>
+        </div>
+        <div class="action-buttons">
+          <button class="btn {isSendToInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleSendTo}>
+            {isSendToInstalled ? '卸载移除' : '一键开启'}
+          </button>
+        </div>
+      </div>
+
+      <!-- 5. 用户 Path 环境变量 -->
+      <div class="action-card">
+        <div class="action-meta">
+          <div class="action-title-row">
+            <span class="title">配置用户 Path 环境变量</span>
+            <span class="status-badge {isPathConfigured ? 'success' : 'muted'}">
+              {isPathConfigured ? '已配置' : '未配置'}
+            </span>
+          </div>
+          <span class="desc">把当前程序所在文件夹加入 Path 环境变量，可在任意命令终端直接运行。</span>
+        </div>
+        <div class="action-buttons">
+          <button class="btn {isPathConfigured ? 'btn-danger' : 'btn-primary'}" on:click={togglePathEnv}>
+            {isPathConfigured ? '移除路径' : '一键配置'}
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
   {#if statusMessage}
     <div class="toast-message {statusType}">
+      {#if statusType === 'success'}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="toast-icon"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+      {:else}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="toast-icon"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+      {/if}
       {statusMessage}
     </div>
   {/if}
@@ -188,105 +343,126 @@
 
 <style>
   .settings-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;          /* Fill workspace area */
+    overflow: hidden;
+    background: rgba(18, 18, 24, 0.4);
+    border-radius: 12px;
+  }
+
+  .settings-scroll-area {
+    flex: 1;
+    overflow-y: auto;      /* Independent scrolling container */
     padding: 1.2rem;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    height: 100%;
-    overflow-y: auto;
+    gap: 0.9rem;
+    padding-right: 6px;
   }
 
-  .section-title {
-    font-size: 0.85rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-    border-left: 2px solid var(--accent-purple);
-    padding-left: 0.5rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .margin-top {
-    margin-top: 0.75rem;
-  }
-
+  /* Allow dropdown popover to overflow individual rows */
   .setting-row {
+    position: relative;
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 1.5rem;
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 0.75rem;
+    padding-bottom: 0.8rem;
+  }
+
+  .section-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.1rem;
+  }
+
+  .title-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--accent-purple);
+  }
+
+  .margin-top {
+    margin-top: 0.6rem;
   }
 
   .label-group {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.1rem;
   }
 
   .label {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 600;
     color: var(--text-primary);
   }
 
   .desc {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--text-secondary);
-  }
-
-  select {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    padding: 0.4rem 0.6rem;
-    border-radius: 6px;
-    outline: none;
-    font-size: 0.8rem;
-    min-width: 160px;
-    cursor: pointer;
-  }
-
-  select:focus {
-    border-color: var(--border-focus);
   }
 
   /* Grid Toggles */
   .grid-toggles {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
+    gap: 0.8rem;
+  }
+
+  @media (max-width: 600px) {
+    .grid-toggles {
+      grid-template-columns: 1fr;
+    }
   }
 
   .toggle-card {
     display: flex;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    background: rgba(255, 255, 255, 0.02);
+    gap: 0.8rem;
+    padding: 0.8rem 0.9rem;
+    background: rgba(255, 255, 255, 0.015);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     align-items: flex-start;
     transition: all 0.2s ease;
   }
 
   .toggle-card:hover {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .toggle-card.checked {
+    border-color: rgba(168, 85, 247, 0.25);
+    background: rgba(168, 85, 247, 0.02);
+  }
+
+  .checkbox-container {
+    display: flex;
+    align-items: center;
+    height: 18px;
   }
 
   .toggle-card input[type="checkbox"] {
-    margin-top: 0.2rem;
     cursor: pointer;
     accent-color: var(--accent-purple);
+    width: 14px;
+    height: 14px;
   }
 
   .toggle-content {
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: 0.08rem;
   }
 
   .toggle-content .title {
@@ -295,12 +471,17 @@
     color: var(--text-primary);
   }
 
-  .gpu-active {
-    color: var(--accent-green);
-    font-weight: 600;
+  .toggle-content .desc {
+    font-size: 0.68rem;
+    line-height: 1.3;
   }
 
-  /* Sys Actions */
+  .gpu-active {
+    color: var(--accent-green);
+    font-weight: 700;
+  }
+
+  /* System actions styling */
   .sys-actions {
     display: flex;
     flex-direction: column;
@@ -311,99 +492,158 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
     gap: 1.5rem;
+    background: rgba(255, 255, 255, 0.012);
+    border: 1px solid var(--border-color);
+    padding: 0.8rem 1rem;
+    border-radius: 10px;
+  }
+
+  @media (max-width: 600px) {
+    .action-card {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.8rem;
+    }
+    .action-buttons {
+      width: 100%;
+      justify-content: flex-end;
+    }
   }
 
   .action-meta {
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: 0.08rem;
     flex: 1;
   }
 
   .action-meta .title {
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 650;
     color: var(--text-primary);
+  }
+
+  .action-meta .desc {
+    font-size: 0.68rem;
+    color: var(--text-secondary);
   }
 
   .action-buttons {
     display: flex;
     gap: 0.5rem;
+    flex-shrink: 0;
   }
 
+  /* Button styles */
   .btn {
     border: none;
-    outline: none;
-    font-size: 0.75rem;
-    font-weight: 600;
-    padding: 0.4rem 0.8rem;
+    padding: 0.4rem 0.85rem;
     border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
     cursor: pointer;
-    transition: background 0.2s ease;
+    transition: all 0.2s;
   }
 
-  .btn-secondary {
+  .btn-primary {
+    background: rgba(168, 85, 247, 0.15);
+    color: var(--accent-purple);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+  }
+
+  .btn-primary:hover {
     background: var(--accent-purple);
     color: white;
-  }
-
-  .btn-secondary:hover {
-    background: #9333ea;
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.25);
   }
 
   .btn-muted {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.03);
     color: var(--text-secondary);
     border: 1px solid var(--border-color);
   }
 
   .btn-muted:hover {
     background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
   }
 
-  /* Toast Message */
+  /* Toast notification */
   .toast-message {
-    position: fixed;
+    position: absolute;
     bottom: 1.5rem;
     right: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-panel-solid);
+    border: 1px solid var(--border-color);
     padding: 0.6rem 1rem;
     border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 600;
     box-shadow: var(--shadow-lg);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    z-index: 1000;
-    animation: slideUp 0.3s ease-out;
+    font-size: 0.75rem;
+    font-weight: 600;
+    z-index: 99;
+    animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .toast-message.success {
-    background: #064e3b;
-    color: #34d399;
-  }
-
-  .toast-message.info {
-    background: #1e3a8a;
-    color: #60a5fa;
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--accent-green);
   }
 
   .toast-message.error {
-    background: #7f1d1d;
-    color: #f87171;
+    border-color: rgba(244, 63, 94, 0.3);
+    color: var(--accent-red);
   }
 
-  @keyframes slideUp {
-    from {
-      transform: translateY(20px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
+  .toast-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  @keyframes slide-in {
+    0% { transform: translateY(1rem); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+
+  .action-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .status-badge {
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 0.08rem 0.35rem;
+    border-radius: 4px;
+  }
+
+  .status-badge.success {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--accent-green);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+
+  .status-badge.muted {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+  }
+
+  .btn-danger {
+    background: rgba(244, 63, 94, 0.08);
+    color: var(--accent-red);
+    border: 1px solid rgba(244, 63, 94, 0.2);
+  }
+
+  .btn-danger:hover {
+    background: var(--accent-red);
+    color: white;
+    border-color: var(--accent-red);
+    box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
   }
 </style>

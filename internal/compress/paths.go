@@ -8,7 +8,7 @@ import (
 
 type PathExistsFunc func(path string) bool
 
-func BuildOutputPath(inputPath string, preset string, exists PathExistsFunc, force bool) (string, error) {
+func BuildOutputPath(inputPath string, preset string, exists PathExistsFunc, force bool, customOutputDir string) (string, error) {
 	ext := filepath.Ext(inputPath)
 	if ext == "" {
 		return "", fmt.Errorf("输入文件没有扩展名: %s", inputPath)
@@ -17,6 +17,9 @@ func BuildOutputPath(inputPath string, preset string, exists PathExistsFunc, for
 	baseDir := filepath.Dir(inputPath)
 	baseName := strings.TrimSuffix(filepath.Base(inputPath), ext)
 	outputDir := filepath.Join(baseDir, "compressed")
+	if customOutputDir != "" {
+		outputDir = customOutputDir
+	}
 	targetBase := filepath.Join(outputDir, fmt.Sprintf("%s.%s.compressed", baseName, preset))
 
 	candidate := targetBase + ".mp4"

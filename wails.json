@@ -9,5 +9,11 @@
   "author": {
     "name": "Shirolin",
     "email": "shirolin.com@gmail.com"
+  },
+  "info": {
+    "productName": "Videopress",
+    "productVersion": "0.1.0",
+    "companyName": "Shirolin",
+    "fileDescription": "极速视频智能压缩工具"
   }
 }

@@ -1,25 +1,29 @@
 :root {
-  --bg-primary: #0a0a0c;
-  --bg-secondary: #121216;
-  --bg-panel: rgba(22, 22, 28, 0.7);
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-focus: rgba(168, 85, 247, 0.4); /* purple */
-  --text-primary: #f3f4f6;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
+  --bg-primary: #08080a;
+  --bg-secondary: #0f0f13;
+  --bg-panel: rgba(18, 18, 24, 0.65);
+  --bg-panel-solid: #121218;
+  --border-color: rgba(255, 255, 255, 0.05);
+  --border-focus: rgba(168, 85, 247, 0.5); /* purple */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
   
   --accent-purple: #a855f7;
-  --accent-magenta: #ec4899;
+  --accent-magenta: #d946ef;
   --accent-green: #10b981;
-  --accent-red: #ef4444;
+  --accent-red: #f43f5e;
   --accent-yellow: #f59e0b;
+  --accent-blue: #0ea5e9;
 
-  --accent-purple-gradient: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.15);
+  --accent-purple-gradient: linear-gradient(135deg, #a855f7 0%, #d946ef 100%);
+  --accent-green-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
   
-  --font-family: 'Nunito', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.3), 0 2px 6px -1px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.4), 0 4px 12px -2px rgba(0, 0, 0, 0.3);
+  
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
 }
 
@@ -36,18 +40,48 @@ html, body {
   font-family: var(--font-family);
   height: 100%;
   width: 100%;
-  overflow: hidden;
+  overflow: hidden; /* Lock the viewport scroll */
+  position: relative;
+}
+
+/* Background Glow Effects */
+body::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: -10%;
+  width: 50%;
+  height: 50%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(80px);
+}
+
+body::after {
+  content: '';
+  position: absolute;
+  bottom: -10%;
+  right: -10%;
+  width: 55%;
+  height: 55%;
+  background: radial-gradient(circle, rgba(217, 70, 239, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(80px);
 }
 
 #app {
   height: 100%;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -55,39 +89,40 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 /* Glassmorphism panel */
 .glass-panel {
   background: var(--bg-panel);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 /* Premium neon hover effect */
 .neon-hover {
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
 }
 
 .neon-hover:hover {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+  border-color: rgba(168, 85, 247, 0.3);
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.1), var(--shadow-md);
 }
 
 /* Status dots */
 .dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
 }
 
@@ -95,7 +130,7 @@ html, body {
 .dot-compressing { 
   background-color: var(--accent-purple);
   box-shadow: 0 0 8px var(--accent-purple);
-  animation: pulse 1.5s infinite alternate;
+  animation: pulse-glow 1.5s infinite alternate;
 }
 .dot-success { 
   background-color: var(--accent-green);
@@ -110,7 +145,14 @@ html, body {
   box-shadow: 0 0 8px var(--accent-red);
 }
 
-@keyframes pulse {
-  0% { opacity: 0.4; }
-  100% { opacity: 1; }
+@keyframes pulse-glow {
+  0% { opacity: 0.5; transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1.1); }
 }
+
+/* Shimmer Progress animation */
+@keyframes shimmer-move {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+

@@ -397,7 +397,7 @@ func Execute(args []string, deps Dependencies) int {
 			continue
 		}
 
-		defaultOutput, err := compress.BuildOutputPath(input, preset.Name, nil, true)
+		defaultOutput, err := compress.BuildOutputPath(input, preset.Name, nil, true, "")
 		if err == nil && *skipExisting && !*forceMode && deps.PathExists(defaultOutput) {
 			fmt.Fprintf(deps.Stdout, "跳过已存在的文件: %s\n", yellow(defaultOutput))
 			mu.Lock()
@@ -412,7 +412,7 @@ func Execute(args []string, deps Dependencies) int {
 			continue
 		}
 
-		output, err := compress.BuildOutputPath(input, preset.Name, deps.PathExists, *forceMode)
+		output, err := compress.BuildOutputPath(input, preset.Name, deps.PathExists, *forceMode, "")
 		if err != nil {
 			fmt.Fprintf(deps.Stderr, "%s 生成输出路径失败 %s: %v\n", red("错误:"), input, err)
 			mu.Lock()

@@ -11,6 +11,7 @@ func DetectGPUEncoder(ffmpegPath string, runCmd func(name string, args []string)
 	if runCmd == nil {
 		runCmd = func(name string, args []string) error {
 			cmd := exec.Command(name, args...)
+			prepareCmd(cmd)
 			return cmd.Run()
 		}
 	}

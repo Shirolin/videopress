@@ -8,20 +8,38 @@ import (
 )
 
 func TestParseDuration(t *testing.T) {
-	metadata := `ffmpeg version 6.0 Copyright (c) 2000-2023 the FFmpeg developers
-  built with gcc 12.2.0 (Rev10, Built by MSYS2 project)
-  duration: N/A, bitrate: N/A
-  Duration: 00:02:15.50, start: 0.000000, bitrate: 1205 kb/s
-  Stream #0:0[0x1]: Video: h264`
-
-	dur, err := ParseDuration(metadata)
-	if err != nil {
-		t.Fatalf("ParseDuration failed: %v", err)
+	tests := []struct {
+		name     string
+		metadata string
+		expected time.Duration
+	}{
+		{
+			name:     "2 decimal milliseconds",
+			metadata: "  Duration: 00:02:15.50, start: 0.0",
+			expected: 2*time.Minute + 15*time.Second + 500*time.Millisecond,
+		},
+		{
+			name:     "3 decimal milliseconds",
+			metadata: "  Duration: 00:02:15.123, start: 0.0",
+			expected: 2*time.Minute + 15*time.Second + 123*time.Millisecond,
+		},
+		{
+			name:     "1 decimal millisecond",
+			metadata: "  Duration: 00:02:15.5, start: 0.0",
+			expected: 2*time.Minute + 15*time.Second + 500*time.Millisecond,
+		},
 	}
 
-	expected := 2*time.Minute + 15*time.Second + 500*time.Millisecond
-	if dur != expected {
-		t.Errorf("expected duration %v, got %v", expected, dur)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dur, err := ParseDuration(tt.metadata)
+			if err != nil {
+				t.Fatalf("ParseDuration failed: %v", err)
+			}
+			if dur != tt.expected {
+				t.Errorf("expected duration %v, got %v", tt.expected, dur)
+			}
+		})
 	}
 }
 

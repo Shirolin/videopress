@@ -11,6 +11,7 @@ type JobRequest struct {
 	ForceMode    bool
 	SkipExisting bool
 	Concurrency  int
+	OutputDir    string
 }
 
 // ProgressEvent represents progress updates from the compression engine.

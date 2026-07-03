@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"os/exec"
 	"path/filepath"
 
 	"videopress/internal/engine"
 	"videopress/internal/env"
+	"videopress/internal/ffmpeg"
 	"videopress/internal/sendto"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -16,6 +18,7 @@ type App struct {
 	ctx            context.Context
 	executableDir  string
 	executablePath string
+	initialFiles   []string
 }
 
 // NewApp creates a new App struct instance
@@ -23,6 +26,7 @@ func NewApp(execDir, execPath string) *App {
 	return &App{
 		executableDir:  execDir,
 		executablePath: execPath,
+		initialFiles:   []string{},
 	}
 }
 
@@ -30,6 +34,13 @@ func NewApp(execDir, execPath string) *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+}
+
+// GetInitialFiles returns the initial file paths passed during application launch
+func (a *App) GetInitialFiles() []string {
+	files := a.initialFiles
+	a.initialFiles = nil // clear to prevent duplicate loads
+	return files
 }
 
 // PresetInfo represents preset metadata returned to frontend
@@ -69,6 +80,7 @@ func (a *App) DetectGPUEncoder() (string, error) {
 // StartCompress starts the compression process for the given files
 func (a *App) StartCompress(req engine.JobRequest) ([]engine.JobReport, error) {
 	deps := engine.DefaultDependencies(a.executableDir)
+	deps.RunCommand = nil // 解锁引擎进度分析流水线
 	eng := engine.NewCompressEngine(deps)
 
 	onProgress := func(ev engine.ProgressEvent) {
@@ -128,9 +140,76 @@ func (a *App) SelectFiles() ([]string, error) {
 	return runtime.OpenMultipleFilesDialog(a.ctx, options)
 }
 
+// SelectFolder opens a directory dialog and returns the selected folder path
+func (a *App) SelectFolder() (string, error) {
+	options := runtime.OpenDialogOptions{
+		Title: "选择压缩后视频的保存目录",
+	}
+	return runtime.OpenDirectoryDialog(a.ctx, options)
+}
+
 // OpenFolder opens the target directory in explorer
 func (a *App) OpenFolder(path string) error {
-	deps := engine.DefaultDependencies(a.executableDir)
-	// In Windows, explorer.exe can be launched to show folder
-	return deps.RunCommand("explorer.exe", []string{filepath.Clean(path)})
+	cmd := exec.Command("explorer.exe", filepath.Clean(path))
+	return cmd.Run()
+}
+
+// DownloadFFmpeg triggers the download and extraction of the ffmpeg binary
+func (a *App) DownloadFFmpeg() error {
+	onProgress := func(percent float64) {
+		runtime.EventsEmit(a.ctx, "download-progress", percent)
+	}
+
+	err := ffmpeg.DownloadFFmpeg(a.executableDir, onProgress)
+	if err != nil {
+		runtime.EventsEmit(a.ctx, "download-progress", -1.0)
+		return err
+	}
+
+	runtime.EventsEmit(a.ctx, "download-progress", 100.0)
+	return nil
+}
+
+// InstallDesktopShortcut creates a desktop shortcut pointing to the application executable
+func (a *App) InstallDesktopShortcut() error {
+	return sendto.InstallDesktop(a.executablePath)
+}
+
+// UninstallDesktopShortcut removes the application shortcut from the user's desktop
+func (a *App) UninstallDesktopShortcut() error {
+	return sendto.UninstallDesktop()
+}
+
+// InstallStartMenuShortcut creates a shortcut directory in the Start Menu for the application
+func (a *App) InstallStartMenuShortcut() error {
+	return sendto.InstallStartMenu(a.executablePath)
+}
+
+// UninstallStartMenuShortcut removes the application shortcut directory from the Start Menu
+func (a *App) UninstallStartMenuShortcut() error {
+	return sendto.UninstallStartMenu()
+}
+
+// InstallContextMenu registers the "Compress with Videopress" context menu entry for all files
+func (a *App) InstallContextMenu() error {
+	return sendto.RegisterContextMenu(a.executablePath)
+}
+
+// UninstallContextMenu removes the "Compress with Videopress" context menu entry from the system registry
+func (a *App) UninstallContextMenu() error {
+	return sendto.UnregisterContextMenu()
+}
+
+// GetIntegrationStatus queries the current installation status of various desktop integrations
+func (a *App) GetIntegrationStatus() (map[string]bool, error) {
+	status := make(map[string]bool)
+	status["sendto"] = sendto.IsSendToInstalled()
+	status["desktop"] = sendto.IsDesktopInstalled()
+	status["startmenu"] = sendto.IsStartMenuInstalled()
+	status["contextmenu"] = sendto.IsContextMenuInstalled()
+
+	isPath, _ := env.IsPathConfigured(a.executableDir)
+	status["path"] = isPath
+
+	return status, nil
 }

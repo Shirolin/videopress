@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 type GetPathFunc func() (string, error)
@@ -17,6 +18,25 @@ func AddToPath(dir string) (bool, error) {
 
 func RemoveFromPath(dir string) (bool, error) {
 	return RemoveFromPathAt(dir, getPath, setPath)
+}
+
+func IsPathConfigured(dir string) (bool, error) {
+	return IsPathConfiguredAt(dir, getPath)
+}
+
+func IsPathConfiguredAt(dir string, getPath GetPathFunc) (bool, error) {
+	dirClean := filepath.Clean(dir)
+	current, err := getPath()
+	if err != nil {
+		return false, err
+	}
+	parts := splitPath(current)
+	for _, p := range parts {
+		if filepath.Clean(p) == dirClean {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func AddToPathAt(dir string, getPath GetPathFunc, setPath SetPathFunc) (bool, error) {
@@ -90,6 +110,10 @@ func joinPath(parts []string) string {
 
 func getPath() (string, error) {
 	cmd := exec.Command("powershell", "-NoProfile", "-Command", `[Environment]::GetEnvironmentVariable("Path", "User")`)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	}
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
@@ -102,6 +126,10 @@ func setPath(newPath string) error {
 	escapedPath := strings.ReplaceAll(newPath, `'`, `''`)
 	cmdStr := fmt.Sprintf(`[Environment]::SetEnvironmentVariable("Path", '%s', "User")`, escapedPath)
 	cmd := exec.Command("powershell", "-NoProfile", "-Command", cmdStr)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	}
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("写入环境变量失败: %w", err)
 	}

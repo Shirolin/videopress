@@ -14,12 +14,36 @@ export function DetectGPUEncoder() {
   return window['go']['main']['App']['DetectGPUEncoder']();
 }
 
+export function DownloadFFmpeg() {
+  return window['go']['main']['App']['DownloadFFmpeg']();
+}
+
+export function GetInitialFiles() {
+  return window['go']['main']['App']['GetInitialFiles']();
+}
+
+export function GetIntegrationStatus() {
+  return window['go']['main']['App']['GetIntegrationStatus']();
+}
+
 export function GetPresets() {
   return window['go']['main']['App']['GetPresets']();
 }
 
+export function InstallContextMenu() {
+  return window['go']['main']['App']['InstallContextMenu']();
+}
+
+export function InstallDesktopShortcut() {
+  return window['go']['main']['App']['InstallDesktopShortcut']();
+}
+
 export function InstallSendTo() {
   return window['go']['main']['App']['InstallSendTo']();
+}
+
+export function InstallStartMenuShortcut() {
+  return window['go']['main']['App']['InstallStartMenuShortcut']();
 }
 
 export function OpenFolder(arg1) {
@@ -34,10 +58,26 @@ export function SelectFiles() {
   return window['go']['main']['App']['SelectFiles']();
 }
 
+export function SelectFolder() {
+  return window['go']['main']['App']['SelectFolder']();
+}
+
 export function StartCompress(arg1) {
   return window['go']['main']['App']['StartCompress'](arg1);
 }
 
+export function UninstallContextMenu() {
+  return window['go']['main']['App']['UninstallContextMenu']();
+}
+
+export function UninstallDesktopShortcut() {
+  return window['go']['main']['App']['UninstallDesktopShortcut']();
+}
+
 export function UninstallSendTo() {
   return window['go']['main']['App']['UninstallSendTo']();
+}
+
+export function UninstallStartMenuShortcut() {
+  return window['go']['main']['App']['UninstallStartMenuShortcut']();
 }

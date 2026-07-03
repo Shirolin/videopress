@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"videopress/internal/app"
 	"videopress/internal/env"
@@ -26,8 +27,16 @@ func main() {
 	}
 	execDir := filepath.Dir(executablePath)
 
-	// 如果有命令行参数，走 CLI 模式
-	if len(os.Args) > 1 {
+	// 判断是否走 CLI 命令行模式
+	isCLIMode := false
+	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "-") {
+			isCLIMode = true
+			break
+		}
+	}
+
+	if isCLIMode {
 		exitCode := app.Execute(os.Args[1:], app.Dependencies{
 			ExecutableDir:   execDir,
 			ExecutablePath:  executablePath,
@@ -41,8 +50,11 @@ func main() {
 		os.Exit(exitCode)
 	}
 
-	// 否则启动 GUI 模式 (Wails)
+	// 启动 GUI 模式 (Wails)
 	guiApp := NewApp(execDir, executablePath)
+	if len(os.Args) > 1 {
+		guiApp.initialFiles = os.Args[1:]
+	}
 
 	err = wails.Run(&options.App{
 		Title:  "Videopress",

@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var durationRegex = regexp.MustCompile(`Duration:\s*(\d{2}):(\d{2}):(\d{2})\.(\d{2})`)
+var durationRegex = regexp.MustCompile(`Duration:\s*(\d{2}):(\d{2}):(\d{2})\.(\d+)`)
 
 // ParseDuration 从 ffmpeg 元数据输出中解析视频时长
 func ParseDuration(metadata string) (time.Duration, error) {
@@ -23,12 +23,18 @@ func ParseDuration(metadata string) (time.Duration, error) {
 	hours, _ := strconv.Atoi(matches[1])
 	minutes, _ := strconv.Atoi(matches[2])
 	seconds, _ := strconv.Atoi(matches[3])
-	centiseconds, _ := strconv.Atoi(matches[4])
+
+	// 小数秒解析：例如 123 表示 0.123 秒
+	fractionStr := "0." + matches[4]
+	var fractionVal float64
+	if val, err := strconv.ParseFloat(fractionStr, 64); err == nil {
+		fractionVal = val
+	}
 
 	total := time.Duration(hours)*time.Hour +
 		time.Duration(minutes)*time.Minute +
 		time.Duration(seconds)*time.Second +
-		time.Duration(centiseconds)*time.Second/100
+		time.Duration(fractionVal*float64(time.Second))
 
 	return total, nil
 }
@@ -36,6 +42,7 @@ func ParseDuration(metadata string) (time.Duration, error) {
 // GetDuration 运行 ffmpeg -i 探测视频时长
 func GetDuration(ffmpegPath string, inputPath string) (time.Duration, error) {
 	cmd := exec.Command(ffmpegPath, "-i", inputPath)
+	prepareCmd(cmd)
 	output, _ := cmd.CombinedOutput()
 	return ParseDuration(string(output))
 }
