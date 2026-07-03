@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"videopress/internal/compress"
+	"videopress/internal/engine"
 	"videopress/internal/ffmpeg"
 )
 
@@ -51,15 +52,7 @@ type Dependencies struct {
 	RemoveFromPath         func(dir string) (bool, error)
 }
 
-type JobReport struct {
-	InputName  string
-	OutputDir  string
-	Status     string // "成功", "跳过", "失败"
-	SourceSize int64
-	TargetSize int64
-	Duration   time.Duration
-	ErrMessage string
-}
+type JobReport = engine.JobReport
 
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, magenta("========================================"))
@@ -381,17 +374,15 @@ func Execute(args []string, deps Dependencies) int {
 	fmt.Fprintln(deps.Stdout, magenta("========================================"))
 	fmt.Fprintln(deps.Stdout)
 
-	type Task struct {
-		input  string
-		output string
-	}
+	// 建立输入到输出的映射，用于单任务模式下打印完成信息
+	outputMap := make(map[string]string)
+	var engineFiles []string
 
 	var mu sync.Mutex
 	failures := 0
 	successes := 0
 	var allReports []JobReport
 
-	tasksChan := make(chan Task, len(files))
 	for _, input := range files {
 		if !isVideoFile(input) {
 			fmt.Fprintf(deps.Stdout, "跳过非视频文件: %s\n", gray(input))
@@ -410,7 +401,7 @@ func Execute(args []string, deps Dependencies) int {
 		if err == nil && *skipExisting && !*forceMode && deps.PathExists(defaultOutput) {
 			fmt.Fprintf(deps.Stdout, "跳过已存在的文件: %s\n", yellow(defaultOutput))
 			mu.Lock()
-			successes++ // 跳过已存在视为成功
+			successes++
 			allReports = append(allReports, JobReport{
 				InputName:  filepath.Base(input),
 				OutputDir:  filepath.Dir(defaultOutput),
@@ -438,55 +429,91 @@ func Execute(args []string, deps Dependencies) int {
 			continue
 		}
 
-		tasksChan <- Task{input: input, output: output}
+		outputMap[filepath.Base(input)] = output
+		engineFiles = append(engineFiles, input)
 	}
-	close(tasksChan)
 
-	var wg sync.WaitGroup
-	for i := 0; i < limit; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for task := range tasksChan {
-				startTime := time.Now()
-				duration, _ := deps.GetDuration(ffmpegPath, task.input)
-				args := ffmpeg.BuildArgs(task.input, task.output, preset, hwEncoder, *copyAudio)
-				simpleProgress := limit > 1
-				err := deps.RunCommandWithProgress(ffmpegPath, args, duration, filepath.Base(task.input), deps.Stdout, simpleProgress)
-				elapsed := time.Since(startTime)
+	if len(engineFiles) > 0 {
+		engDeps := engine.Dependencies{
+			ExecutableDir:    deps.ExecutableDir,
+			ResolveBinary:    deps.ResolveBinary,
+			RunCommand:       deps.RunCommand,
+			GetDuration:      deps.GetDuration,
+			DetectGPUEncoder: deps.DetectGPUEncoder,
+			MkdirAll:         deps.MkdirAll,
+			PathExists:       deps.PathExists,
+			InputAccessible:  deps.InputAccessible,
+		}
+		eng := engine.NewCompressEngine(engDeps)
 
-				mu.Lock()
-				if err != nil {
-					friendlyErr := ffmpeg.ParseFFmpegError(err.Error())
-					fmt.Fprintf(deps.Stderr, "\n%s %s: %s\n", red("压缩失败:"), filepath.Base(task.input), red(friendlyErr))
-					failures++
-					allReports = append(allReports, JobReport{
-						InputName:  filepath.Base(task.input),
-						OutputDir:  filepath.Dir(task.output),
-						Status:     "失败",
-						SourceSize: getFileSize(task.input),
-						Duration:   elapsed,
-						ErrMessage: friendlyErr,
-					})
-				} else {
-					if !simpleProgress {
-						fmt.Fprintf(deps.Stdout, "压缩完成: %s -> %s\n", task.input, task.output)
-					}
-					successes++
-					allReports = append(allReports, JobReport{
-						InputName:  filepath.Base(task.input),
-						OutputDir:  filepath.Dir(task.output),
-						Status:     "成功",
-						SourceSize: getFileSize(task.input),
-						TargetSize: getFileSize(task.output),
-						Duration:   elapsed,
-					})
+		simpleProgress := limit > 1
+		var muProgress sync.Mutex
+
+		onProgress := func(ev engine.ProgressEvent) {
+			muProgress.Lock()
+			defer muProgress.Unlock()
+
+			if ev.Error != "" {
+				if !simpleProgress {
+					fmt.Fprintln(deps.Stdout)
 				}
-				mu.Unlock()
+				fmt.Fprintf(deps.Stderr, "\n%s %s: %s\n", red("压缩失败:"), ev.File, red(ev.Error))
+				return
 			}
-		}()
+
+			if ev.Done {
+				if simpleProgress {
+					fmt.Fprintf(deps.Stdout, "[%s] 压缩完成\n", ev.File)
+				} else {
+					fmt.Fprintln(deps.Stdout)
+					outPath := outputMap[ev.File]
+					// 还原原有的单文件压缩完成打印，ev.File 此时是 basename
+					// 寻找完整的 input path
+					var fullInput string
+					for _, in := range engineFiles {
+						if filepath.Base(in) == ev.File {
+							fullInput = in
+							break
+						}
+					}
+					fmt.Fprintf(deps.Stdout, "压缩完成: %s -> %s\n", fullInput, outPath)
+				}
+				return
+			}
+
+			if simpleProgress {
+				if ev.Percent == 0 {
+					fmt.Fprintf(deps.Stdout, "[%s] 开始压缩...\n", ev.File)
+				}
+			} else {
+				ffmpeg.RenderProgressBar(deps.Stdout, ev.Percent, ev.File)
+			}
+		}
+
+		reports, err := eng.Run(engine.JobRequest{
+			Files:        engineFiles,
+			Preset:       *presetName,
+			HWAccel:      *hwAccel,
+			CopyAudio:    *copyAudio,
+			ForceMode:    *forceMode,
+			SkipExisting: *skipExisting,
+			Concurrency:  limit,
+		}, onProgress)
+
+		if err != nil {
+			fmt.Fprintf(deps.Stderr, "%s 引擎运行失败: %v\n", red("错误:"), err)
+			return 1
+		}
+
+		for _, r := range reports {
+			if r.Status == "成功" {
+				successes++
+			} else {
+				failures++
+			}
+			allReports = append(allReports, r)
+		}
 	}
-	wg.Wait()
 
 	// 归档日志
 	reportsByDir := make(map[string][]JobReport)
