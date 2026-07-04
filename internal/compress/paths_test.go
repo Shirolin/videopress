@@ -11,7 +11,7 @@ func TestBuildOutputPathUsesCompressedSubdirectory(t *testing.T) {
 		t.Fatalf("BuildOutputPath returned error: %v", err)
 	}
 
-	expected := filepath.Clean(`C:\videos\compressed\demo.standard.compressed.mp4`)
+	expected := filepath.Clean(`C:\videos\compressed\demo.compressed.mp4`)
 	if output != expected {
 		t.Fatalf("expected %s, got %s", expected, output)
 	}
@@ -19,7 +19,7 @@ func TestBuildOutputPathUsesCompressedSubdirectory(t *testing.T) {
 
 func TestBuildOutputPathAppendsSequenceWhenTargetExists(t *testing.T) {
 	exists := func(path string) bool {
-		return filepath.Clean(path) == filepath.Clean(`C:\videos\compressed\demo.standard.compressed.mp4`)
+		return filepath.Clean(path) == filepath.Clean(`C:\videos\compressed\demo.compressed.mp4`)
 	}
 
 	output, err := BuildOutputPath(`C:\videos\demo.mp4`, "standard", exists, false, "")
@@ -27,7 +27,7 @@ func TestBuildOutputPathAppendsSequenceWhenTargetExists(t *testing.T) {
 		t.Fatalf("BuildOutputPath returned error: %v", err)
 	}
 
-	expected := filepath.Clean(`C:\videos\compressed\demo.standard.compressed-1.mp4`)
+	expected := filepath.Clean(`C:\videos\compressed\demo.compressed-1.mp4`)
 	if output != expected {
 		t.Fatalf("expected %s, got %s", expected, output)
 	}
@@ -46,7 +46,7 @@ func TestBuildOutputPathWithForce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildOutputPath returned error: %v", err)
 	}
-	expected := filepath.Clean(`C:\videos\compressed\demo.standard.compressed.mp4`)
+	expected := filepath.Clean(`C:\videos\compressed\demo.compressed.mp4`)
 	if output != expected {
 		t.Fatalf("expected %s even if file exists because force=true, got %s", expected, output)
 	}

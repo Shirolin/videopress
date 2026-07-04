@@ -4,32 +4,44 @@
   import FileQueue, { type QueueItem } from './components/FileQueue.svelte';
   import Settings from './components/Settings.svelte';
   
-  import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles } from '../wailsjs/go/main/App.js';
+  import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress } from '../wailsjs/go/main/App.js';
   import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
 
   let queueItems: QueueItem[] = [];
   
-  // Compression Settings
-  let preset: string = 'standard';
-  let concurrency: number = 1;
-  let hwAccel: boolean = false;
-  let copyAudio: boolean = false;
-  let forceMode: boolean = false;
-  let skipExisting: boolean = false;
+  // Compression Settings initialized from localStorage
+  let preset: string = localStorage.getItem('videopress_preset') || 'standard';
+  let concurrency: number = parseInt(localStorage.getItem('videopress_concurrency') || '1', 10);
+  let hwAccel: boolean = localStorage.getItem('videopress_hw_accel') === 'true';
+  let copyAudio: boolean = localStorage.getItem('videopress_copy_audio') === 'true';
+  let forceMode: boolean = localStorage.getItem('videopress_force_mode') === 'true';
+  let skipExisting: boolean = localStorage.getItem('videopress_skip_existing') === 'true';
+
+  // Persist settings reactively
+  $: if (preset !== undefined) localStorage.setItem('videopress_preset', preset);
+  $: if (concurrency !== undefined) localStorage.setItem('videopress_concurrency', concurrency.toString());
+  $: if (hwAccel !== undefined) localStorage.setItem('videopress_hw_accel', hwAccel.toString());
+  $: if (copyAudio !== undefined) localStorage.setItem('videopress_copy_audio', copyAudio.toString());
+  $: if (forceMode !== undefined) localStorage.setItem('videopress_force_mode', forceMode.toString());
+  $: if (skipExisting !== undefined) localStorage.setItem('videopress_skip_existing', skipExisting.toString());
 
   let isCompressing = false;
   let ffmpegError = '';
   let showSettings = false;
+  let appVersion = 'v0.1.0';
 
   // FFmpeg auto-download state
   let isDownloadingFFmpeg = false;
   let downloadPercent = 0;
   let downloadError = '';
 
-  // Custom output directory with localStorage persistence
+  // Custom output directory with localStorage persistence - optimized to avoid reactive trigger on initial load
   let customOutputDir = localStorage.getItem('videopress_custom_output_dir') || '';
-  $: if (customOutputDir !== undefined) {
-    localStorage.setItem('videopress_custom_output_dir', customOutputDir);
+  let lastOutputDir = '';
+
+  function saveCustomOutputDir(dir: string) {
+    customOutputDir = dir;
+    localStorage.setItem('videopress_custom_output_dir', dir);
   }
 
   // Real-time stats calculation
@@ -65,6 +77,14 @@
       await DetectFFmpeg();
     } catch (e: any) {
       ffmpegError = e.message || '未找到 FFmpeg，请先安装并将 ffmpeg.exe 添加到系统环境变量中。';
+    }
+
+    // Load application version
+    try {
+      const v = await GetVersion();
+      if (v) appVersion = 'v' + v;
+    } catch (e) {
+      console.error("加载版本号失败:", e);
     }
 
     // Set up Wails events listener for video compression progress
@@ -147,12 +167,15 @@
   function addFilesToQueue(paths: string[]) {
     const newItems = paths.map(path => {
       const name = path.split(/[/\\]/).pop() || path;
+      const isAlreadyCompressed = name.includes('.compressed');
       return {
         path,
         name,
         size: 0,
         percent: 0,
         status: 'waiting' as const,
+        error: isAlreadyCompressed ? '警告：该视频可能已经被压缩过，二次压缩会损害画质。' : undefined,
+        isWarning: isAlreadyCompressed,
       };
     });
 
@@ -189,7 +212,7 @@
       ...item,
       percent: 0,
       status: 'waiting' as const,
-      error: undefined,
+      error: item.isWarning ? '警告：该视频可能已经被压缩过，二次压缩会损害画质。' : undefined,
       targetSize: undefined,
       duration: undefined
     }));
@@ -218,6 +241,9 @@
           } else if (report.Status === '失败') {
             status = 'failed' as const;
           }
+          if (report.Status === '成功' && report.OutputDir) {
+            lastOutputDir = report.OutputDir;
+          }
           return {
             ...item,
             size: report.SourceSize,
@@ -236,12 +262,21 @@
     }
   }
 
+  async function handleCancelCompression() {
+    try {
+      await CancelCompress();
+    } catch (err) {
+      console.error("Failed to cancel compression:", err);
+    }
+  }
+
   async function handleOpenOutputFolder() {
-    if (customOutputDir) {
+    const dirToOpen = customOutputDir || lastOutputDir;
+    if (dirToOpen) {
       try {
-        await OpenFolder(customOutputDir);
+        await OpenFolder(dirToOpen);
       } catch (err) {
-        console.error("Failed to open custom output folder:", err);
+        console.error("Failed to open output folder:", err);
       }
       return;
     }
@@ -264,7 +299,7 @@
     try {
       const dir = await SelectFolder();
       if (dir) {
-        customOutputDir = dir;
+        saveCustomOutputDir(dir);
       }
     } catch (err) {
       console.error("Failed to select output folder:", err);
@@ -284,7 +319,7 @@
       </div>
       <div class="brand-text">
         <h1>Videopress</h1>
-        <span class="badge">v0.1.0</span>
+        <span class="badge">{appVersion}</span>
       </div>
     </div>
     
@@ -477,26 +512,28 @@
 
         <!-- Action Panel (Fixed size, locked at the bottom) -->
         <div class="action-panel">
-          {#if queueItems.some(item => item.status === 'success')}
+          {#if queueItems.some(item => item.status === 'success' || item.status === 'failed' || item.status === 'skipped')}
             <button class="btn-folder" on:click={handleOpenOutputFolder}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
               打开输出文件夹
             </button>
           {/if}
 
-          <button 
-            class="compress-trigger-btn {isCompressing ? 'compressing' : ''}" 
-            disabled={queueItems.length === 0 || isCompressing || !!ffmpegError}
-            on:click={triggerCompression}
-          >
-            {#if isCompressing}
-              <span class="spinner"></span>
-              正在进行视频压缩...
-            {:else}
+          {#if isCompressing}
+            <button class="compress-trigger-btn cancel-btn" on:click={handleCancelCompression}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+              取消压缩任务
+            </button>
+          {:else}
+            <button 
+              class="compress-trigger-btn" 
+              disabled={queueItems.length === 0 || !!ffmpegError}
+              on:click={triggerCompression}
+            >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               开始视频压缩
-            {/if}
-          </button>
+            </button>
+          {/if}
         </div>
       </div>
     {/if}
@@ -871,6 +908,15 @@
     gap: 0.4rem;
     box-shadow: 0 4px 14px rgba(168, 85, 247, 0.25);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .compress-trigger-btn.cancel-btn {
+    background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+    box-shadow: 0 4px 14px rgba(244, 63, 94, 0.25);
+  }
+
+  .compress-trigger-btn.cancel-btn:hover:not(:disabled) {
+    box-shadow: 0 6px 18px rgba(244, 63, 94, 0.4);
   }
 
   .compress-trigger-btn:hover:not(:disabled) {

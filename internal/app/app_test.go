@@ -365,7 +365,7 @@ func TestExecuteSkipExisting(t *testing.T) {
 			return nil
 		},
 		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
-		PathExists:      func(path string) bool { return strings.Contains(path, "clip.standard.compressed.mp4") },
+		PathExists:      func(path string) bool { return strings.Contains(path, "clip.compressed.mp4") },
 		InputAccessible: accessibleInput,
 		Stdout:          stdout,
 		Stderr:          &bytes.Buffer{},

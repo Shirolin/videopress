@@ -10,6 +10,7 @@
     targetSize?: number;
     duration?: number; // in ms
     error?: string;
+    isWarning?: boolean;
   }
 
   export let items: QueueItem[] = [];
@@ -89,6 +90,17 @@
               {/if}
             </span>
           </div>
+          
+          {#if item.isWarning && item.status === 'waiting'}
+            <div class="result-details warning-box">
+              <div class="status-msg">
+                <span class="warning-txt" title={item.error}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-icon"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                  {item.error}
+                </span>
+              </div>
+            </div>
+          {/if}
 
           {#if item.status === 'success' || item.status === 'skipped' || item.status === 'failed'}
             <div class="result-details">
@@ -431,6 +443,20 @@
 
   .failed-txt {
     color: var(--accent-red);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    font-weight: 550;
+  }
+
+  .warning-box {
+    background: rgba(245, 158, 11, 0.05) !important;
+    border: 1px solid rgba(245, 158, 11, 0.15) !important;
+  }
+
+  .warning-txt {
+    color: var(--accent-yellow);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

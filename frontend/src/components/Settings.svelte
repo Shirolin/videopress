@@ -44,13 +44,23 @@
     desc: p.description
   }));
 
-  // Concurrency list for CustomSelect
+  // Concurrency list for CustomSelect based on actual CPU cores
+  const maxCores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
   const concurrencyOptions = [
-    { value: 1, label: '1 线程', desc: '单任务队列，最佳进度条体验' },
-    { value: 2, label: '2 并发', desc: '支持 2 任务并发压缩' },
-    { value: 4, label: '4 并发', desc: '支持 4 任务并发压缩' },
-    { value: 8, label: '8 并发', desc: '高并发，建议多核处理器使用' }
+    { value: 1, label: '1 线程', desc: '单任务队列，最佳进度条体验' }
   ];
+  if (maxCores >= 2) {
+    concurrencyOptions.push({ value: 2, label: '2 并发', desc: '支持 2 任务并发压缩' });
+  }
+  if (maxCores >= 4) {
+    concurrencyOptions.push({ value: 4, label: '4 并发', desc: '支持 4 任务并发压缩' });
+  }
+  if (maxCores >= 8) {
+    concurrencyOptions.push({ value: 8, label: '8 并发', desc: '高并发，建议多核处理器使用' });
+  }
+  if (maxCores > 8) {
+    concurrencyOptions.push({ value: maxCores, label: `${maxCores} 并发`, desc: '利用本机全部 CPU 核心进行高速编码' });
+  }
 
   async function updateIntegrationStatus() {
     try {
@@ -74,7 +84,9 @@
       try {
         detectedGPU = await DetectGPUEncoder();
         if (detectedGPU !== 'libx264') {
-          hwAccel = true; // Auto-enable if GPU encoder found
+          if (localStorage.getItem('videopress_hw_accel') === null) {
+            hwAccel = true; // Auto-enable only if user hasn't explicitly set it
+          }
         }
       } catch (gpuErr) {
         console.warn("GPU detector error:", gpuErr);

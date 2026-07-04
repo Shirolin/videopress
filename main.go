@@ -29,8 +29,27 @@ func main() {
 
 	// 判断是否走 CLI 命令行模式
 	isCLIMode := false
+	validFlags := map[string]bool{
+		"--preset":           true,
+		"--concurrency":      true,
+		"-c":                 true,
+		"--hw":               true,
+		"--force":            true,
+		"-f":                 true,
+		"--skip-existing":    true,
+		"--copy-audio":       true,
+		"-a":                 true,
+		"--sendto":           true,
+		"--install-sendto":   true,
+		"--uninstall-sendto": true,
+		"--install-path":     true,
+		"--uninstall-path":   true,
+		"--version":          true,
+		"-h":                 true,
+		"--help":             true,
+	}
 	for _, arg := range os.Args[1:] {
-		if strings.HasPrefix(arg, "-") {
+		if validFlags[strings.ToLower(arg)] {
 			isCLIMode = true
 			break
 		}
@@ -51,10 +70,11 @@ func main() {
 	}
 
 	// 启动 GUI 模式 (Wails)
-	guiApp := NewApp(execDir, executablePath)
+	var initialFiles []string
 	if len(os.Args) > 1 {
-		guiApp.initialFiles = os.Args[1:]
+		initialFiles = os.Args[1:]
 	}
+	guiApp := NewApp(execDir, executablePath, initialFiles)
 
 	err = wails.Run(&options.App{
 		Title:  "Videopress",

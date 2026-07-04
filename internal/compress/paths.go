@@ -20,7 +20,7 @@ func BuildOutputPath(inputPath string, preset string, exists PathExistsFunc, for
 	if customOutputDir != "" {
 		outputDir = customOutputDir
 	}
-	targetBase := filepath.Join(outputDir, fmt.Sprintf("%s.%s.compressed", baseName, preset))
+	targetBase := filepath.Join(outputDir, fmt.Sprintf("%s.compressed", baseName))
 
 	candidate := targetBase + ".mp4"
 	if force || exists == nil || !exists(candidate) {
@@ -32,7 +32,7 @@ func BuildOutputPath(inputPath string, preset string, exists PathExistsFunc, for
 		if index > 10000 {
 			return "", fmt.Errorf("无法生成唯一的输出文件名: 已尝试 %d 次", index)
 		}
-		candidate = filepath.Join(outputDir, fmt.Sprintf("%s.%s.compressed-%d.mp4", baseName, preset, index))
+		candidate = filepath.Join(outputDir, fmt.Sprintf("%s.compressed-%d.mp4", baseName, index))
 		if !exists(candidate) {
 			return filepath.Clean(candidate), nil
 		}

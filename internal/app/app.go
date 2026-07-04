@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"videopress/internal/compress"
 	"videopress/internal/engine"
 	"videopress/internal/ffmpeg"
+	"videopress/internal/util"
 )
 
 const Version = "0.1.0"
@@ -384,7 +386,7 @@ func Execute(args []string, deps Dependencies) int {
 	var allReports []JobReport
 
 	for _, input := range files {
-		if !isVideoFile(input) {
+		if !util.IsVideoFile(input) {
 			fmt.Fprintf(deps.Stdout, "跳过非视频文件: %s\n", gray(input))
 			continue
 		}
@@ -406,7 +408,7 @@ func Execute(args []string, deps Dependencies) int {
 				InputName:  filepath.Base(input),
 				OutputDir:  filepath.Dir(defaultOutput),
 				Status:     "跳过",
-				SourceSize: getFileSize(input),
+				SourceSize: util.GetFileSize(input),
 			})
 			mu.Unlock()
 			continue
@@ -482,7 +484,7 @@ func Execute(args []string, deps Dependencies) int {
 			}
 		}
 
-		reports, err := eng.Run(engine.JobRequest{
+		reports, err := eng.Run(context.Background(), engine.JobRequest{
 			Files:        engineFiles,
 			Preset:       *presetName,
 			HWAccel:      *hwAccel,
@@ -515,7 +517,9 @@ func Execute(args []string, deps Dependencies) int {
 	for outDir, reps := range reportsByDir {
 		logPath := filepath.Join(outDir, "compress_summary.log")
 		f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-		if err == nil {
+		if err != nil {
+			fmt.Fprintf(deps.Stderr, "%s 无法写入摘要日志文件 %s: %v\n", red("警告:"), logPath, err)
+		} else {
 			fmt.Fprintf(f, "[%s] 开始压缩任务\n", time.Now().Format("2006-01-02 15:04:05"))
 			for _, r := range reps {
 				switch r.Status {
@@ -652,28 +656,14 @@ func Execute(args []string, deps Dependencies) int {
 	return exitCode
 }
 
-func getFileSize(path string) int64 {
-	info, err := os.Stat(path)
-	if err != nil {
-		return 0
-	}
-	return info.Size()
-}
-
-func isVideoFile(path string) bool {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".mp4", ".mov", ".mkv", ".avi", ".m4v", ".wmv", ".webm",
-		".ts", ".flv", ".mpg", ".mpeg", ".3gp":
-		return true
-	default:
-		return false
-	}
-}
-
 func getDisplayWidth(s string) int {
 	w := 0
 	for _, r := range s {
-		if r > 127 {
+		// 精确匹配 CJK 统一汉字、标点符号、兼容汉字及全角字符区间
+		if (r >= 0x4e00 && r <= 0x9fff) ||
+			(r >= 0x3000 && r <= 0x303f) ||
+			(r >= 0xf900 && r <= 0xfaff) ||
+			(r >= 0xff00 && r <= 0xffef) {
 			w += 2
 		} else {
 			w += 1

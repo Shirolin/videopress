@@ -4,7 +4,9 @@ import (
 	"context"
 	"os/exec"
 	"path/filepath"
+	"sync"
 
+	"videopress/internal/app"
 	"videopress/internal/engine"
 	"videopress/internal/env"
 	"videopress/internal/ffmpeg"
@@ -19,14 +21,16 @@ type App struct {
 	executableDir  string
 	executablePath string
 	initialFiles   []string
+	mu             sync.Mutex
+	cancelFunc     context.CancelFunc
 }
 
 // NewApp creates a new App struct instance
-func NewApp(execDir, execPath string) *App {
+func NewApp(execDir, execPath string, initialFiles []string) *App {
 	return &App{
 		executableDir:  execDir,
 		executablePath: execPath,
-		initialFiles:   []string{},
+		initialFiles:   initialFiles,
 	}
 }
 
@@ -38,9 +42,16 @@ func (a *App) startup(ctx context.Context) {
 
 // GetInitialFiles returns the initial file paths passed during application launch
 func (a *App) GetInitialFiles() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	files := a.initialFiles
 	a.initialFiles = nil // clear to prevent duplicate loads
 	return files
+}
+
+// GetVersion returns the application version
+func (a *App) GetVersion() string {
+	return app.Version
 }
 
 // PresetInfo represents preset metadata returned to frontend
@@ -54,9 +65,9 @@ type PresetInfo struct {
 // GetPresets returns the list of compression presets
 func (a *App) GetPresets() []PresetInfo {
 	return []PresetInfo{
-		{Name: "small", ScaleFactor: 0.5, MaxDimension: 720, Description: "小文件规格，适合社交媒体快速分享"},
-		{Name: "standard", ScaleFactor: 1.0, MaxDimension: 1080, Description: "标准规格，画质与体积的完美平衡"},
-		{Name: "quality", ScaleFactor: 1.0, MaxDimension: 0, Description: "高画质规格，保留极致视频细节"},
+		{Name: "small", ScaleFactor: 0.33, MaxDimension: 480, Description: "小文件规格，适合社交媒体快速分享"},
+		{Name: "standard", ScaleFactor: 0.50, MaxDimension: 720, Description: "标准规格，画质与体积的完美平衡"},
+		{Name: "quality", ScaleFactor: 1.00, MaxDimension: 0, Description: "高画质规格，保留极致视频细节"},
 	}
 }
 
@@ -88,7 +99,19 @@ func (a *App) StartCompress(req engine.JobRequest) ([]engine.JobReport, error) {
 		runtime.EventsEmit(a.ctx, "progress", ev)
 	}
 
-	reports, err := eng.Run(req, onProgress)
+	a.mu.Lock()
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelFunc = cancel
+	a.mu.Unlock()
+
+	reports, err := eng.Run(ctx, req, onProgress)
+
+	a.mu.Lock()
+	if a.cancelFunc != nil {
+		a.cancelFunc = nil
+	}
+	a.mu.Unlock()
+
 	if err != nil {
 		return nil, err
 	}
@@ -104,6 +127,16 @@ func (a *App) StartCompress(req engine.JobRequest) ([]engine.JobReport, error) {
 	// (Implementation omitted or kept simple)
 
 	return reports, nil
+}
+
+// CancelCompress cancels the ongoing compression task
+func (a *App) CancelCompress() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cancelFunc != nil {
+		a.cancelFunc()
+		a.cancelFunc = nil
+	}
 }
 
 // InstallSendTo installs Windows SendTo right click menu binding
