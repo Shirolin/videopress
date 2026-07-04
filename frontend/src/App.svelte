@@ -10,13 +10,21 @@
 
   let queueItems: QueueItem[] = [];
   
-  // Compression Settings initialized from localStorage
+  // Compression Settings initialized from localStorage with safe recommended defaults
   let preset: string = localStorage.getItem('videopress_preset') || 'standard';
   let concurrency: number = parseInt(localStorage.getItem('videopress_concurrency') || '1', 10);
-  let hwAccel: boolean = localStorage.getItem('videopress_hw_accel') === 'true';
-  let copyAudio: boolean = localStorage.getItem('videopress_copy_audio') === 'true';
-  let forceMode: boolean = localStorage.getItem('videopress_force_mode') === 'true';
-  let skipExisting: boolean = localStorage.getItem('videopress_skip_existing') === 'true';
+  let hwAccel: boolean = localStorage.getItem('videopress_hw_accel') !== null 
+    ? localStorage.getItem('videopress_hw_accel') === 'true' 
+    : true;
+  let copyAudio: boolean = localStorage.getItem('videopress_copy_audio') !== null 
+    ? localStorage.getItem('videopress_copy_audio') === 'true' 
+    : true;
+  let forceMode: boolean = localStorage.getItem('videopress_force_mode') !== null 
+    ? localStorage.getItem('videopress_force_mode') === 'true' 
+    : false;
+  let skipExisting: boolean = localStorage.getItem('videopress_skip_existing') !== null 
+    ? localStorage.getItem('videopress_skip_existing') === 'true' 
+    : false;
   let enableDebugLog: boolean = localStorage.getItem('videopress_enable_debug_log') === 'true';
 
   // Persist settings reactively
