@@ -3,8 +3,9 @@
   import DropZone from './components/DropZone.svelte';
   import FileQueue, { type QueueItem } from './components/FileQueue.svelte';
   import Settings from './components/Settings.svelte';
+  import { t, locale } from './i18n.ts';
   
-  import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress, SetDebugMode } from '../wailsjs/go/main/App.js';
+  import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress, SetDebugMode, GetLanguage, SetLanguage } from '../wailsjs/go/main/App.js';
   import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
 
   let queueItems: QueueItem[] = [];
@@ -28,6 +29,11 @@
   $: if (enableDebugLog !== undefined) {
     localStorage.setItem('videopress_enable_debug_log', enableDebugLog.toString());
     SetDebugMode(enableDebugLog).catch(console.error);
+  }
+
+  // 同步语言设置至 Go 后端，重新触发热重写右键注册表项
+  $: if ($locale) {
+    SetLanguage($locale).catch(console.error);
   }
 
   let isCompressing = false;
@@ -77,11 +83,23 @@
   }
 
   onMount(async () => {
+    // Sync language from backend if not present in localStorage
+    if (!localStorage.getItem('videopress_lang')) {
+      try {
+        const lang = await GetLanguage();
+        if (lang) {
+          $locale = lang;
+        }
+      } catch (err) {
+        console.error("Failed to fetch language from backend:", err);
+      }
+    }
+
     // Check if FFmpeg is installed
     try {
       await DetectFFmpeg();
     } catch (e: any) {
-      ffmpegError = e.message || '未找到 FFmpeg，请先安装并将 ffmpeg.exe 添加到系统环境变量中。';
+      ffmpegError = e.message || $t('app.ffmpeg_not_found');
     }
 
     // Load application version
@@ -338,7 +356,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="nav-icon" style="width: 12px; height: 12px; flex-shrink: 0;">
             <rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect>
           </svg>
-          主工作区
+          {$t('nav.workspace')}
         </button>
         <button 
           class="segment-btn {showSettings ? 'active' : ''}" 
@@ -350,7 +368,7 @@
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
-          配置面板
+          {$t('nav.settings')}
         </button>
       </div>
   </header>
@@ -364,20 +382,19 @@
           <svg class="setup-logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>
           </svg>
-          <h2>需要配置核心视频引擎</h2>
+          <h2>{$t('app.setup_engine_title')}</h2>
         </div>
         <p class="setup-desc">
-          检测到系统未安装 <strong>FFmpeg</strong> 视频引擎依赖。<br>
-          Videopress 需要该依赖来进行高效率的视频解码与压缩任务。
+          {@html $t('app.setup_engine_desc')}
         </p>
 
         {#if isDownloadingFFmpeg}
           <div class="download-progress-container">
-            <span class="download-status">正在极速下载核心组件... ({downloadPercent.toFixed(1)}%)</span>
+            <span class="download-status">{$t('app.setup_downloading', {percent: downloadPercent.toFixed(1)})}</span>
             <div class="setup-progress-bar">
               <div class="setup-progress-fill" style="width: {downloadPercent}%"></div>
             </div>
-            <p class="download-tip">请不要关闭软件，这可能需要几十秒时间。配置成功后会自动进入主界面。</p>
+            <p class="download-tip">{$t('app.setup_download_tip')}</p>
           </div>
         {:else}
           <div class="setup-actions">
@@ -385,10 +402,10 @@
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon-down">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>
               </svg>
-              一键闪电自动配置 (推荐)
+              {$t('app.setup_btn_auto')}
             </button>
             <button class="setup-config-btn" on:click={() => showSettings = true}>
-              手动指定环境变量或寻找本地文件
+              {$t('app.setup_btn_manual')}
             </button>
           </div>
         {/if}
@@ -416,27 +433,27 @@
           <div class="stats-banner glass-panel">
             <div class="stat-card">
               <span class="val">{totalCount}</span>
-              <span class="label">任务总数</span>
+              <span class="label">{$t('stats.total')}</span>
             </div>
             <div class="stat-card">
               <span class="val text-purple">
                 {#if compressingCount > 0}
-                  {compressingCount} <span class="mini-status">处理中</span>
+                  {compressingCount} <span class="mini-status">{$t('stats.processing')}</span>
                 {:else if waitingCount > 0}
-                  {waitingCount} <span class="mini-status">待命</span>
+                  {waitingCount} <span class="mini-status">{$t('stats.idle')}</span>
                 {:else}
-                  {successCount} <span class="mini-status">完成</span>
+                  {successCount} <span class="mini-status">{$t('stats.completed')}</span>
                 {/if}
               </span>
-              <span class="label">当前状态</span>
+              <span class="label">{$t('stats.current_status')}</span>
             </div>
             <div class="stat-card">
               <span class="val text-green">{formatSavedSize(totalSavedBytes)}</span>
-              <span class="label">共节省空间</span>
+              <span class="label">{$t('stats.saved_space')}</span>
             </div>
             <div class="stat-card">
               <span class="val text-magenta">{averageRatio}</span>
-              <span class="label">平均压缩率</span>
+              <span class="label">{$t('stats.avg_ratio')}</span>
             </div>
           </div>
         {/if}
@@ -445,37 +462,37 @@
         <div class="quick-controls-panel glass-panel">
           <!-- Preset tabs -->
           <div class="control-group">
-            <span class="control-label">压缩预设</span>
+            <span class="control-label">{$t('controls.preset')}</span>
             <div class="segmented-control">
               <button 
                 class="segment-btn {preset === 'small' ? 'active' : ''}" 
                 on:click={() => preset = 'small'}
                 disabled={isCompressing}
               >
-                小文件
+                {$t('preset.small')}
               </button>
               <button 
                 class="segment-btn {preset === 'standard' ? 'active' : ''}" 
                 on:click={() => preset = 'standard'}
                 disabled={isCompressing}
               >
-                标准
+                {$t('preset.standard')}
               </button>
               <button 
                 class="segment-btn {preset === 'quality' ? 'active' : ''}" 
                 on:click={() => preset = 'quality'}
                 disabled={isCompressing}
               >
-                高画质
+                {$t('preset.quality')}
               </button>
             </div>
           </div>
 
           <!-- Custom output folder -->
           <div class="control-group flex-1">
-            <span class="control-label">保存目录</span>
+            <span class="control-label">{$t('controls.output')}</span>
             <div class="path-bar-container">
-              <div class="path-display" title={customOutputDir || '原视频同目录下的 compressed/ 文件夹'}>
+              <div class="path-display" title={customOutputDir || $t('controls.default_output_tip')}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="path-icon">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                 </svg>
@@ -483,7 +500,7 @@
                   {#if customOutputDir}
                     {customOutputDir}
                   {:else}
-                    默认 (保存至原视频目录下 compressed/ 文件夹)
+                    {$t('controls.default_output_path')}
                   {/if}
                 </span>
               </div>
@@ -493,16 +510,16 @@
                   on:click={handleChangeOutputDir}
                   disabled={isCompressing}
                 >
-                  更改
+                  {$t('btn.change')}
                 </button>
                 {#if customOutputDir}
                   <button 
                     class="path-btn reset" 
                     on:click={() => customOutputDir = ''} 
                     disabled={isCompressing}
-                    title="恢复默认路径"
+                    title={$t('btn.reset_path_title')}
                   >
-                    重置
+                    {$t('btn.reset')}
                   </button>
                 {/if}
               </div>
@@ -526,14 +543,14 @@
           {#if queueItems.some(item => item.status === 'success' || item.status === 'failed' || item.status === 'skipped')}
             <button class="btn-folder" on:click={handleOpenOutputFolder}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              打开输出文件夹
+              {$t('btn.open_output_folder')}
             </button>
           {/if}
 
           {#if isCompressing}
             <button class="compress-trigger-btn cancel-btn" on:click={handleCancelCompression}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
-              取消压缩任务
+              {$t('btn.cancel_compress')}
             </button>
           {:else}
             <button 
@@ -542,7 +559,7 @@
               on:click={triggerCompression}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-              开始视频压缩
+              {$t('btn.start_compress')}
             </button>
           {/if}
         </div>

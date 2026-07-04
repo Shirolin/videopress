@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { SelectFiles } from '../../wailsjs/go/main/App.js';
+  import { t } from '../i18n.ts';
 
   export let compact = false;
   export let disabled = false;
@@ -64,7 +65,7 @@
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon-small" style="color: var(--text-muted)">
         <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
       </svg>
-      <span class="compact-text" style="color: var(--text-muted)">正在进行视频压缩，请稍候...</span>
+      <span class="compact-text" style="color: var(--text-muted)">{$t('dropzone.disabled')}</span>
     </div>
   {:else if compact}
     <div class="compact-content">
@@ -73,7 +74,7 @@
         <polyline points="17 8 12 3 7 8" />
         <line x1="12" y1="3" x2="12" y2="15" />
       </svg>
-      <span class="compact-text">点击或拖拽视频到此处添加更多视频</span>
+      <span class="compact-text">{$t('dropzone.add_more')}</span>
     </div>
   {:else}
     <div class="icon-container">
@@ -83,9 +84,9 @@
         <line x1="12" y1="3" x2="12" y2="15" />
       </svg>
     </div>
-    <h3>拖拽视频文件到此处</h3>
-    <p>支持多选，或者点击选择文件</p>
-    <p class="file-types">支持 MP4, MOV, MKV, AVI, WEBM 等视频格式</p>
+    <h3>{$t('dropzone.title')}</h3>
+    <p>{$t('dropzone.desc')}</p>
+    <p class="file-types">{$t('dropzone.formats')}</p>
   {/if}
 </div>
 

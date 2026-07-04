@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"videopress/internal/app"
@@ -27,6 +28,7 @@ type App struct {
 	mu             sync.Mutex
 	cancelFunc     context.CancelFunc
 	enableDebug    bool
+	language       string
 }
 
 // NewApp creates a new App struct instance
@@ -35,6 +37,7 @@ func NewApp(execDir, execPath string, initialFiles []string) *App {
 		executableDir:  execDir,
 		executablePath: execPath,
 		initialFiles:   initialFiles,
+		language:       getSystemLanguage(),
 	}
 }
 
@@ -68,10 +71,24 @@ type PresetInfo struct {
 
 // GetPresets returns the list of compression presets
 func (a *App) GetPresets() []PresetInfo {
+	a.mu.Lock()
+	lang := a.language
+	a.mu.Unlock()
+
+	descSmall := "小文件规格，适合社交媒体快速分享"
+	descStandard := "标准规格，画质与体积的完美平衡"
+	descQuality := "高画质规格，保留极致视频细节"
+
+	if lang == "en" {
+		descSmall = "Small file spec, perfect for social media sharing"
+		descStandard = "Standard spec, ideal balance of quality and size"
+		descQuality = "High quality spec, preserves maximum video details"
+	}
+
 	return []PresetInfo{
-		{Name: "small", ScaleFactor: 0.33, MaxDimension: 480, Description: "小文件规格，适合社交媒体快速分享"},
-		{Name: "standard", ScaleFactor: 0.50, MaxDimension: 720, Description: "标准规格，画质与体积的完美平衡"},
-		{Name: "quality", ScaleFactor: 1.00, MaxDimension: 0, Description: "高画质规格，保留极致视频细节"},
+		{Name: "small", ScaleFactor: 0.33, MaxDimension: 480, Description: descSmall},
+		{Name: "standard", ScaleFactor: 0.50, MaxDimension: 720, Description: descStandard},
+		{Name: "quality", ScaleFactor: 1.00, MaxDimension: 0, Description: descQuality},
 	}
 }
 
@@ -165,11 +182,22 @@ func (a *App) RemoveFromPath() (bool, error) {
 
 // SelectFiles opens a file dialog and returns selected video paths
 func (a *App) SelectFiles() ([]string, error) {
+	a.mu.Lock()
+	lang := a.language
+	a.mu.Unlock()
+
+	title := "选择视频文件"
+	filterName := "视频文件 (*.mp4; *.mov; *.mkv; *.avi; *.webm)"
+	if lang == "en" {
+		title = "Select Video Files"
+		filterName = "Video Files (*.mp4; *.mov; *.mkv; *.avi; *.webm)"
+	}
+
 	options := runtime.OpenDialogOptions{
-		Title: "选择视频文件",
+		Title: title,
 		Filters: []runtime.FileFilter{
 			{
-				DisplayName: "视频文件 (*.mp4; *.mov; *.mkv; *.avi; *.webm)",
+				DisplayName: filterName,
 				Pattern:     "*.mp4;*.mov;*.mkv;*.avi;*.webm;*.m4v;*.wmv;*.ts;*.flv;*.mpg;*.mpeg;*.3gp",
 			},
 		},
@@ -179,8 +207,17 @@ func (a *App) SelectFiles() ([]string, error) {
 
 // SelectFolder opens a directory dialog and returns the selected folder path
 func (a *App) SelectFolder() (string, error) {
+	a.mu.Lock()
+	lang := a.language
+	a.mu.Unlock()
+
+	title := "选择压缩后视频的保存目录"
+	if lang == "en" {
+		title = "Select Save Directory for Compressed Videos"
+	}
+
 	options := runtime.OpenDialogOptions{
-		Title: "选择压缩后视频的保存目录",
+		Title: title,
 	}
 	return runtime.OpenDirectoryDialog(a.ctx, options)
 }
@@ -229,7 +266,10 @@ func (a *App) UninstallStartMenuShortcut() error {
 
 // InstallContextMenu registers the "Compress with Videopress" context menu entry for all files
 func (a *App) InstallContextMenu() error {
-	return sendto.RegisterContextMenu(a.executablePath)
+	a.mu.Lock()
+	lang := a.language
+	a.mu.Unlock()
+	return sendto.RegisterContextMenu(a.executablePath, lang)
 }
 
 // UninstallContextMenu removes the "Compress with Videopress" context menu entry from the system registry
@@ -356,4 +396,39 @@ func (a *App) OpenDebugLogFile() error {
 	}
 	cmd := exec.Command("cmd", "/c", "start", "", logFile)
 	return cmd.Run()
+}
+
+// SetLanguage sets the UI language and updates hot-reloadable integrations like context menu
+func (a *App) SetLanguage(lang string) {
+	a.mu.Lock()
+	a.language = lang
+	a.mu.Unlock()
+
+	// 只要右键菜单存在，切换语言时自动在后台热重写，从而翻译右键菜单名字
+	if sendto.IsContextMenuInstalled() {
+		_ = sendto.RegisterContextMenu(a.executablePath, lang)
+	}
+}
+
+// GetLanguage returns the active UI language
+func (a *App) GetLanguage() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.language
+}
+
+var (
+	kernel32                     = syscall.NewLazyDLL("kernel32.dll")
+	procGetUserDefaultUILanguage = kernel32.NewProc("GetUserDefaultUILanguage")
+)
+
+// getSystemLanguage 自动检测 Windows 系统 UI 语言并映射为 zh 或 en
+func getSystemLanguage() string {
+	r, _, _ := procGetUserDefaultUILanguage.Call()
+	langID := uint16(r)
+	// 中文 (LANG_CHINESE) 的 Primary Language ID 为 0x04
+	if (langID & 0x03ff) == 0x04 {
+		return "zh"
+	}
+	return "en"
 }

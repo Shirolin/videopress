@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { t } from '../i18n.ts';
   
   export interface QueueItem {
     path: string;
@@ -42,9 +43,9 @@
 
 <div class="queue-container glass-panel">
   <div class="queue-header">
-    <span class="title">任务队列 <span class="counter">{items.length}</span></span>
+    <span class="title">{$t('queue.title')} <span class="counter">{items.length}</span></span>
     {#if items.length > 0}
-      <button class="clear-btn" on:click={() => dispatch('clear')} disabled={isCompressing}>清空队列</button>
+      <button class="clear-btn" on:click={() => dispatch('clear')} disabled={isCompressing}>{$t('queue.clear')}</button>
     {/if}
   </div>
 
@@ -53,7 +54,7 @@
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="empty-icon">
         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
       </svg>
-      <p>暂无待压缩的视频任务</p>
+      <p>{$t('queue.empty')}</p>
     </div>
   {:else}
     <div class="list-wrapper">
@@ -65,7 +66,7 @@
               <span class="file-name" title={item.path}>{item.name}</span>
             </div>
             {#if item.status === 'waiting' && !isCompressing}
-              <button class="remove-btn" on:click={() => handleRemove(index)} title="移除任务">
+              <button class="remove-btn" on:click={() => handleRemove(index)} title={$t('queue.remove_task')}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="close-icon"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
             {/if}
@@ -78,15 +79,15 @@
             </div>
             <span class="percent-label status-{item.status}">
               {#if item.status === 'waiting'}
-                等待中
+                {$t('queue.status_waiting')}
               {:else if item.status === 'compressing'}
                 {item.percent.toFixed(0)}%
               {:else if item.status === 'success'}
-                100% (完成)
+                {$t('queue.percent_done')}
               {:else if item.status === 'skipped'}
-                已跳过
+                {$t('queue.status_skipped')}
               {:else if item.status === 'failed'}
-                失败
+                {$t('queue.compress_failed_simple')}
               {/if}
             </span>
           </div>
@@ -106,19 +107,19 @@
             <div class="result-details">
               {#if item.status === 'success'}
                 <div class="stat">
-                  <span class="label">原始大小</span>
+                  <span class="label">{$t('queue.origin_size')}</span>
                   <span class="val">{formatSize(item.size)}</span>
                 </div>
                 <div class="stat">
-                  <span class="label">压缩后</span>
+                  <span class="label">{$t('queue.target_size')}</span>
                   <span class="val text-green">{formatSize(item.targetSize || 0)}</span>
                 </div>
                 <div class="stat">
-                  <span class="label">节省率</span>
+                  <span class="label">{$t('queue.save_ratio')}</span>
                   <span class="val ratio-badge">{formatRatio(item.size, item.targetSize)}</span>
                 </div>
                 <div class="stat">
-                  <span class="label">耗时</span>
+                  <span class="label">{$t('queue.duration')}</span>
                   <span class="val">{formatTime(item.duration)}</span>
                 </div>
               {:else}
@@ -126,12 +127,12 @@
                   {#if item.status === 'skipped'}
                     <span class="skipped-txt">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-icon"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                      已跳过：输出目录已存在同名文件
+                      {$t('queue.skip_tip')}
                     </span>
                   {:else}
                     <span class="failed-txt" title={item.error}>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-icon"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                      失败原因：{item.error || '未知错误'}
+                      {$t('queue.fail_reason', {err: item.error || 'Unknown error'})}
                     </span>
                   {/if}
                 </div>

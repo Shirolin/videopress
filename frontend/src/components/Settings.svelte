@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import CustomSelect from './CustomSelect.svelte';
+  import { t, locale } from '../i18n.ts';
   import { 
     GetPresets, 
     DetectGPUEncoder, 
@@ -17,7 +18,8 @@
     GetIntegrationStatus,
     OpenDebugLogFile,
     ClearDebugLogs,
-    SetDebugMode
+    SetDebugMode,
+    SetLanguage
   } from '../../wailsjs/go/main/App.js';
 
   export let preset: string = 'standard';
@@ -30,6 +32,14 @@
 
   $: if (enableDebugLog !== undefined) {
     SetDebugMode(enableDebugLog).catch(console.error);
+  }
+
+  // 当界面语言发生改变时，通知 Go 后端热重写注册表并重新加载预设信息
+  $: if ($locale) {
+    SetLanguage($locale).catch(console.error);
+    GetPresets().then(list => {
+      presetsList = list;
+    }).catch(console.error);
   }
   
   let presetsList: any[] = [];
@@ -45,10 +55,10 @@
   let isContextMenuInstalled = false;
   let isPathConfigured = false;
 
-  const presetLabels: Record<string, string> = {
-    small: '小文件规格',
-    standard: '标准规格',
-    quality: '高画质规格'
+  $: presetLabels = {
+    small: $t('status.preset_small'),
+    standard: $t('status.preset_standard'),
+    quality: $t('status.preset_quality')
   };
 
   // Map presets list to CustomSelect format
@@ -60,20 +70,23 @@
 
   // Concurrency list for CustomSelect based on actual CPU cores
   const maxCores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
-  const concurrencyOptions = [
-    { value: 1, label: '1 线程', desc: '单任务队列，最佳进度条体验' }
-  ];
-  if (maxCores >= 2) {
-    concurrencyOptions.push({ value: 2, label: '2 并发', desc: '支持 2 任务并发压缩' });
-  }
-  if (maxCores >= 4) {
-    concurrencyOptions.push({ value: 4, label: '4 并发', desc: '支持 4 任务并发压缩' });
-  }
-  if (maxCores >= 8) {
-    concurrencyOptions.push({ value: 8, label: '8 并发', desc: '高并发，建议多核处理器使用' });
-  }
-  if (maxCores > 8) {
-    concurrencyOptions.push({ value: maxCores, label: `${maxCores} 并发`, desc: '利用本机全部 CPU 核心进行高速编码' });
+  let concurrencyOptions: any[] = [];
+  $: {
+    concurrencyOptions = [
+      { value: 1, label: $t('settings.concurrency_1'), desc: $t('settings.concurrency_1_desc') }
+    ];
+    if (maxCores >= 2) {
+      concurrencyOptions.push({ value: 2, label: $t('settings.concurrency_n', {num: 2}), desc: $t('settings.concurrency_n_desc', {num: 2}) });
+    }
+    if (maxCores >= 4) {
+      concurrencyOptions.push({ value: 4, label: $t('settings.concurrency_n', {num: 4}), desc: $t('settings.concurrency_n_desc', {num: 4}) });
+    }
+    if (maxCores >= 8) {
+      concurrencyOptions.push({ value: 8, label: $t('settings.concurrency_n', {num: 8}), desc: $t('settings.concurrency_n_desc', {num: 8}) });
+    }
+    if (maxCores > 8) {
+      concurrencyOptions.push({ value: maxCores, label: $t('settings.concurrency_n', {num: maxCores}), desc: $t('settings.concurrency_all_desc') });
+    }
   }
 
   async function updateIntegrationStatus() {
@@ -128,22 +141,22 @@
   async function handleOpenDebugLog() {
     try {
       await OpenDebugLogFile();
-      showStatus("已打开本地调试与性能排查日志", "success");
+      showStatus($t('toast.log_opened'), "success");
     } catch (e: any) {
-      showStatus("打开日志文件失败: " + e.message, "error");
+      showStatus($t('toast.log_open_failed', {err: e.message}), "error");
     }
   }
 
   async function handleClearDebugLog() {
     try {
       await ClearDebugLogs();
-      showStatus("已成功清空日志并重置硬件加速缓存", "success");
+      showStatus($t('toast.log_cleared'), "success");
       // 重新触发一次后台探测，重新填充缓存
       DetectGPUEncoder().then(gpu => {
         detectedGPU = gpu;
       });
     } catch (e: any) {
-      showStatus("清空日志与缓存失败: " + e.message, "error");
+      showStatus($t('toast.log_clear_failed', {err: e.message}), "error");
     }
   }
 
@@ -153,14 +166,14 @@
       loadingIntegration = true;
       if (isSendToInstalled) {
         await UninstallSendTo();
-        showStatus('已成功移除 SendTo 右键发送快捷方式', 'success');
+        showStatus($t('toast.sendto_removed'), 'success');
       } else {
         await InstallSendTo();
-        showStatus('已成功创建 SendTo 右键发送快捷方式', 'success');
+        showStatus($t('toast.sendto_added'), 'success');
       }
       await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus(`操作失败: ${e.message || e}`, 'error');
+      showStatus($t('toast.action_failed', {err: e.message || e}), 'error');
     } finally {
       loadingIntegration = false;
     }
@@ -172,14 +185,14 @@
       loadingIntegration = true;
       if (isDesktopInstalled) {
         await UninstallDesktopShortcut();
-        showStatus('已删除桌面快捷方式', 'success');
+        showStatus($t('toast.desktop_removed'), 'success');
       } else {
         await InstallDesktopShortcut();
-        showStatus('已成功创建桌面快捷方式', 'success');
+        showStatus($t('toast.desktop_added'), 'success');
       }
       await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus(`操作失败: ${e.message || e}`, 'error');
+      showStatus($t('toast.action_failed', {err: e.message || e}), 'error');
     } finally {
       loadingIntegration = false;
     }
@@ -191,14 +204,14 @@
       loadingIntegration = true;
       if (isStartMenuInstalled) {
         await UninstallStartMenuShortcut();
-        showStatus('已从开始菜单移除快捷方式', 'success');
+        showStatus($t('toast.startmenu_removed'), 'success');
       } else {
         await InstallStartMenuShortcut();
-        showStatus('已成功添加至开始菜单', 'success');
+        showStatus($t('toast.startmenu_added'), 'success');
       }
       await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus(`操作失败: ${e.message || e}`, 'error');
+      showStatus($t('toast.action_failed', {err: e.message || e}), 'error');
     } finally {
       loadingIntegration = false;
     }
@@ -210,14 +223,14 @@
       loadingIntegration = true;
       if (isContextMenuInstalled) {
         await UninstallContextMenu();
-        showStatus('已从系统卸载右键直接压缩菜单', 'success');
+        showStatus($t('toast.contextmenu_removed'), 'success');
       } else {
         await InstallContextMenu();
-        showStatus('已成功将“使用 Videopress 压缩”加入右键菜单！', 'success');
+        showStatus($t('toast.contextmenu_added'), 'success');
       }
       await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus(`操作失败: ${e.message || e}`, 'error');
+      showStatus($t('toast.action_failed', {err: e.message || e}), 'error');
     } finally {
       loadingIntegration = false;
     }
@@ -229,14 +242,14 @@
       loadingIntegration = true;
       if (isPathConfigured) {
         await RemoveFromPath();
-        showStatus('已从系统环境变量 Path 中移除', 'success');
+        showStatus($t('toast.path_removed'), 'success');
       } else {
         await AddToPath();
-        showStatus('成功添加到系统环境变量 Path', 'success');
+        showStatus($t('toast.path_added'), 'success');
       }
       await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus(`操作失败: ${e.message || e}`, 'error');
+      showStatus($t('toast.action_failed', {err: e.message || e}), 'error');
     } finally {
       loadingIntegration = false;
     }
@@ -247,21 +260,21 @@
   <div class="settings-scroll-area">
     <div class="section-title">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="title-icon"><polygon points="6 2 18 2 18 6 6 6 6 2"></polygon><rect x="3" y="6" width="18" height="16" rx="2"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
-      压缩核心设置
+      {$t('settings.title.general')}
     </div>
     
     <div class="setting-row">
       <div class="label-group">
-        <span class="label">压缩预设规格</span>
-        <span class="desc">预设了不同的码率与分辨率配置</span>
+        <span class="label">{$t('settings.preset')}</span>
+        <span class="desc">{$t('settings.preset_desc')}</span>
       </div>
       <CustomSelect bind:value={preset} options={presetOptions} />
     </div>
 
     <div class="setting-row">
       <div class="label-group">
-        <span class="label">最大并发任务数</span>
-        <span class="desc">同时压缩的视频数量，建议根据核心数合理配置</span>
+        <span class="label">{$t('settings.concurrency')}</span>
+        <span class="desc">{$t('settings.concurrency_desc')}</span>
       </div>
       <CustomSelect bind:value={concurrency} options={concurrencyOptions} />
     </div>
@@ -272,12 +285,12 @@
           <input type="checkbox" bind:checked={hwAccel} />
         </div>
         <div class="toggle-content">
-          <span class="title">GPU 硬件加速</span>
+          <span class="title">{$t('settings.hw_accel')}</span>
           <span class="desc">
             {#if detectedGPU && detectedGPU !== 'libx264'}
-              已启用显卡加速: <span class="gpu-active">{detectedGPU}</span>
+              {$t('settings.hw_accel_active', {gpu: detectedGPU})}
             {:else}
-              无显卡加速，自动 Fallback 至 CPU 编码
+              {$t('settings.hw_accel_inactive')}
             {/if}
           </span>
         </div>
@@ -288,8 +301,8 @@
           <input type="checkbox" bind:checked={copyAudio} />
         </div>
         <div class="toggle-content">
-          <span class="title">音频流直通 (Copy Audio)</span>
-          <span class="desc">直接复制原片音轨，节省音频重编码开销</span>
+          <span class="title">{$t('settings.copy_audio')}</span>
+          <span class="desc">{$t('settings.copy_audio_desc')}</span>
         </div>
       </label>
 
@@ -298,8 +311,8 @@
           <input type="checkbox" bind:checked={forceMode} />
         </div>
         <div class="toggle-content">
-          <span class="title">强制覆盖同名文件</span>
-          <span class="desc">直接重写已有的同名输出文件，不生成序号副本</span>
+          <span class="title">{$t('settings.force_mode')}</span>
+          <span class="desc">{$t('settings.force_mode_desc')}</span>
         </div>
       </label>
 
@@ -308,35 +321,35 @@
           <input type="checkbox" bind:checked={skipExisting} />
         </div>
         <div class="toggle-content">
-          <span class="title">增量跳过模式</span>
-          <span class="desc">如检测到输出文件夹已存在同名压缩文件则跳过</span>
+          <span class="title">{$t('settings.skip_existing')}</span>
+          <span class="desc">{$t('settings.skip_existing_desc')}</span>
         </div>
       </label>
     </div>
 
     <div class="section-title margin-top">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="title-icon"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>
-      Windows 系统集成与快捷设置
+      {$t('settings.title.sys')}
     </div>
     <div class="sys-actions">
       <!-- 1. 右键直达菜单 -->
       <div class="action-card {loadingIntegration ? 'loading-shimmer' : ''}">
         <div class="action-meta">
           <div class="action-title-row">
-            <span class="title">右键直接视频压缩 (推荐)</span>
+            <span class="title">{$t('settings.contextmenu')}</span>
             {#if loadingIntegration}
-              <span class="status-badge loading">检测中...</span>
+              <span class="status-badge loading">{$t('status.checking')}</span>
             {:else}
               <span class="status-badge {isContextMenuInstalled ? 'success' : 'muted'}">
-                {isContextMenuInstalled ? '已开启' : '已关闭'}
+                {isContextMenuInstalled ? $t('status.enabled') : $t('status.disabled')}
               </span>
             {/if}
           </div>
-          <span class="desc">在资源管理器中直接右键点击任意视频文件，直接在菜单选择“使用 Videopress 压缩”。</span>
+          <span class="desc">{$t('settings.contextmenu_desc')}</span>
         </div>
         <div class="action-buttons">
           <button class="btn {isContextMenuInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleContextMenu} disabled={loadingIntegration}>
-            {#if loadingIntegration}检测中...{:else}{isContextMenuInstalled ? '卸载移除' : '一键开启'}{/if}
+            {#if loadingIntegration}{$t('status.checking')}{:else}{isContextMenuInstalled ? $t('btn.disable') : $t('btn.enable')}{/if}
           </button>
         </div>
       </div>
@@ -345,20 +358,20 @@
       <div class="action-card {loadingIntegration ? 'loading-shimmer' : ''}">
         <div class="action-meta">
           <div class="action-title-row">
-            <span class="title">桌面快捷方式</span>
+            <span class="title">{$t('settings.desktop')}</span>
             {#if loadingIntegration}
-              <span class="status-badge loading">检测中...</span>
+              <span class="status-badge loading">{$t('status.checking')}</span>
             {:else}
               <span class="status-badge {isDesktopInstalled ? 'success' : 'muted'}">
-                {isDesktopInstalled ? '已创建' : '未创建'}
+                {isDesktopInstalled ? $t('status.created') : $t('status.not_created')}
               </span>
             {/if}
           </div>
-          <span class="desc">在 Windows 系统桌面上创建 Videopress 的快捷启动方式。</span>
+          <span class="desc">{$t('settings.desktop_desc')}</span>
         </div>
         <div class="action-buttons">
           <button class="btn {isDesktopInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleDesktopShortcut} disabled={loadingIntegration}>
-            {#if loadingIntegration}检测中...{:else}{isDesktopInstalled ? '删除图标' : '一键创建'}{/if}
+            {#if loadingIntegration}{$t('status.checking')}{:else}{isDesktopInstalled ? $t('btn.delete_icon') : $t('btn.create')}{/if}
           </button>
         </div>
       </div>
@@ -367,20 +380,20 @@
       <div class="action-card {loadingIntegration ? 'loading-shimmer' : ''}">
         <div class="action-meta">
           <div class="action-title-row">
-            <span class="title">添加至开始菜单</span>
+            <span class="title">{$t('settings.startmenu')}</span>
             {#if loadingIntegration}
-              <span class="status-badge loading">检测中...</span>
+              <span class="status-badge loading">{$t('status.checking')}</span>
             {:else}
               <span class="status-badge {isStartMenuInstalled ? 'success' : 'muted'}">
-                {isStartMenuInstalled ? '已添加' : '未添加'}
+                {isStartMenuInstalled ? $t('status.added') : $t('status.not_added')}
               </span>
             {/if}
           </div>
-          <span class="desc">在 Windows 开始菜单的程序列表中添加 Videopress，可在搜索框快速搜索唤醒。</span>
+          <span class="desc">{$t('settings.startmenu_desc')}</span>
         </div>
         <div class="action-buttons">
           <button class="btn {isStartMenuInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleStartMenuShortcut} disabled={loadingIntegration}>
-            {#if loadingIntegration}检测中...{:else}{isStartMenuInstalled ? '取消固定' : '一键添加'}{/if}
+            {#if loadingIntegration}{$t('status.checking')}{:else}{isStartMenuInstalled ? $t('btn.remove') : $t('btn.add')}{/if}
           </button>
         </div>
       </div>
@@ -389,20 +402,20 @@
       <div class="action-card {loadingIntegration ? 'loading-shimmer' : ''}">
         <div class="action-meta">
           <div class="action-title-row">
-            <span class="title">发送到快捷菜单 (SendTo)</span>
+            <span class="title">{$t('settings.sendto')}</span>
             {#if loadingIntegration}
-              <span class="status-badge loading">检测中...</span>
+              <span class="status-badge loading">{$t('status.checking')}</span>
             {:else}
               <span class="status-badge {isSendToInstalled ? 'success' : 'muted'}">
-                {isSendToInstalled ? '已开启' : '已关闭'}
+                {isSendToInstalled ? $t('status.enabled') : $t('status.disabled')}
               </span>
             {/if}
           </div>
-          <span class="desc">在资源管理器右键选中文件 -> 发送到 -> 快速压缩视频。</span>
+          <span class="desc">{$t('settings.sendto_desc')}</span>
         </div>
         <div class="action-buttons">
           <button class="btn {isSendToInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleSendTo} disabled={loadingIntegration}>
-            {#if loadingIntegration}检测中...{:else}{isSendToInstalled ? '卸载移除' : '一键开启'}{/if}
+            {#if loadingIntegration}{$t('status.checking')}{:else}{isSendToInstalled ? $t('btn.disable') : $t('btn.enable')}{/if}
           </button>
         </div>
       </div>
@@ -411,39 +424,56 @@
       <div class="action-card {loadingIntegration ? 'loading-shimmer' : ''}">
         <div class="action-meta">
           <div class="action-title-row">
-            <span class="title">配置用户 Path 环境变量</span>
+            <span class="title">{$t('settings.path')}</span>
             {#if loadingIntegration}
-              <span class="status-badge loading">检测中...</span>
+              <span class="status-badge loading">{$t('status.checking')}</span>
             {:else}
               <span class="status-badge {isPathConfigured ? 'success' : 'muted'}">
-                {isPathConfigured ? '已配置' : '未配置'}
+                {isPathConfigured ? $t('status.configured') : $t('status.not_configured')}
               </span>
             {/if}
           </div>
-          <span class="desc">把当前程序所在文件夹加入 Path 环境变量，可在任意命令终端直接运行。</span>
+          <span class="desc">{$t('settings.path_desc')}</span>
         </div>
         <div class="action-buttons">
           <button class="btn {isPathConfigured ? 'btn-danger' : 'btn-primary'}" on:click={togglePathEnv} disabled={loadingIntegration}>
-            {#if loadingIntegration}检测中...{:else}{isPathConfigured ? '移除路径' : '一键配置'}{/if}
+            {#if loadingIntegration}{$t('status.checking')}{:else}{isPathConfigured ? $t('btn.remove_path') : $t('btn.configure')}{/if}
           </button>
+        </div>
+      </div>
+
+      <!-- 界面语言设置 -->
+      <div class="section-title margin-top">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="title-icon"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+        {$t('settings.title.lang')}
+      </div>
+      <div class="action-card">
+        <div class="action-meta">
+          <span class="desc">{$t('settings.lang.desc')}</span>
+        </div>
+        <div class="action-buttons">
+          <div class="segmented-control" style="width: 200px;">
+            <button class="segment-btn {$locale === 'zh' ? 'active' : ''}" on:click={() => $locale = 'zh'}>简体中文</button>
+            <button class="segment-btn {$locale === 'en' ? 'active' : ''}" on:click={() => $locale = 'en'}>English</button>
+          </div>
         </div>
       </div>
 
       <!-- 6. 调试与排查日志 -->
       <div class="section-title margin-top">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="title-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-        调试与排查日志
+        {$t('settings.title.debug')}
       </div>
 
       <div class="action-card">
         <div class="action-meta">
           <div class="action-title-row">
-            <span class="title">环境检测与探测性能日志</span>
+            <span class="title">{$t('settings.debug.toggle')}</span>
             <span class="status-badge {enableDebugLog ? 'success' : 'muted'}">
-              {enableDebugLog ? '已启用' : '已禁用'}
+              {enableDebugLog ? $t('status.enabled_simple') : $t('status.disabled_simple')}
             </span>
           </div>
-          <span class="desc">开启后将记录 GPU 探测错误、各模块检测耗时及底层 FFMPEG 出错堆栈，关闭则停止写入日志。</span>
+          <span class="desc">{$t('settings.debug.desc')}</span>
         </div>
         <div class="action-buttons">
           <label class="switch">
@@ -456,16 +486,16 @@
       <div class="action-card">
         <div class="action-meta">
           <div class="action-title-row">
-            <span class="title">日志文件管理</span>
+            <span class="title">{$t('settings.debug.manage')}</span>
           </div>
-          <span class="desc">直接在系统默认编辑器中打开当前日志，或清空积累的探测日志及硬件加速缓存。</span>
+          <span class="desc">{$t('settings.debug.file_desc')}</span>
         </div>
         <div class="action-buttons">
           <button class="btn btn-secondary" on:click={handleOpenDebugLog} disabled={!enableDebugLog} style="opacity: {enableDebugLog ? 1 : 0.4};">
-            打开日志文件
+            {$t('btn.open_log')}
           </button>
           <button class="btn btn-danger" style="margin-left: 0.4rem;" on:click={handleClearDebugLog}>
-            清空日志与缓存
+            {$t('btn.clear_log')}
           </button>
         </div>
       </div>

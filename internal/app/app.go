@@ -56,27 +56,34 @@ type Dependencies struct {
 
 type JobReport = engine.JobReport
 
+func getMsg(zh, en string) string {
+	if getSystemLanguage() == "en" {
+		return en
+	}
+	return zh
+}
+
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, magenta("========================================"))
-	fmt.Fprintln(w, magenta("用法: videopress.exe [选项] <视频文件...>"))
-	fmt.Fprintln(w, magenta("========================================"))
-	fmt.Fprintln(w, "选项:")
-	fmt.Fprintf(w, "  --preset %s  压缩规格（默认 standard，大小写不敏感）\n", cyan("small|standard|quality"))
-	fmt.Fprintf(w, "  --concurrency, -c %s         最大并发压缩任务数（默认 1）\n", cyan("<数字>"))
-	fmt.Fprintf(w, "  --hw                             %s\n", cyan("尝试使用 GPU 硬件加速编码"))
-	fmt.Fprintln(w, "  --force, -f                      强制覆盖已存在的输出文件")
-	fmt.Fprintln(w, "  --skip-existing                  如果输出文件已存在则跳过")
-	fmt.Fprintln(w, "  --copy-audio, -a                 直接复制音频流，不重编码")
-	fmt.Fprintln(w, "  --install-sendto                 安装 SendTo 右键快捷方式")
-	fmt.Fprintln(w, "  --uninstall-sendto               移除 SendTo 快捷方式")
-	fmt.Fprintln(w, "  --install-path                   添加程序目录到用户 Path 环境变量")
-	fmt.Fprintln(w, "  --uninstall-path                 从用户 Path 环境变量移除程序目录")
-	fmt.Fprintln(w, "  --version                        显示版本号")
-	fmt.Fprintln(w, "  -h, --help                       显示此帮助")
+	fmt.Fprintln(w, magenta(getMsg("========================================", "========================================")))
+	fmt.Fprintln(w, magenta(getMsg("用法: videopress.exe [选项] <视频文件...>", "Usage: videopress.exe [Options] <video files...>")))
+	fmt.Fprintln(w, magenta(getMsg("========================================", "========================================")))
+	fmt.Fprintln(w, getMsg("选项:", "Options:"))
+	fmt.Fprintf(w, "  --preset %s  %s\n", cyan("small|standard|quality"), getMsg("压缩规格（默认 standard，大小写不敏感）", "Compression preset (default standard, case-insensitive)"))
+	fmt.Fprintf(w, "  --concurrency, -c %s         %s\n", cyan("<数字>"), getMsg("最大并发压缩任务数（默认 1）", "Max concurrent compression tasks (default 1)"))
+	fmt.Fprintf(w, "  --hw                             %s\n", cyan(getMsg("尝试使用 GPU 硬件加速编码", "Try to use GPU hardware acceleration")))
+	fmt.Fprintln(w, getMsg("  --force, -f                      强制覆盖已存在的输出文件", "  --force, -f                      Force overwrite existing output files"))
+	fmt.Fprintln(w, getMsg("  --skip-existing                  如果输出文件已存在则跳过", "  --skip-existing                  Skip compression if output file exists"))
+	fmt.Fprintln(w, getMsg("  --copy-audio, -a                 直接复制音频流，不重编码", "  --copy-audio, -a                 Copy audio stream directly without re-encoding"))
+	fmt.Fprintln(w, getMsg("  --install-sendto                 安装 SendTo 右键快捷方式", "  --install-sendto                 Install SendTo context shortcut"))
+	fmt.Fprintln(w, getMsg("  --uninstall-sendto               移除 SendTo 快捷方式", "  --uninstall-sendto               Remove SendTo shortcut"))
+	fmt.Fprintln(w, getMsg("  --install-path                   添加程序目录到用户 Path 环境变量", "  --install-path                   Add app directory to user Path environment variable"))
+	fmt.Fprintln(w, getMsg("  --uninstall-path                 从用户 Path 环境变量移除程序目录", "  --uninstall-path                 Remove app directory from user Path environment variable"))
+	fmt.Fprintln(w, getMsg("  --version                        显示版本号", "  --version                        Show version"))
+	fmt.Fprintln(w, getMsg("  -h, --help                       显示此帮助", "  -h, --help                       Show this help"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "退出码:")
-	fmt.Fprintf(w, "  0  %s\n", green("全部成功"))
-	fmt.Fprintf(w, "  1  %s\n", red("存在失败、全部跳过或非视频文件"))
+	fmt.Fprintln(w, getMsg("退出码:", "Exit Codes:"))
+	fmt.Fprintf(w, "  0  %s\n", green(getMsg("全部成功", "All succeeded")))
+	fmt.Fprintf(w, "  1  %s\n", red(getMsg("存在失败、全部跳过或非视频文件", "Failed, skipped all, or non-video files")))
 }
 
 func Execute(args []string, deps Dependencies) int {
@@ -123,7 +130,7 @@ func Execute(args []string, deps Dependencies) int {
 				}
 
 				if simpleProgress {
-					fmt.Fprintf(stdout, "[%s] 开始压缩...\n", prefix)
+					fmt.Fprintf(stdout, getMsg("[%s] 开始压缩...\n", "[%s] Starting compression...\n"), prefix)
 					io.Copy(io.Discard, stdoutPipe)
 				} else {
 					if duration > 0 {
@@ -145,7 +152,7 @@ func Execute(args []string, deps Dependencies) int {
 				if !simpleProgress {
 					fmt.Fprintln(stdout)
 				} else {
-					fmt.Fprintf(stdout, "[%s] 压缩完成\n", prefix)
+					fmt.Fprintf(stdout, getMsg("[%s] 压缩完成\n", "[%s] Compression completed\n"), prefix)
 				}
 				return nil
 			}
@@ -209,7 +216,7 @@ func Execute(args []string, deps Dependencies) int {
 	showVersion := fs.Bool("version", false, "show version")
 
 	if err := fs.Parse(args); err != nil {
-		fmt.Fprintf(deps.Stderr, "%s %v\n\n", red("未知选项:"), err)
+		fmt.Fprintf(deps.Stderr, "%s %v\n\n", red(getMsg("未知选项:", "Unknown option:")), err)
 		printUsage(deps.Stderr)
 		return 1
 	}
@@ -219,7 +226,7 @@ func Execute(args []string, deps Dependencies) int {
 	}
 	if *installSendTo {
 		if deps.InstallSendTo == nil {
-			fmt.Fprintln(deps.Stderr, red("当前构建未启用 SendTo 安装"))
+			fmt.Fprintln(deps.Stderr, red(getMsg("当前构建未启用 SendTo 安装", "SendTo installation is not enabled in the current build")))
 			return 1
 		}
 		path, err := deps.InstallSendTo(deps.ExecutablePath)
@@ -227,31 +234,31 @@ func Execute(args []string, deps Dependencies) int {
 			fmt.Fprintln(deps.Stderr, red(err.Error()))
 			return 1
 		}
-		fmt.Fprintf(deps.Stdout, "%s 已安装 SendTo 快捷方式: %s\n", green("【成功】"), green(path))
-		fmt.Fprintln(deps.Stdout, "\n提示：现在您可以在资源管理器中右键任意视频，选择「发送到 > 快速压缩视频」进行一键压缩！")
-		fmt.Fprintln(deps.Stdout, "\n处理完成。按回车键退出...")
+		fmt.Fprintf(deps.Stdout, "%s %s\n", green(getMsg("【成功】已安装 SendTo 快捷方式:", "[Success] Installed SendTo shortcut:")), green(path))
+		fmt.Fprintln(deps.Stdout, getMsg("\n提示：现在您可以在资源管理器中右键任意视频，选择「发送到 > 快速压缩视频」进行一键压缩！", "\nTip: You can now right-click any video in Explorer and choose \"Send to > 快速压缩视频\" to compress instantly!"))
+		fmt.Fprintln(deps.Stdout, getMsg("\n处理完成。按回车键退出...", "\nDone. Press Enter to exit..."))
 		var b [1]byte
 		deps.Stdin.Read(b[:])
 		return 0
 	}
 	if *uninstallSendTo {
 		if deps.UninstallSendTo == nil {
-			fmt.Fprintln(deps.Stderr, red("当前构建未启用 SendTo 卸载"))
+			fmt.Fprintln(deps.Stderr, red(getMsg("当前构建未启用 SendTo 卸载", "SendTo uninstallation is not enabled in the current build")))
 			return 1
 		}
 		if err := deps.UninstallSendTo(); err != nil {
 			fmt.Fprintln(deps.Stderr, red(err.Error()))
 			return 1
 		}
-		fmt.Fprintln(deps.Stdout, green("【成功】已成功移除 SendTo 右键快捷方式。"))
-		fmt.Fprintln(deps.Stdout, "\n处理完成。按回车键退出...")
+		fmt.Fprintln(deps.Stdout, green(getMsg("【成功】已成功移除 SendTo 右键快捷方式。", "[Success] Successfully removed SendTo context shortcut.")))
+		fmt.Fprintln(deps.Stdout, getMsg("\n处理完成。按回车键退出...", "\nDone. Press Enter to exit..."))
 		var b [1]byte
 		deps.Stdin.Read(b[:])
 		return 0
 	}
 	if *installPath {
 		if deps.AddToPath == nil {
-			fmt.Fprintln(deps.Stderr, red("当前构建未启用环境变量配置"))
+			fmt.Fprintln(deps.Stderr, red(getMsg("当前构建未启用环境变量配置", "Path configuration is not enabled in the current build")))
 			return 1
 		}
 		added, err := deps.AddToPath(deps.ExecutableDir)
@@ -260,19 +267,19 @@ func Execute(args []string, deps Dependencies) int {
 			return 1
 		}
 		if added {
-			fmt.Fprintf(deps.Stdout, "%s 已将目录添加至当前用户的 Path 环境变量: %s\n", green("【成功】"), green(deps.ExecutableDir))
-			fmt.Fprintln(deps.Stdout, "\n提示：现在您可以在新打开的终端（CMD/PowerShell）中，直接通过 `videopress` 命令运行本软件！")
+			fmt.Fprintf(deps.Stdout, "%s %s\n", green(getMsg("【成功】已将目录添加至当前用户的 Path 环境变量:", "[Success] Added directory to current user's Path environment variable:")), green(deps.ExecutableDir))
+			fmt.Fprintln(deps.Stdout, getMsg("\n提示：现在您可以在新打开的终端（CMD/PowerShell）中，直接通过 `videopress` 命令运行本软件！", "\nTip: You can now run the app by simply typing `videopress` in a newly opened terminal!"))
 		} else {
-			fmt.Fprintf(deps.Stdout, "%s 环境变量 Path 中已存在该目录: %s\n", yellow("【提示】"), deps.ExecutableDir)
+			fmt.Fprintf(deps.Stdout, "%s %s\n", yellow(getMsg("【提示】环境变量 Path 中已存在该目录:", "[Tip] Directory already exists in Path environment variable:")), deps.ExecutableDir)
 		}
-		fmt.Fprintln(deps.Stdout, "\n处理完成。按回车键退出...")
+		fmt.Fprintln(deps.Stdout, getMsg("\n处理完成。按回车键退出...", "\nDone. Press Enter to exit..."))
 		var b [1]byte
 		deps.Stdin.Read(b[:])
 		return 0
 	}
 	if *uninstallPath {
 		if deps.RemoveFromPath == nil {
-			fmt.Fprintln(deps.Stderr, red("当前构建未启用环境变量配置"))
+			fmt.Fprintln(deps.Stderr, red(getMsg("当前构建未启用环境变量配置", "Path configuration is not enabled in the current build")))
 			return 1
 		}
 		removed, err := deps.RemoveFromPath(deps.ExecutableDir)
@@ -281,11 +288,11 @@ func Execute(args []string, deps Dependencies) int {
 			return 1
 		}
 		if removed {
-			fmt.Fprintf(deps.Stdout, "%s 已成功从 Path 环境变量中移除该目录: %s\n", green("【成功】"), green(deps.ExecutableDir))
+			fmt.Fprintf(deps.Stdout, "%s %s\n", green(getMsg("【成功】已成功从 Path 环境变量中移除该目录:", "[Success] Successfully removed directory from Path environment variable:")), green(deps.ExecutableDir))
 		} else {
-			fmt.Fprintf(deps.Stdout, "%s 环境变量 Path 中未找到该目录: %s\n", yellow("【提示】"), deps.ExecutableDir)
+			fmt.Fprintf(deps.Stdout, "%s %s\n", yellow(getMsg("【提示】环境变量 Path 中未找到该目录:", "[Tip] Directory not found in Path environment variable:")), deps.ExecutableDir)
 		}
-		fmt.Fprintln(deps.Stdout, "\n处理完成。按回车键退出...")
+		fmt.Fprintln(deps.Stdout, getMsg("\n处理完成。按回车键退出...", "\nDone. Press Enter to exit..."))
 		var b [1]byte
 		deps.Stdin.Read(b[:])
 		return 0

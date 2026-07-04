@@ -99,14 +99,19 @@ func UninstallStartMenu() error {
 }
 
 // RegisterContextMenu 注册右键直接压缩菜单 (注册表 HKCU，免管理员)
-func RegisterContextMenu(executablePath string) error {
+func RegisterContextMenu(executablePath string, lang string) error {
 	k, _, err := registry.CreateKey(registry.CURRENT_USER, `Software\Classes\*\shell\Videopress`, registry.SET_VALUE)
 	if err != nil {
 		return fmt.Errorf("创建右键注册表项失败: %w", err)
 	}
 	defer k.Close()
 
-	if err := k.SetStringValue("MUIVerb", "使用 Videopress 压缩"); err != nil {
+	menuText := "使用 Videopress 压缩"
+	if lang == "en" {
+		menuText = "Compress with Videopress"
+	}
+
+	if err := k.SetStringValue("MUIVerb", menuText); err != nil {
 		return fmt.Errorf("设置 MUIVerb 失败: %w", err)
 	}
 	if err := k.SetStringValue("Icon", executablePath); err != nil {

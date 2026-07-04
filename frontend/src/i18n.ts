@@ -1,0 +1,359 @@
+import { writable, derived } from 'svelte/store';
+
+export const locale = writable(localStorage.getItem('videopress_lang') || 'zh');
+
+// 监听语言变动并同步至 localStorage
+locale.subscribe(value => {
+  localStorage.setItem('videopress_lang', value);
+});
+
+export const translations: Record<string, Record<string, string>> = {
+  zh: {
+    // Navigation
+    'nav.workspace': '主工作区',
+    'nav.settings': '配置面板',
+
+    // Dropzone
+    'dropzone.title': '拖入视频文件到这里',
+    'dropzone.sub': '或者点击选择',
+    'dropzone.disabled': '正在进行视频压缩，请稍候...',
+    'dropzone.add_more': '点击或拖拽视频到此处添加更多视频',
+    'dropzone.desc': '支持多选，或者点击选择文件',
+    'dropzone.formats': '支持 MP4, MOV, MKV, AVI, WEBM 等视频格式',
+
+    // Stats Banner
+    'stats.total': '任务总数',
+    'stats.processing': '处理中',
+    'stats.idle': '待命',
+    'stats.succeeded': '已成功',
+    'stats.skipped': '已跳过',
+    'stats.failed': '已失败',
+    'stats.saved_space': '共节省空间',
+    'stats.avg_ratio': '平均压缩率',
+    'stats.current_status': '当前状态',
+    'stats.completed': '完成',
+
+    // Controls
+    'controls.preset': '压缩预设',
+    'controls.output': '保存目录',
+    'controls.open_output': '打开保存目录',
+    'controls.custom_output': '自定义目录',
+    'controls.reset_output': '恢复同目录',
+    'controls.default_output_tip': '原视频同目录下的 compressed/ 文件夹',
+    'controls.default_output_path': '默认 (保存至原视频目录下 compressed/ 文件夹)',
+    'controls.start': '开始压缩',
+    'controls.cancel': '取消当前任务',
+    'preset.small': '小文件',
+    'preset.standard': '标准',
+    'preset.quality': '高画质',
+    'btn.change': '更改',
+    'btn.reset': '重置',
+    'btn.reset_path_title': '恢复默认路径',
+    'btn.open_output_folder': '打开输出文件夹',
+    'btn.cancel_compress': '取消压缩任务',
+    'btn.start_compress': '开始视频压缩',
+
+    // Queue Table
+    'queue.title': '任务队列',
+    'queue.clear': '清空队列',
+    'queue.no': '序号',
+    'queue.name': '视频名称',
+    'queue.origin_size': '原始大小',
+    'queue.target_size': '目标大小',
+    'queue.status': '状态 / 进度',
+    'queue.action': '操作',
+    'queue.status_idle': '待命中',
+    'queue.status_waiting': '等待中',
+    'queue.status_compressing': '压缩中 ({percent}%)',
+    'queue.status_succeeded': '压缩成功',
+    'queue.status_failed': '压缩失败',
+    'queue.status_skipped': '已跳过',
+    'queue.open_folder': '打开所在目录',
+    'queue.remove': '移除',
+    'queue.empty': '暂无待压缩的视频任务',
+    'queue.remove_task': '移除任务',
+    'queue.percent_done': '100% (完成)',
+    'queue.save_ratio': '节省率',
+    'queue.duration': '耗时',
+    'queue.compress_failed_simple': '失败',
+    'queue.skip_tip': '已跳过：输出目录已存在同名文件',
+    'queue.fail_reason': '失败原因：{err}',
+
+    // Settings General
+    'settings.title.general': '常规预设与性能设置',
+    'settings.preset': '压缩预设',
+    'settings.preset_desc': '预设了不同的码率与分辨率配置',
+    'settings.concurrency': '并发任务数',
+    'settings.concurrency_desc': '同时压缩的视频数量，建议根据核心数合理配置',
+    'settings.concurrency_1': '1 线程',
+    'settings.concurrency_1_desc': '单任务队列，最佳进度条体验',
+    'settings.concurrency_n': '{num} 并发',
+    'settings.concurrency_n_desc': '支持 {num} 任务并发压缩',
+    'settings.concurrency_all_desc': '利用本机全部 CPU 核心进行高速编码',
+    'settings.hw_accel': '硬件加速 (英伟达/核显)',
+    'settings.hw_accel_active': '已启用显卡加速: {gpu}',
+    'settings.hw_accel_inactive': '无显卡加速，自动 Fallback 至 CPU 编码',
+    'settings.copy_audio': '只复制音频流',
+    'settings.copy_audio_desc': '直接复制原片音轨，节省音频重编码开销',
+    'settings.force_mode': '强制覆盖同名文件',
+    'settings.force_mode_desc': '直接重写已有的同名输出文件，不生成序号副本',
+    'settings.skip_existing': '增量跳过模式',
+    'settings.skip_existing_desc': '如检测到输出文件夹已存在同名压缩文件则跳过',
+
+    // Settings System Integration
+    'settings.title.sys': 'Windows 系统集成与快捷设置',
+    'settings.contextmenu': '右键直接视频压缩 (推荐)',
+    'settings.contextmenu_desc': '在资源管理器中直接右键点击任意视频文件，直接在菜单选择“使用 Videopress 压缩”。',
+    'settings.desktop': '桌面快捷方式',
+    'settings.desktop_desc': '在 Windows 系统桌面上创建 Videopress 的快捷启动方式。',
+    'settings.startmenu': '添加至开始菜单',
+    'settings.startmenu_desc': '在 Windows 开始菜单的程序列表中添加 Videopress，可在搜索框快速搜索唤醒。',
+    'settings.sendto': '发送到快捷菜单 (SendTo)',
+    'settings.sendto_desc': '在资源管理器右键选中文件 -> 发送到 -> 快速压缩视频。',
+    'settings.path': '配置用户 Path 环境变量',
+    'settings.path_desc': '把当前程序所在文件夹加入 Path 环境变量，可在任意命令终端直接运行。',
+
+    // Integration Status & Buttons
+    'status.preset_small': '小文件规格',
+    'status.preset_standard': '标准规格',
+    'status.preset_quality': '高画质规格',
+    'status.enabled': '已开启',
+    'status.disabled': '已关闭',
+    'status.created': '已创建',
+    'status.not_created': '未创建',
+    'status.added': '已添加',
+    'status.not_added': '未添加',
+    'status.configured': '已配置',
+    'status.not_configured': '未配置',
+    'status.checking': '检测中...',
+    'status.enabled_simple': '已启用',
+    'status.disabled_simple': '已禁用',
+    'app.ffmpeg_not_found': '未找到 FFmpeg，请先安装并将 ffmpeg.exe 添加到系统环境变量中。',
+    'app.setup_engine_title': '需要配置核心视频引擎',
+    'app.setup_engine_desc': '检测到系统未安装 <strong>FFmpeg</strong> 视频引擎依赖。<br>Videopress 需要该依赖来进行高效率的视频解码与压缩任务。',
+    'app.setup_downloading': '正在极速下载核心组件... ({percent}%)',
+    'app.setup_download_tip': '请不要关闭软件，这可能需要几十秒时间。配置成功后会自动进入主界面。',
+    'app.setup_btn_auto': '一键闪电自动配置 (推荐)',
+    'app.setup_btn_manual': '手动指定环境变量或寻找本地文件',
+
+    'btn.enable': '一键开启',
+    'btn.disable': '卸载移除',
+    'btn.create': '一键创建',
+    'btn.delete_icon': '删除图标',
+    'btn.add': '一键添加',
+    'btn.remove': '取消固定',
+    'btn.configure': '一键配置',
+    'btn.remove_path': '移除路径',
+
+    // Language Settings
+    'settings.title.lang': '界面语言 (Interface Language)',
+    'settings.lang.desc': '选择适合您的显示语言，右键菜单等集成项会在切换后自动热更新。',
+
+    // Settings Debug Logs
+    'settings.title.debug': '调试与排查日志',
+    'settings.debug.desc': '开启后将记录 GPU 探测错误、各模块检测耗时及底层 FFMPEG 出错堆栈，关闭则停止写入日志。',
+    'settings.debug.file_desc': '直接在系统默认编辑器中打开当前日志，或清空积累探测日志及硬件加速缓存。',
+    'settings.debug.toggle': '环境检测与探测性能日志',
+    'settings.debug.manage': '日志文件管理',
+    'btn.open_log': '打开日志文件',
+    'btn.clear_log': '清空日志与缓存',
+
+    // Toast and messages
+    'toast.log_opened': '已打开本地调试与性能排查日志',
+    'toast.log_open_failed': '打开日志文件失败: {err}',
+    'toast.log_cleared': '已成功清空日志并重置硬件加速缓存',
+    'toast.log_clear_failed': '清空日志与缓存失败: {err}',
+    'toast.action_success': '操作成功',
+    'toast.action_failed': '操作失败: {err}',
+    'toast.contextmenu_added': '已成功将“使用 Videopress 压缩”加入右键菜单！',
+    'toast.contextmenu_removed': '已从系统卸载右键直接压缩菜单',
+    'toast.sendto_added': '已成功创建 SendTo 右键发送快捷方式',
+    'toast.sendto_removed': '已成功移除 SendTo 右键发送快捷方式',
+    'toast.desktop_added': '已成功创建桌面快捷方式',
+    'toast.desktop_removed': '已删除桌面快捷方式',
+    'toast.startmenu_added': '已成功添加至开始菜单',
+    'toast.startmenu_removed': '已从开始菜单移除快捷方式',
+    'toast.path_added': '已成功将路径添加至环境变量 Path',
+    'toast.path_removed': '已将路径从环境变量 Path 中移除'
+  },
+  en: {
+    // Navigation
+    'nav.workspace': 'Workspace',
+    'nav.settings': 'Settings',
+
+    // Dropzone
+    'dropzone.title': 'Drag & Drop video files here',
+    'dropzone.sub': 'or click to select',
+    'dropzone.disabled': 'Compressing videos, please wait...',
+    'dropzone.add_more': 'Click or drag video files here to add more',
+    'dropzone.desc': 'Supports multi-selection, or click to select files',
+    'dropzone.formats': 'Supports MP4, MOV, MKV, AVI, WEBM, etc.',
+
+    // Stats Banner
+    'stats.total': 'Total Tasks',
+    'stats.processing': 'Processing',
+    'stats.idle': 'Idle',
+    'stats.succeeded': 'Succeeded',
+    'stats.skipped': 'Skipped',
+    'stats.failed': 'Failed',
+    'stats.saved_space': 'Space Saved',
+    'stats.avg_ratio': 'Avg. Ratio',
+    'stats.current_status': 'Status',
+    'stats.completed': 'Completed',
+
+    // Controls
+    'controls.preset': 'Preset',
+    'controls.output': 'Output Folder',
+    'controls.open_output': 'Open Folder',
+    'controls.custom_output': 'Custom Folder',
+    'controls.reset_output': 'Reset Folder',
+    'controls.default_output_tip': 'compressed/ folder under the source video directory',
+    'controls.default_output_path': 'Default (Save to compressed/ folder under source directory)',
+    'controls.start': 'Compress',
+    'controls.cancel': 'Cancel Task',
+    'preset.small': 'Small',
+    'preset.standard': 'Standard',
+    'preset.quality': 'High Quality',
+    'btn.change': 'Change',
+    'btn.reset': 'Reset',
+    'btn.reset_path_title': 'Reset output path',
+    'btn.open_output_folder': 'Open Output Folder',
+    'btn.cancel_compress': 'Cancel Compression',
+    'btn.start_compress': 'Start Compression',
+
+    // Queue Table
+    'queue.clear': 'Clear Queue',
+    // Queue Table
+    'queue.title': 'Task Queue',
+    'queue.clear': 'Clear Queue',
+    'queue.no': 'No.',
+    'queue.name': 'Video Name',
+    'queue.origin_size': 'Original Size',
+    'queue.target_size': 'Target Size',
+    'queue.status': 'Status / Progress',
+    'queue.action': 'Actions',
+    'queue.status_idle': 'Idle',
+    'queue.status_waiting': 'Waiting',
+    'queue.status_compressing': 'Compressing ({percent}%)',
+    'queue.status_succeeded': 'Succeeded',
+    'queue.status_failed': 'Failed',
+    'queue.status_skipped': 'Skipped',
+    'queue.open_folder': 'Open Folder',
+    'queue.remove': 'Remove',
+    'queue.empty': 'No video tasks in queue',
+    'queue.remove_task': 'Remove Task',
+    'queue.percent_done': '100% (Done)',
+    'queue.save_ratio': 'Ratio',
+    'queue.duration': 'Time',
+    'queue.compress_failed_simple': 'Failed',
+    'queue.skip_tip': 'Skipped: Output file already exists',
+    'queue.fail_reason': 'Error: {err}',
+
+    // Settings General
+    'settings.title.general': 'Presets & Performance Settings',
+    'settings.preset': 'Compression Preset',
+    'settings.preset_desc': 'Preset configuration for target bitrates and resolutions',
+    'settings.concurrency': 'Concurrency Tasks',
+    'settings.concurrency_desc': 'Number of videos compressed simultaneously; adjust based on CPU cores',
+    'settings.concurrency_1': '1 Thread',
+    'settings.concurrency_1_desc': 'Single task queue, best progress bar experience',
+    'settings.concurrency_n': '{num} Concurrent',
+    'settings.concurrency_n_desc': 'Supports {num} concurrent tasks',
+    'settings.concurrency_all_desc': 'Utilize all CPU cores for high-speed encoding',
+    'settings.hw_accel': 'Hardware Acceleration (Nvidia/Intel/AMD)',
+    'settings.hw_accel_active': 'GPU acceleration enabled: {gpu}',
+    'settings.hw_accel_inactive': 'No GPU acceleration, auto fallback to CPU encoding',
+    'settings.copy_audio': 'Copy Audio Stream Only',
+    'settings.copy_audio_desc': 'Copy original audio stream directly to save encoding overhead',
+    'settings.force_mode': 'Force Overwrite Existing File',
+    'settings.force_mode_desc': 'Directly overwrite existing files instead of creating copies',
+    'settings.skip_existing': 'Incremental Skip Mode',
+    'settings.skip_existing_desc': 'Skip compression if target file already exists in output folder',
+
+    // Settings System Integration
+    'settings.title.sys': 'Windows System Integration',
+    'settings.contextmenu': 'Right-click Video Compression (Recommended)',
+    'settings.contextmenu_desc': 'Right-click any video in Explorer and choose "Compress with Videopress".',
+    'settings.desktop': 'Desktop Shortcut',
+    'settings.desktop_desc': 'Create a desktop shortcut for Videopress.',
+    'settings.startmenu': 'Add to Start Menu',
+    'settings.startmenu_desc': 'Add Videopress to Windows Start Menu list for quick search access.',
+    'settings.sendto': 'SendTo Shortcut Menu',
+    'settings.sendto_desc': 'Right-click file in Explorer -> Send to -> 快速压缩视频.',
+    'settings.path': 'Configure User Path Env',
+    'settings.path_desc': 'Add application folder to Path environment variable to run from any terminal.',
+
+    // Integration Status & Buttons
+    'status.preset_small': 'Small Preset',
+    'status.preset_standard': 'Standard Preset',
+    'status.preset_quality': 'High Quality Preset',
+    'status.enabled': 'Enabled',
+    'status.disabled': 'Disabled',
+    'status.created': 'Created',
+    'status.not_created': 'Not Created',
+    'status.added': 'Added',
+    'status.not_added': 'Not Added',
+    'status.configured': 'Configured',
+    'status.not_configured': 'Not Configured',
+    'status.checking': 'Checking...',
+    'status.enabled_simple': 'Enabled',
+    'status.disabled_simple': 'Disabled',
+    'app.ffmpeg_not_found': 'FFmpeg not found. Please install it and add ffmpeg.exe to your system Path.',
+    'app.setup_engine_title': 'Video Engine Setup Required',
+    'app.setup_engine_desc': 'FFmpeg video engine dependency is not installed on your system.<br>Videopress requires it for high-efficiency video decoding and compression.',
+    'app.setup_downloading': 'Downloading core components... ({percent}%)',
+    'app.setup_download_tip': 'Please do not close the app. This may take up to a minute. Once completed, it will automatically enter the workspace.',
+    'app.setup_btn_auto': 'One-click Auto Setup (Recommended)',
+    'app.setup_btn_manual': 'Manually Specify Path or Locate File',
+
+    'btn.enable': 'Enable',
+    'btn.disable': 'Disable',
+    'btn.create': 'Create',
+    'btn.delete_icon': 'Delete Icon',
+    'btn.add': 'Add',
+    'btn.remove': 'Unpin',
+    'btn.configure': 'Configure',
+    'btn.remove_path': 'Remove Path',
+
+    // Language Settings
+    'settings.title.lang': 'Interface Language',
+    'settings.lang.desc': 'Select your preferred interface language. System integrations like right-click menus will hot-reload automatically.',
+
+    // Settings Debug Logs
+    'settings.title.debug': 'Debug & Diagnostic Logs',
+    'settings.debug.desc': 'Records GPU detection errors, latency of integration modules, and FFmpeg error details.',
+    'settings.debug.file_desc': 'Open the log file in system default text editor, or clear logs and hardware acceleration cache.',
+    'settings.debug.toggle': 'Performance & Environment Diagnostics',
+    'settings.debug.manage': 'Log File Management',
+    'btn.open_log': 'Open Log File',
+    'btn.clear_log': 'Clear Logs & Cache',
+
+    // Toast and messages
+    'toast.log_opened': 'Opened local debug & diagnostic log file',
+    'toast.log_open_failed': 'Failed to open log file: {err}',
+    'toast.log_cleared': 'Successfully cleared logs and reset GPU cache',
+    'toast.log_clear_failed': 'Failed to clear logs and cache: {err}',
+    'toast.action_success': 'Action completed successfully',
+    'toast.action_failed': 'Action failed: {err}',
+    'toast.contextmenu_added': 'Successfully added "Compress with Videopress" to context menu!',
+    'toast.contextmenu_removed': 'Uninstalled right-click video compression menu',
+    'toast.sendto_added': 'Successfully created SendTo right-click send menu shortcut',
+    'toast.sendto_removed': 'Successfully removed SendTo shortcut',
+    'toast.desktop_added': 'Successfully created desktop shortcut',
+    'toast.desktop_removed': 'Deleted desktop shortcut',
+    'toast.startmenu_added': 'Successfully added to Start Menu',
+    'toast.startmenu_removed': 'Removed shortcut from Start Menu',
+    'toast.path_added': 'Successfully added directory to user Path environment variable',
+    'toast.path_removed': 'Removed directory from user Path environment variable'
+  }
+};
+
+export const t = derived(locale, ($locale) => {
+  return (key: string, vars: Record<string, any> = {}) => {
+    let text = translations[$locale]?.[key] || translations['en']?.[key] || key;
+    Object.keys(vars).forEach(k => {
+      text = text.replace(`{${k}}`, vars[k]);
+    });
+    return text;
+  };
+});

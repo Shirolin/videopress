@@ -38,6 +38,10 @@ export function GetIntegrationStatus() {
   return window['go']['main']['App']['GetIntegrationStatus']();
 }
 
+export function GetLanguage() {
+  return window['go']['main']['App']['GetLanguage']();
+}
+
 export function GetPresets() {
   return window['go']['main']['App']['GetPresets']();
 }
@@ -84,6 +88,10 @@ export function SelectFolder() {
 
 export function SetDebugMode(arg1) {
   return window['go']['main']['App']['SetDebugMode'](arg1);
+}
+
+export function SetLanguage(arg1) {
+  return window['go']['main']['App']['SetLanguage'](arg1);
 }
 
 export function StartCompress(arg1) {

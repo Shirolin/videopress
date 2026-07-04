@@ -21,6 +21,8 @@ export function GetInitialFiles():Promise<Array<string>>;
 
 export function GetIntegrationStatus():Promise<Record<string, boolean>>;
 
+export function GetLanguage():Promise<string>;
+
 export function GetPresets():Promise<Array<main.PresetInfo>>;
 
 export function GetVersion():Promise<string>;
@@ -44,6 +46,8 @@ export function SelectFiles():Promise<Array<string>>;
 export function SelectFolder():Promise<string>;
 
 export function SetDebugMode(arg1:boolean):Promise<void>;
+
+export function SetLanguage(arg1:string):Promise<void>;
 
 export function StartCompress(arg1:engine.JobRequest):Promise<Array<engine.JobReport>>;
 
