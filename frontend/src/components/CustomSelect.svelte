@@ -94,7 +94,7 @@
 <style>
   .custom-select-container {
     position: relative;
-    min-width: 260px;
+    min-width: 200px;
     user-select: none;
   }
 
@@ -144,6 +144,7 @@
   .selected-text {
     font-weight: 700;
     color: var(--text-primary);
+    flex-shrink: 0;
   }
 
   .selected-desc {
@@ -172,7 +173,7 @@
   .options-menu {
     position: absolute;
     top: calc(100% + 5px);
-    left: 0;
+    right: 0;
     width: 100%;
     z-index: 999;
     background: rgba(12, 12, 16, 0.92) !important;
