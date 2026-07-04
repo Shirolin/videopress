@@ -1,7 +1,9 @@
 package ffmpeg
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -76,6 +78,7 @@ func DetectGPUEncoder(ffmpegPath string, runCmd func(name string, args []string)
 		var wg sync.WaitGroup
 		var mu sync.Mutex
 		results := make(map[string]bool)
+		var debugLogs []string
 
 		for _, enc := range encoders {
 			wg.Add(1)
@@ -94,10 +97,23 @@ func DetectGPUEncoder(ffmpegPath string, runCmd func(name string, args []string)
 				}
 				cmd := exec.CommandContext(ctx, ffmpegPath, args...)
 				prepareCmd(cmd)
+				
+				var stderrBuf bytes.Buffer
+				cmd.Stderr = &stderrBuf
 				err := cmd.Run()
 
 				mu.Lock()
 				results[e] = (err == nil)
+				if err != nil {
+					errMsg := strings.TrimSpace(stderrBuf.String())
+					if errMsg == "" {
+						errMsg = err.Error()
+					}
+					// 替换多余的空行，整理为单行便于日志阅读
+					errMsg = strings.ReplaceAll(errMsg, "\r\n", " ")
+					errMsg = strings.ReplaceAll(errMsg, "\n", " ")
+					debugLogs = append(debugLogs, fmt.Sprintf("- [%s]: %s", e, errMsg))
+				}
 				mu.Unlock()
 			}(enc)
 		}
@@ -116,6 +132,21 @@ func DetectGPUEncoder(ffmpegPath string, runCmd func(name string, args []string)
 		if err == nil {
 			cacheFile := filepath.Join(cacheDir, "videopress_gpu.cache")
 			_ = os.WriteFile(cacheFile, []byte(detected), 0o644)
+
+			// 如果存在错误，写入调试日志文件方便定位硬件/驱动/FFmpeg配置问题
+			if len(debugLogs) > 0 {
+				logFile := filepath.Join(cacheDir, "videopress_debug.log")
+				logMsg := fmt.Sprintf("[%s] GPU 探测失败明细 (最终使用 %s):\n%s\n\n",
+					time.Now().Format("2006-01-02 15:04:05"),
+					detected,
+					strings.Join(debugLogs, "\n"),
+				)
+				f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+				if err == nil {
+					_, _ = f.WriteString(logMsg)
+					_ = f.Close()
+				}
+			}
 		}
 	}
 
