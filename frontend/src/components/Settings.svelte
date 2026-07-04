@@ -45,10 +45,16 @@
   let isContextMenuInstalled = false;
   let isPathConfigured = false;
 
+  const presetLabels: Record<string, string> = {
+    small: '小文件规格',
+    standard: '标准规格',
+    quality: '高画质规格'
+  };
+
   // Map presets list to CustomSelect format
   $: presetOptions = presetsList.map(p => ({
     value: p.name,
-    label: p.name,
+    label: presetLabels[p.name] || p.name,
     desc: p.description
   }));
 
