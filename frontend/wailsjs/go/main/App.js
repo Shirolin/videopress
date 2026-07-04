@@ -6,6 +6,10 @@ export function AddToPath() {
   return window['go']['main']['App']['AddToPath']();
 }
 
+export function CancelCompress() {
+  return window['go']['main']['App']['CancelCompress']();
+}
+
 export function DetectFFmpeg() {
   return window['go']['main']['App']['DetectFFmpeg']();
 }
@@ -28,6 +32,10 @@ export function GetIntegrationStatus() {
 
 export function GetPresets() {
   return window['go']['main']['App']['GetPresets']();
+}
+
+export function GetVersion() {
+  return window['go']['main']['App']['GetVersion']();
 }
 
 export function InstallContextMenu() {

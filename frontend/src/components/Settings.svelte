@@ -80,23 +80,25 @@
       loadingIntegration = true;
       presetsList = await GetPresets();
       
-      // 安全探测 GPU 硬件编码器，即便失败也不影响其他状态初始化
-      try {
-        detectedGPU = await DetectGPUEncoder();
+      // 1. 先更新集成状态，让 UI 上的系统集成（右键菜单、快捷方式等）瞬间渲染出来
+      await updateIntegrationStatus();
+      loadingIntegration = false; // 集成状态加载完毕，立即关掉 shimmer
+
+      // 2. 异步探测 GPU 编码器，不阻塞其他设置的显示
+      DetectGPUEncoder().then(gpu => {
+        detectedGPU = gpu;
         if (detectedGPU !== 'libx264') {
           if (localStorage.getItem('videopress_hw_accel') === null) {
-            hwAccel = true; // Auto-enable only if user hasn't explicitly set it
+            hwAccel = true; // 仅在用户未曾手动设置过硬件加速时，才默认自动开启
           }
         }
-      } catch (gpuErr) {
+      }).catch(gpuErr => {
         console.warn("GPU detector error:", gpuErr);
         detectedGPU = 'libx264';
-      }
+      });
 
-      await updateIntegrationStatus();
     } catch (e) {
       console.error("Mount error:", e);
-    } finally {
       loadingIntegration = false;
     }
   });

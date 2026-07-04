@@ -5,6 +5,8 @@ import {engine} from '../models';
 
 export function AddToPath():Promise<boolean>;
 
+export function CancelCompress():Promise<void>;
+
 export function DetectFFmpeg():Promise<string>;
 
 export function DetectGPUEncoder():Promise<string>;
@@ -16,6 +18,8 @@ export function GetInitialFiles():Promise<Array<string>>;
 export function GetIntegrationStatus():Promise<Record<string, boolean>>;
 
 export function GetPresets():Promise<Array<main.PresetInfo>>;
+
+export function GetVersion():Promise<string>;
 
 export function InstallContextMenu():Promise<void>;
 
