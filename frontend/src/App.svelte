@@ -328,26 +328,31 @@
       </div>
     </div>
     
-    <div class="nav-controls">
-      <button 
-        class="nav-btn {showSettings ? 'active' : ''}" 
-        on:click={() => showSettings = !showSettings}
-        disabled={isCompressing}
-      >
-        {#if showSettings}
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="nav-icon">
+      <div class="segmented-control" style="height: 32px;">
+        <button 
+          class="segment-btn {!showSettings ? 'active' : ''}" 
+          on:click={() => showSettings = false}
+          disabled={isCompressing}
+          style="display: flex; align-items: center; gap: 0.35rem; padding: 0 0.8rem;"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="nav-icon" style="width: 12px; height: 12px; flex-shrink: 0;">
             <rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect>
           </svg>
           主工作区
-        {:else}
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="nav-icon">
+        </button>
+        <button 
+          class="segment-btn {showSettings ? 'active' : ''}" 
+          on:click={() => showSettings = true}
+          disabled={isCompressing}
+          style="display: flex; align-items: center; gap: 0.35rem; padding: 0 0.8rem;"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="nav-icon" style="width: 12px; height: 12px; flex-shrink: 0;">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
           配置面板
-        {/if}
-      </button>
-    </div>
+        </button>
+      </div>
   </header>
 
   <!-- Main Responsive Workspace -->
