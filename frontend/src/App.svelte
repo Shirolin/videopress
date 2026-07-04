@@ -77,6 +77,18 @@
     return $t('advanced.crf.desc.h264');
   })();
 
+  function handleCRFBlur() {
+    if (isNaN(crfValue) || crfValue === null || crfValue === undefined) {
+      crfValue = defaultCrf;
+      return;
+    }
+    if (crfValue < minCrf) {
+      crfValue = minCrf;
+    } else if (crfValue > maxCrf) {
+      crfValue = maxCrf;
+    }
+  }
+
   // Persist settings reactively
   $: if (preset !== undefined) localStorage.setItem('videopress_preset', preset);
   $: if (concurrency !== undefined) localStorage.setItem('videopress_concurrency', concurrency.toString());
@@ -685,8 +697,20 @@
               </label>
               {#if crfEnabled}
                 <div class="crf-badge-actions">
-                  <span class="crf-badge">
-                    CRF: {crfValue} <span class="crf-status-word">({crfStatusWord})</span>
+                  <div class="crf-input-container">
+                    <span class="crf-input-label">CRF</span>
+                    <input 
+                      type="number" 
+                      min={minCrf} 
+                      max={maxCrf} 
+                      bind:value={crfValue} 
+                      on:blur={handleCRFBlur}
+                      disabled={isCompressing}
+                      class="crf-number-input"
+                    />
+                  </div>
+                  <span class="crf-status-badge">
+                    <span class="crf-status-word">{crfStatusWord}</span>
                   </span>
                   {#if crfValue !== defaultCrf}
                     <button class="crf-reset-btn" on:click={() => crfValue = defaultCrf} disabled={isCompressing}>
@@ -958,6 +982,8 @@
     background: rgba(255, 255, 255, 0.012) !important;
     border-radius: 12px;
     flex-shrink: 0;
+    position: relative;
+    z-index: 10;
   }
 
   @media (max-width: 650px) {
@@ -1399,6 +1425,8 @@
     margin-bottom: 0.8rem;
     padding: 1rem;
     border-radius: 12px;
+    position: relative;
+    z-index: 8;
   }
 
   .advanced-settings-panel.show {
@@ -1584,5 +1612,59 @@
     margin-top: 0.2rem;
     color: var(--text-muted);
     font-size: 0.65rem;
+  }
+
+  /* Custom quality CRF numeric input */
+  .crf-input-container {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 2px 4px 2px 8px;
+    gap: 6px;
+    transition: border-color 0.2s;
+  }
+
+  .crf-input-container:focus-within {
+    border-color: var(--accent-cyan, #06b6d4);
+  }
+
+  .crf-input-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .crf-number-input {
+    width: 40px;
+    background: none;
+    border: none;
+    color: var(--text-main);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: center;
+    outline: none;
+    padding: 0;
+  }
+
+  .crf-number-input::-webkit-outer-spin-button,
+  .crf-number-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .crf-number-input[type=number] {
+    -moz-appearance: textfield;
+  }
+
+  .crf-status-badge {
+    font-size: 0.7rem;
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.2);
+    color: var(--accent-cyan, #06b6d4);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 600;
   }
 </style>
