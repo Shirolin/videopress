@@ -55,6 +55,11 @@
   let isContextMenuInstalled = false;
   let isPathConfigured = false;
 
+  const languageOptions = [
+    { value: 'zh', label: '简体中文', desc: 'Chinese (Simplified)' },
+    { value: 'en', label: 'English', desc: 'English' }
+  ];
+
   $: presetLabels = {
     small: $t('status.preset_small'),
     standard: $t('status.preset_standard'),
@@ -451,11 +456,8 @@
         <div class="action-meta">
           <span class="desc">{$t('settings.lang.desc')}</span>
         </div>
-        <div class="action-buttons">
-          <div class="segmented-control" style="width: 200px;">
-            <button class="segment-btn {$locale === 'zh' ? 'active' : ''}" on:click={() => $locale = 'zh'}>简体中文</button>
-            <button class="segment-btn {$locale === 'en' ? 'active' : ''}" on:click={() => $locale = 'en'}>English</button>
-          </div>
+        <div style="width: 200px;">
+          <CustomSelect bind:value={$locale} options={languageOptions} />
         </div>
       </div>
 
