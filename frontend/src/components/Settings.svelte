@@ -431,17 +431,30 @@
 
       <div class="action-card">
         <div class="action-meta">
-          <div class="action-title-row" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-            <span class="title">系统集成与探测性能日志</span>
-            <div style="display: flex; align-items: center; gap: 0.3rem;">
-              <span style="font-size: 0.65rem; color: var(--text-muted);">{enableDebugLog ? '已开启' : '已关闭'}</span>
-              <input type="checkbox" bind:checked={enableDebugLog} style="accent-color: var(--accent-purple); cursor: pointer; width: 14px; height: 14px;" />
-            </div>
+          <div class="action-title-row">
+            <span class="title">环境检测与探测性能日志</span>
+            <span class="status-badge {enableDebugLog ? 'success' : 'muted'}">
+              {enableDebugLog ? '已启用' : '已禁用'}
+            </span>
           </div>
-          <span class="desc">记录 GPU 探测错误、各模块检测耗时及底层 FFMPEG 出错堆栈，方便排查卡顿和运行异常。</span>
+          <span class="desc">开启后将记录 GPU 探测错误、各模块检测耗时及底层 FFMPEG 出错堆栈，关闭则停止写入日志。</span>
         </div>
         <div class="action-buttons">
-          <button class="btn btn-primary" on:click={handleOpenDebugLog} disabled={!enableDebugLog}>
+          <button class="btn {enableDebugLog ? 'btn-danger' : 'btn-primary'}" on:click={() => enableDebugLog = !enableDebugLog}>
+            {enableDebugLog ? '关闭日志写入' : '开启调试日志'}
+          </button>
+        </div>
+      </div>
+
+      <div class="action-card">
+        <div class="action-meta">
+          <div class="action-title-row">
+            <span class="title">日志文件管理</span>
+          </div>
+          <span class="desc">直接在系统默认编辑器中打开当前日志，或清空积累的探测日志及硬件加速缓存。</span>
+        </div>
+        <div class="action-buttons">
+          <button class="btn btn-secondary" on:click={handleOpenDebugLog} disabled={!enableDebugLog} style="opacity: {enableDebugLog ? 1 : 0.4};">
             打开日志文件
           </button>
           <button class="btn btn-danger" style="margin-left: 0.4rem;" on:click={handleClearDebugLog}>
