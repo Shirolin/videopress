@@ -99,7 +99,7 @@ func UninstallStartMenu() error {
 // RegisterContextMenu 注册右键直接压缩菜单 (注册表 HKCU，免管理员)
 func RegisterContextMenu(executablePath string) error {
 	psCmd := fmt.Sprintf(
-		`$Path = 'HKCU:\Software\Classes\*\shell\Videopress'; New-Item -Path $Path -Force | Out-Null; Set-ItemProperty -Path $Path -Name 'MUIVerb' -Value '使用 Videopress 压缩' -Force; Set-ItemProperty -Path $Path -Name 'Icon' -Value '%s' -Force; $CommandPath = "$Path\command"; New-Item -Path $CommandPath -Force | Out-Null; Set-Item -Path $CommandPath -Value '\"%s\" \"%%1\"' -Force`,
+		`$Path = 'HKCU:\Software\Classes\*\shell\Videopress'; New-Item -Path $Path -Force | Out-Null; Set-ItemProperty -Path $Path -Name 'MUIVerb' -Value '使用 Videopress 压缩' -Force; Set-ItemProperty -Path $Path -Name 'Icon' -Value '%s' -Force; $CommandPath = "$Path\command"; New-Item -Path $CommandPath -Force | Out-Null; Set-Item -Path $CommandPath -Value '"%s" "%%1"' -Force`,
 		executablePath, executablePath,
 	)
 	cmd := exec.Command("powershell", "-NoProfile", "-Command", psCmd)
