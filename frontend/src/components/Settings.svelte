@@ -440,9 +440,10 @@
           <span class="desc">开启后将记录 GPU 探测错误、各模块检测耗时及底层 FFMPEG 出错堆栈，关闭则停止写入日志。</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {enableDebugLog ? 'btn-danger' : 'btn-primary'}" on:click={() => enableDebugLog = !enableDebugLog}>
-            {enableDebugLog ? '关闭日志写入' : '开启调试日志'}
-          </button>
+          <label class="switch">
+            <input type="checkbox" bind:checked={enableDebugLog} />
+            <span class="slider"></span>
+          </label>
         </div>
       </div>
 
@@ -828,6 +829,56 @@
   @keyframes shimmer-swipe {
     0% { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
+  }
+
+  /* Custom toggle switch styling */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.08);
+    transition: .25s ease;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 10px;
+    width: 10px;
+    left: 3px;
+    bottom: 3px;
+    background-color: var(--text-muted);
+    transition: .25s ease;
+    border-radius: 50%;
+  }
+
+  input:checked + .slider {
+    background-color: rgba(168, 85, 247, 0.25);
+    border-color: rgba(168, 85, 247, 0.45);
+  }
+
+  input:checked + .slider:before {
+    transform: translateX(18px);
+    background-color: var(--accent-purple);
   }
 </style>
 
