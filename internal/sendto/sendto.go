@@ -100,27 +100,42 @@ func UninstallStartMenu() error {
 
 // RegisterContextMenu 注册右键直接压缩菜单 (注册表 HKCU，免管理员)
 func RegisterContextMenu(executablePath string) error {
-	psCmd := fmt.Sprintf(
-		`$Path = 'HKCU:\Software\Classes\*\shell\Videopress'; New-Item -Path $Path -Force | Out-Null; Set-ItemProperty -Path $Path -Name 'MUIVerb' -Value '使用 Videopress 压缩' -Force; Set-ItemProperty -Path $Path -Name 'Icon' -Value '%s' -Force; $CommandPath = "$Path\command"; New-Item -Path $CommandPath -Force | Out-Null; Set-Item -Path $CommandPath -Value '"%s" "%%1"' -Force`,
-		executablePath, executablePath,
-	)
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", psCmd)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: 0x08000000,
+	k, _, err := registry.CreateKey(registry.CURRENT_USER, `Software\Classes\*\shell\Videopress`, registry.SET_VALUE)
+	if err != nil {
+		return fmt.Errorf("创建右键注册表项失败: %w", err)
 	}
-	return cmd.Run()
+	defer k.Close()
+
+	if err := k.SetStringValue("MUIVerb", "使用 Videopress 压缩"); err != nil {
+		return fmt.Errorf("设置 MUIVerb 失败: %w", err)
+	}
+	if err := k.SetStringValue("Icon", executablePath); err != nil {
+		return fmt.Errorf("设置 Icon 失败: %w", err)
+	}
+
+	cmdK, _, err := registry.CreateKey(registry.CURRENT_USER, `Software\Classes\*\shell\Videopress\command`, registry.SET_VALUE)
+	if err != nil {
+		return fmt.Errorf("创建 Command 子项失败: %w", err)
+	}
+	defer cmdK.Close()
+
+	formattedCmd := fmt.Sprintf(`"%s" "%%1"`, executablePath)
+	if err := cmdK.SetStringValue("", formattedCmd); err != nil {
+		return fmt.Errorf("设置默认值失败: %w", err)
+	}
+	return nil
 }
 
 // UnregisterContextMenu 卸载右键菜单
 func UnregisterContextMenu() error {
-	psCmd := `Remove-Item -Path 'HKCU:\Software\Classes\*\shell\Videopress' -Recurse -Force -ErrorAction SilentlyContinue`
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", psCmd)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: 0x08000000,
+	// 先删除子项 command
+	_ = registry.DeleteKey(registry.CURRENT_USER, `Software\Classes\*\shell\Videopress\command`)
+	// 再删除主项
+	err := registry.DeleteKey(registry.CURRENT_USER, `Software\Classes\*\shell\Videopress`)
+	if err != nil && err != registry.ErrNotExist {
+		return fmt.Errorf("删除右键菜单注册表项失败: %w", err)
 	}
-	return cmd.Run()
+	return nil
 }
 
 func createLnk(lnkPath string, targetPath string, arguments string) error {
