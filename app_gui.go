@@ -105,7 +105,7 @@ func (a *App) DetectGPUEncoder() (string, error) {
 		return "libx264", err
 	}
 	deps := engine.DefaultDependencies(a.executableDir)
-	encoder := deps.DetectGPUEncoder(ffmpegPath, deps.RunCommand)
+	encoder := deps.DetectGPUEncoder(ffmpegPath, "h264", deps.RunCommand)
 	return encoder, nil
 }
 

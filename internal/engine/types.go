@@ -12,6 +12,10 @@ type JobRequest struct {
 	SkipExisting bool
 	Concurrency  int
 	OutputDir    string
+	// Advanced configuration parameters
+	VideoCodec   string // "" (auto) | "h264" | "h265" | "av1"
+	MaxFPS       int    // 0 = unlimited, or positive integer like 30, 60
+	AudioMode    string // "" (fallback to CopyAudio) | "compress" | "copy" | "mute"
 }
 
 // ProgressEvent represents progress updates from the compression engine.

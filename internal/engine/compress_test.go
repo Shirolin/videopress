@@ -23,7 +23,7 @@ func TestEngineRunSuccess(t *testing.T) {
 		GetDuration: func(ffmpegPath string, inputPath string) (time.Duration, error) {
 			return 10 * time.Second, nil
 		},
-		DetectGPUEncoder: func(ffmpegPath string, runCmd func(string, []string) error) string {
+		DetectGPUEncoder: func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
 			return "libx264"
 		},
 		MkdirAll: func(path string, perm os.FileMode) error {
@@ -75,7 +75,7 @@ func TestEngineRunHandlesCancellation(t *testing.T) {
 		GetDuration: func(ffmpegPath string, inputPath string) (time.Duration, error) {
 			return 10 * time.Second, nil
 		},
-		DetectGPUEncoder: func(ffmpegPath string, runCmd func(string, []string) error) string {
+		DetectGPUEncoder: func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
 			return "libx264"
 		},
 		MkdirAll: func(path string, perm os.FileMode) error {

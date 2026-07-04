@@ -22,7 +22,7 @@ type Dependencies struct {
 	ResolveBinary    func(dir string) (string, error)
 	RunCommand       func(name string, args []string) error
 	GetDuration      func(ffmpegPath string, inputPath string) (time.Duration, error)
-	DetectGPUEncoder func(ffmpegPath string, runCmd func(string, []string) error) string
+	DetectGPUEncoder func(ffmpegPath string, codec string, runCmd func(string, []string) error) string
 	MkdirAll         func(path string, perm os.FileMode) error
 	PathExists       func(path string) bool
 	InputAccessible  func(path string) bool
@@ -43,8 +43,8 @@ func DefaultDependencies(execDir string) Dependencies {
 			return cmd.Run()
 		},
 		GetDuration: ffmpeg.GetDuration,
-		DetectGPUEncoder: func(ffmpegPath string, runCmd func(string, []string) error) string {
-			return ffmpeg.DetectGPUEncoder(ffmpegPath, runCmd)
+		DetectGPUEncoder: func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
+			return ffmpeg.DetectGPUEncoder(ffmpegPath, codec, runCmd)
 		},
 		MkdirAll: os.MkdirAll,
 		PathExists: func(path string) bool {
@@ -89,8 +89,8 @@ func NewCompressEngine(deps Dependencies) *CompressEngine {
 		deps.GetDuration = ffmpeg.GetDuration
 	}
 	if deps.DetectGPUEncoder == nil {
-		deps.DetectGPUEncoder = func(ffmpegPath string, runCmd func(string, []string) error) string {
-			return ffmpeg.DetectGPUEncoder(ffmpegPath, runCmd)
+		deps.DetectGPUEncoder = func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
+			return ffmpeg.DetectGPUEncoder(ffmpegPath, codec, runCmd)
 		}
 	}
 	if deps.MkdirAll == nil {
@@ -130,8 +130,14 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 	}
 
 	hwEncoder := "libx264"
+	if req.VideoCodec == "h265" || req.VideoCodec == "hevc" {
+		hwEncoder = "libx265"
+	} else if req.VideoCodec == "av1" {
+		hwEncoder = "libsvtav1"
+	}
+
 	if req.HWAccel {
-		hwEncoder = e.deps.DetectGPUEncoder(ffmpegPath, e.deps.RunCommand)
+		hwEncoder = e.deps.DetectGPUEncoder(ffmpegPath, req.VideoCodec, e.deps.RunCommand)
 	}
 
 	limit := req.Concurrency
@@ -274,7 +280,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 
 				startTime := time.Now()
 				duration, _ := e.deps.GetDuration(ffmpegPath, task.input)
-				args := ffmpeg.BuildArgs(task.input, task.output, preset, hwEncoder, req.CopyAudio)
+				args := ffmpeg.BuildArgs(task.input, task.output, preset, hwEncoder, req.CopyAudio, req.MaxFPS, req.AudioMode)
 
 				err := e.runCommandWithProgress(ctx, ffmpegPath, args, duration, filepath.Base(task.input), onProgress)
 				elapsed := time.Since(startTime)

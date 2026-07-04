@@ -41,7 +41,7 @@ type Dependencies struct {
 	RunCommand             func(name string, args []string) error
 	RunCommandWithProgress func(ffmpegPath string, args []string, duration time.Duration, prefix string, stdout io.Writer, simpleProgress bool) error
 	GetDuration            func(ffmpegPath string, inputPath string) (time.Duration, error)
-	DetectGPUEncoder       func(ffmpegPath string, runCmd func(string, []string) error) string
+	DetectGPUEncoder       func(ffmpegPath string, codec string, runCmd func(string, []string) error) string
 	MkdirAll               func(path string, perm os.FileMode) error
 	PathExists             func(path string) bool
 	InputAccessible        func(path string) bool
@@ -73,6 +73,9 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "  --hw                             %s\n", cyan(getMsg("尝试使用 GPU 硬件加速编码", "Try to use GPU hardware acceleration")))
 	fmt.Fprintln(w, getMsg("  --force, -f                      强制覆盖已存在的输出文件", "  --force, -f                      Force overwrite existing output files"))
 	fmt.Fprintln(w, getMsg("  --skip-existing                  如果输出文件已存在则跳过", "  --skip-existing                  Skip compression if output file exists"))
+	fmt.Fprintf(w, "  --codec %s         %s\n", cyan("h264|h265|av1"), getMsg("视频编码格式（默认 h264）", "Video encoding codec (default h264)"))
+	fmt.Fprintf(w, "  --max-fps %s           %s\n", cyan("<数字>"), getMsg("限制最大帧率，0 为不限制（默认 0）", "Limit maximum frames per second, 0 for unlimited (default 0)"))
+	fmt.Fprintf(w, "  --audio %s   %s\n", cyan("copy|compress|mute"), getMsg("音频模式（默认 compress）", "Audio mode (default compress)"))
 	fmt.Fprintln(w, getMsg("  --copy-audio, -a                 直接复制音频流，不重编码", "  --copy-audio, -a                 Copy audio stream directly without re-encoding"))
 	fmt.Fprintln(w, getMsg("  --install-sendto                 安装 SendTo 右键快捷方式", "  --install-sendto                 Install SendTo context shortcut"))
 	fmt.Fprintln(w, getMsg("  --uninstall-sendto               移除 SendTo 快捷方式", "  --uninstall-sendto               Remove SendTo shortcut"))
@@ -162,8 +165,8 @@ func Execute(args []string, deps Dependencies) int {
 		deps.GetDuration = ffmpeg.GetDuration
 	}
 	if deps.DetectGPUEncoder == nil {
-		deps.DetectGPUEncoder = func(ffmpegPath string, runCmd func(string, []string) error) string {
-			return ffmpeg.DetectGPUEncoder(ffmpegPath, runCmd)
+		deps.DetectGPUEncoder = func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
+			return ffmpeg.DetectGPUEncoder(ffmpegPath, codec, runCmd)
 		}
 	}
 	if deps.MkdirAll == nil {
@@ -208,6 +211,9 @@ func Execute(args []string, deps Dependencies) int {
 	skipExisting := fs.Bool("skip-existing", false, "skip compression if output file already exists")
 	copyAudio := fs.Bool("copy-audio", false, "copy audio stream instead of re-encoding")
 	fs.BoolVar(copyAudio, "a", false, "copy audio stream instead of re-encoding (shorthand)")
+	codecName := fs.String("codec", "", "video encoder format (h264|h265|av1)")
+	maxFPS := fs.Int("max-fps", 0, "limit max frames per second")
+	audioMode := fs.String("audio", "", "audio mode (copy|compress|mute)")
 	sendToMode := fs.Bool("sendto", false, "enable SendTo prompt on exit")
 	installSendTo := fs.Bool("install-sendto", false, "install SendTo shortcut")
 	uninstallSendTo := fs.Bool("uninstall-sendto", false, "remove SendTo shortcut")
@@ -345,11 +351,11 @@ func Execute(args []string, deps Dependencies) int {
 	hwEncoder := "libx264"
 	if *hwAccel {
 		fmt.Fprintln(deps.Stdout, "正在检测可用 GPU 编码器...")
-		hwEncoder = deps.DetectGPUEncoder(ffmpegPath, nil)
-		if hwEncoder != "libx264" {
+		hwEncoder = deps.DetectGPUEncoder(ffmpegPath, *codecName, nil)
+		if hwEncoder != "libx264" && hwEncoder != "libx265" && hwEncoder != "libsvtav1" {
 			fmt.Fprintf(deps.Stdout, "检测到 GPU 编码器: %s，将启用硬件加速\n", green(hwEncoder))
 		} else {
-			fmt.Fprintln(deps.Stdout, "未检测到可用 GPU 编码器，将使用 CPU 编码 (libx264)")
+			fmt.Fprintln(deps.Stdout, "未检测到可用 GPU 编码器，将使用 CPU 软编")
 		}
 	}
 
@@ -375,10 +381,33 @@ func Execute(args []string, deps Dependencies) int {
 	fmt.Fprintf(deps.Stdout, " 缩放比例: %s\n", cyan(fmt.Sprintf("%.0f%%", preset.ScaleFactor*100)))
 	fmt.Fprintf(deps.Stdout, " 最大分辨率限制: %s\n", cyan(maxDimStr))
 	fmt.Fprintf(deps.Stdout, " 并发限制: %s\n", cyan(fmt.Sprintf("%d", limit)))
-	if *hwAccel {
-		fmt.Fprintf(deps.Stdout, " 硬件编码: %s\n", green(hwEncoder))
+	
+	codecPrint := *codecName
+	if codecPrint == "" {
+		codecPrint = "h264 (自动)"
+	}
+	fmt.Fprintf(deps.Stdout, " 编码格式: %s\n", cyan(codecPrint))
+
+	if *maxFPS > 0 {
+		fmt.Fprintf(deps.Stdout, " 帧率限制: %s\n", cyan(fmt.Sprintf("%dfps", *maxFPS)))
 	} else {
-		fmt.Fprintf(deps.Stdout, " 硬件编码: %s\n", gray("已禁用"))
+		fmt.Fprintf(deps.Stdout, " 帧率限制: %s\n", cyan("无限制"))
+	}
+
+	var audioModePrint string
+	if *audioMode != "" {
+		audioModePrint = *audioMode
+	} else if *copyAudio {
+		audioModePrint = "copy (直通)"
+	} else {
+		audioModePrint = "compress (智能压缩)"
+	}
+	fmt.Fprintf(deps.Stdout, " 音频模式: %s\n", cyan(audioModePrint))
+
+	if *hwAccel {
+		fmt.Fprintf(deps.Stdout, " 硬件加速: %s\n", green(hwEncoder))
+	} else {
+		fmt.Fprintf(deps.Stdout, " 硬件加速: %s\n", gray("已禁用"))
 	}
 	fmt.Fprintln(deps.Stdout, magenta("========================================"))
 	fmt.Fprintln(deps.Stdout)
@@ -499,6 +528,9 @@ func Execute(args []string, deps Dependencies) int {
 			ForceMode:    *forceMode,
 			SkipExisting: *skipExisting,
 			Concurrency:  limit,
+			VideoCodec:   *codecName,
+			MaxFPS:       *maxFPS,
+			AudioMode:    *audioMode,
 		}, onProgress)
 
 		if err != nil {

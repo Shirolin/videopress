@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,28 +14,36 @@ import (
 )
 
 var (
-	cachedGPUEncoder string
-	cacheMu          sync.RWMutex
-	EnableDebugLog   bool // 调试日志全局开关，由 GUI 端进行同步
+	cachedGPUEncoders map[string]string = make(map[string]string)
+	cacheMu           sync.RWMutex
+	EnableDebugLog    bool // 调试日志全局开关，由 GUI 端进行同步
 )
 
 // ResetGPUEncoderCache 重置 GPU 探测缓存。主要用于测试。
 func ResetGPUEncoderCache() {
 	cacheMu.Lock()
-	cachedGPUEncoder = ""
+	cachedGPUEncoders = make(map[string]string)
 	cacheMu.Unlock()
 }
 
-// DetectGPUEncoder 探测系统可用的硬件加速编码器。
-// 探测顺序: h264_nvenc -> h264_qsv -> h264_amf.
-// 如果都不支持，则返回 "libx264".
-func DetectGPUEncoder(ffmpegPath string, runCmd func(name string, args []string) error) string {
+// DetectGPUEncoder 探测系统针对指定编码格式可用的硬件加速编码器。
+// codec 支持: "h264", "h265" (或 "hevc"), "av1". 默认为 "h264".
+// 探测成功则返回对应的硬件加速编码器名称，否则返回该格式的 CPU 软解编码器 (libx264/libx265/libsvtav1).
+func DetectGPUEncoder(ffmpegPath string, codec string, runCmd func(name string, args []string) error) string {
 	isTest := runCmd != nil
+
+	// 标准化 codec 名称
+	codec = strings.ToLower(codec)
+	if codec == "" {
+		codec = "h264"
+	} else if codec == "hevc" {
+		codec = "h265"
+	}
 
 	// 1. 如果非测试环境，先检查内存缓存，再检查磁盘缓存
 	if !isTest {
 		cacheMu.RLock()
-		cached := cachedGPUEncoder
+		cached := cachedGPUEncoders[codec]
 		cacheMu.RUnlock()
 		if cached != "" {
 			return cached
@@ -44,19 +53,35 @@ func DetectGPUEncoder(ffmpegPath string, runCmd func(name string, args []string)
 		if err == nil {
 			cacheFile := filepath.Join(cacheDir, "videopress_gpu.cache")
 			if data, err := os.ReadFile(cacheFile); err == nil {
-				cachedDisk := strings.TrimSpace(string(data))
-				if cachedDisk == "libx264" || cachedDisk == "h264_nvenc" || cachedDisk == "h264_qsv" || cachedDisk == "h264_amf" {
-					cacheMu.Lock()
-					cachedGPUEncoder = cachedDisk
-					cacheMu.Unlock()
-					return cachedDisk
+				// 尝试解析为 JSON
+				var diskCache map[string]string
+				if err := json.Unmarshal(data, &diskCache); err == nil && diskCache != nil {
+					cachedDisk := diskCache[codec]
+					if cachedDisk != "" {
+						cacheMu.Lock()
+						cachedGPUEncoders[codec] = cachedDisk
+						cacheMu.Unlock()
+						return cachedDisk
+					}
 				}
 			}
 		}
 	}
 
-	encoders := []string{"h264_nvenc", "h264_qsv", "h264_amf"}
-	var detected string = "libx264"
+	var encoders []string
+	var detected string
+
+	switch codec {
+	case "h265":
+		encoders = []string{"hevc_nvenc", "hevc_qsv", "hevc_amf"}
+		detected = "libx265"
+	case "av1":
+		encoders = []string{"av1_nvenc", "av1_qsv", "av1_amf"}
+		detected = "libsvtav1"
+	default:
+		encoders = []string{"h264_nvenc", "h264_qsv", "h264_amf"}
+		detected = "libx264"
+	}
 
 	if isTest {
 		// 测试模式下使用串行同步执行，以便单元测试计数正常且没有数据竞争
@@ -132,13 +157,24 @@ func DetectGPUEncoder(ffmpegPath string, runCmd func(name string, args []string)
 		cacheDir, err := os.UserCacheDir()
 		if err == nil {
 			cacheFile := filepath.Join(cacheDir, "videopress_gpu.cache")
-			_ = os.WriteFile(cacheFile, []byte(detected), 0o644)
+			
+			// 读取现有缓存合并，保留其他 codec 的探测结果
+			var diskCache map[string]string = make(map[string]string)
+			if data, err := os.ReadFile(cacheFile); err == nil {
+				_ = json.Unmarshal(data, &diskCache)
+			}
+			diskCache[codec] = detected
+
+			if data, err := json.Marshal(diskCache); err == nil {
+				_ = os.WriteFile(cacheFile, data, 0o644)
+			}
 
 			// 如果存在错误，并且启用了调试日志，写入调试日志文件方便定位硬件/驱动/FFmpeg配置问题
 			if len(debugLogs) > 0 && EnableDebugLog {
 				logFile := filepath.Join(cacheDir, "videopress_debug.log")
-				logMsg := fmt.Sprintf("[%s] GPU 探测失败明细 (最终使用 %s):\n%s\n\n",
+				logMsg := fmt.Sprintf("[%s] GPU %s 探测失败明细 (最终使用 %s):\n%s\n\n",
 					time.Now().Format("2006-01-02 15:04:05"),
+					codec,
 					detected,
 					strings.Join(debugLogs, "\n"),
 				)
@@ -154,7 +190,7 @@ func DetectGPUEncoder(ffmpegPath string, runCmd func(name string, args []string)
 	// 缓存探测结果至内存
 	if !isTest {
 		cacheMu.Lock()
-		cachedGPUEncoder = detected
+		cachedGPUEncoders[codec] = detected
 		cacheMu.Unlock()
 	}
 

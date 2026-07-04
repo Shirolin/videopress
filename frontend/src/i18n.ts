@@ -174,7 +174,21 @@ export const translations: Record<string, Record<string, string>> = {
     'toast.startmenu_added': '已成功添加至开始菜单',
     'toast.startmenu_removed': '已从开始菜单移除快捷方式',
     'toast.path_added': '已成功将路径添加至环境变量 Path',
-    'toast.path_removed': '已将路径从环境变量 Path 中移除'
+    'toast.path_removed': '已将路径从环境变量 Path 中移除',
+
+    // Advanced settings
+    'advanced.title': '高级参数',
+    'advanced.video_codec': '视频编码格式',
+    'advanced.video_codec_desc': '选择视频编码格式。自动为当前硬件推荐最佳编码器，H.265体积更小，AV1为下一代标准。',
+    'advanced.video_codec_auto': '自动（智能推荐）',
+    'advanced.max_fps': '帧率限制',
+    'advanced.max_fps_desc': '限制视频最大帧率。限制至30fps可大幅削减体积，适合录屏压缩。',
+    'advanced.max_fps_auto': '不限制（保留原片帧率）',
+    'advanced.audio_mode': '音频处理',
+    'advanced.audio_mode_desc': '音频压缩模式。直通可无损保留原音质，智能压缩会压缩音频以缩小体积。',
+    'advanced.audio_mode_auto': '智能压缩（推荐）',
+    'advanced.audio_mode_copy': '音频直通（无损保留）',
+    'advanced.audio_mode_mute': '视频静音（去除音轨）'
   },
   en: {
     // Navigation
@@ -344,7 +358,21 @@ export const translations: Record<string, Record<string, string>> = {
     'toast.startmenu_added': 'Successfully added to Start Menu',
     'toast.startmenu_removed': 'Removed shortcut from Start Menu',
     'toast.path_added': 'Successfully added directory to user Path environment variable',
-    'toast.path_removed': 'Removed directory from user Path environment variable'
+    'toast.path_removed': 'Removed directory from user Path environment variable',
+
+    // Advanced settings
+    'advanced.title': 'Advanced Settings',
+    'advanced.video_codec': 'Video Codec',
+    'advanced.video_codec_desc': 'Choose video codec. Auto recommends the best codec for your hardware. H.265 is smaller, AV1 is the next-gen standard.',
+    'advanced.video_codec_auto': 'Auto (Recommended)',
+    'advanced.max_fps': 'Frame Rate Limit',
+    'advanced.max_fps_desc': 'Limit maximum frame rate. Capping at 30fps can significantly reduce file size, ideal for screen recordings.',
+    'advanced.max_fps_auto': 'Unlimited (Keep Original)',
+    'advanced.audio_mode': 'Audio Processing',
+    'advanced.audio_mode_desc': 'Audio compression mode. Copy preserves original audio without loss, compress reduces file size.',
+    'advanced.audio_mode_auto': 'Smart Compress (Recommended)',
+    'advanced.audio_mode_copy': 'Audio Copy (Lossless)',
+    'advanced.audio_mode_mute': 'Mute Video (Remove Audio)'
   }
 };
 

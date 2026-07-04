@@ -232,7 +232,7 @@ func TestExecuteGPUAccel(t *testing.T) {
 		ResolveBinary: func(dir string) (string, error) {
 			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
 		},
-		DetectGPUEncoder: func(ffmpegPath string, runCmd func(string, []string) error) string {
+		DetectGPUEncoder: func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
 			return "h264_nvenc"
 		},
 		RunCommand: func(name string, args []string) error {

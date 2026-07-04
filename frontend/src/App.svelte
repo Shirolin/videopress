@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import DropZone from './components/DropZone.svelte';
+  import CustomSelect from './components/CustomSelect.svelte';
   import FileQueue, { type QueueItem } from './components/FileQueue.svelte';
   import Settings from './components/Settings.svelte';
   import { t, locale } from './i18n.ts';
@@ -27,6 +28,12 @@
     : false;
   let enableDebugLog: boolean = localStorage.getItem('videopress_enable_debug_log') === 'true';
 
+  // Advanced settings
+  let videoCodec: string = localStorage.getItem('videopress_video_codec') || '';
+  let maxFPS: number = parseInt(localStorage.getItem('videopress_max_fps') || '0', 10);
+  let audioMode: string = localStorage.getItem('videopress_audio_mode') || '';
+  let showAdvanced: boolean = localStorage.getItem('videopress_show_advanced') === 'true';
+
   // Persist settings reactively
   $: if (preset !== undefined) localStorage.setItem('videopress_preset', preset);
   $: if (concurrency !== undefined) localStorage.setItem('videopress_concurrency', concurrency.toString());
@@ -38,6 +45,10 @@
     localStorage.setItem('videopress_enable_debug_log', enableDebugLog.toString());
     SetDebugMode(enableDebugLog).catch(console.error);
   }
+  $: if (videoCodec !== undefined) localStorage.setItem('videopress_video_codec', videoCodec);
+  $: if (maxFPS !== undefined) localStorage.setItem('videopress_max_fps', maxFPS.toString());
+  $: if (audioMode !== undefined) localStorage.setItem('videopress_audio_mode', audioMode);
+  $: if (showAdvanced !== undefined) localStorage.setItem('videopress_show_advanced', showAdvanced.toString());
 
   // 同步语言设置至 Go 后端，重新触发热重写右键注册表项
   $: if ($locale) {
@@ -259,7 +270,10 @@
         ForceMode: forceMode,
         SkipExisting: skipExisting,
         Concurrency: concurrency,
-        OutputDir: customOutputDir
+        OutputDir: customOutputDir,
+        VideoCodec: videoCodec,
+        MaxFPS: maxFPS,
+        AudioMode: audioMode
       });
 
       // Update queue items with target results
@@ -531,6 +545,76 @@
                   </button>
                 {/if}
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Advanced Settings Toggle -->
+        <div class="advanced-toggle-bar">
+          <button class="advanced-toggle-btn" on:click={() => showAdvanced = !showAdvanced}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="chevron-icon {showAdvanced ? 'rotate-90' : ''}">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+            <span class="toggle-text">{$t('advanced.title')}</span>
+            {#if videoCodec !== '' || maxFPS !== 0 || audioMode !== ''}
+              <span class="advanced-indicator" title="已启用自定义高级配置"></span>
+            {/if}
+          </button>
+        </div>
+
+        <!-- Advanced Settings Panel -->
+        <div class="advanced-settings-panel glass-panel {showAdvanced ? 'show' : ''}">
+          <div class="advanced-grid">
+            <div class="advanced-group">
+              <label class="control-label">{$t('advanced.video_codec')}</label>
+              <div class="select-container">
+                <CustomSelect
+                  options={[
+                    { value: '', label: $t('advanced.video_codec_auto') },
+                    { value: 'h264', label: 'H.264 (AVC)' },
+                    { value: 'h265', label: 'H.265 (HEVC)' },
+                    { value: 'av1', label: 'AV1 (Next-Gen)' }
+                  ]}
+                  value={videoCodec}
+                  on:change={(e) => videoCodec = e.detail}
+                  disabled={isCompressing}
+                />
+              </div>
+              <span class="help-desc">{$t('advanced.video_codec_desc')}</span>
+            </div>
+
+            <div class="advanced-group">
+              <label class="control-label">{$t('advanced.max_fps')}</label>
+              <div class="select-container">
+                <CustomSelect
+                  options={[
+                    { value: '0', label: $t('advanced.max_fps_auto') },
+                    { value: '30', label: '30 FPS' },
+                    { value: '60', label: '60 FPS' }
+                  ]}
+                  value={maxFPS.toString()}
+                  on:change={(e) => maxFPS = parseInt(e.detail, 10)}
+                  disabled={isCompressing}
+                />
+              </div>
+              <span class="help-desc">{$t('advanced.max_fps_desc')}</span>
+            </div>
+
+            <div class="advanced-group">
+              <label class="control-label">{$t('advanced.audio_mode')}</label>
+              <div class="select-container">
+                <CustomSelect
+                  options={[
+                    { value: '', label: $t('advanced.audio_mode_auto') },
+                    { value: 'copy', label: $t('advanced.audio_mode_copy') },
+                    { value: 'mute', label: $t('advanced.audio_mode_mute') }
+                  ]}
+                  value={audioMode}
+                  on:change={(e) => audioMode = e.detail}
+                  disabled={isCompressing}
+                />
+              </div>
+              <span class="help-desc">{$t('advanced.audio_mode_desc')}</span>
             </div>
           </div>
         </div>
@@ -1155,5 +1239,111 @@
     font-size: 0.75rem;
     border-radius: 8px;
     font-weight: 600;
+  }
+
+  /* Advanced Panel CSS */
+  .advanced-toggle-bar {
+    display: flex;
+    justify-content: flex-start;
+    margin: 0.5rem 0;
+    padding-left: 0.2rem;
+  }
+
+  .advanced-toggle-btn {
+    display: flex;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    gap: 0.3rem;
+    transition: all 0.2s ease;
+    user-select: none;
+  }
+
+  .advanced-toggle-btn:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .chevron-icon {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.2s ease;
+  }
+
+  .chevron-icon.rotate-90 {
+    transform: rotate(90deg);
+  }
+
+  .advanced-indicator {
+    width: 6px;
+    height: 6px;
+    background-color: var(--accent-cyan, #06b6d4);
+    border-radius: 50%;
+    margin-left: 0.2rem;
+    box-shadow: 0 0 8px var(--accent-cyan, #06b6d4);
+    animation: pulse 2s infinite;
+  }
+
+  .advanced-settings-panel {
+    display: none;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-bottom: 0.8rem;
+    padding: 1rem;
+    border-radius: 12px;
+  }
+
+  .advanced-settings-panel.show {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .advanced-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+
+  .advanced-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .select-container {
+    width: 100%;
+  }
+
+  .help-desc {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    line-height: 1.3;
+  }
+
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 6px rgba(6, 182, 212, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .advanced-grid {
+      grid-template-columns: 1fr;
+      gap: 0.8rem;
+    }
   }
 </style>

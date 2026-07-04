@@ -33,6 +33,9 @@ export namespace engine {
 	    SkipExisting: boolean;
 	    Concurrency: number;
 	    OutputDir: string;
+	    VideoCodec: string;
+	    MaxFPS: number;
+	    AudioMode: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new JobRequest(source);
@@ -48,6 +51,9 @@ export namespace engine {
 	        this.SkipExisting = source["SkipExisting"];
 	        this.Concurrency = source["Concurrency"];
 	        this.OutputDir = source["OutputDir"];
+	        this.VideoCodec = source["VideoCodec"];
+	        this.MaxFPS = source["MaxFPS"];
+	        this.AudioMode = source["AudioMode"];
 	    }
 	}
 
