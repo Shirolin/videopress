@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"videopress/internal/app"
 	"videopress/internal/engine"
@@ -233,16 +236,107 @@ func (a *App) UninstallContextMenu() error {
 	return sendto.UnregisterContextMenu()
 }
 
-// GetIntegrationStatus queries the current installation status of various desktop integrations
+// GetIntegrationStatus queries the current installation status of various desktop integrations and logs execution times
 func (a *App) GetIntegrationStatus() (map[string]bool, error) {
+	start := time.Now()
 	status := make(map[string]bool)
-	status["sendto"] = sendto.IsSendToInstalled()
-	status["desktop"] = sendto.IsDesktopInstalled()
-	status["startmenu"] = sendto.IsStartMenuInstalled()
-	status["contextmenu"] = sendto.IsContextMenuInstalled()
 
+	t := time.Now()
+	status["sendto"] = sendto.IsSendToInstalled()
+	sendToTime := time.Since(t)
+
+	t = time.Now()
+	status["desktop"] = sendto.IsDesktopInstalled()
+	desktopTime := time.Since(t)
+
+	t = time.Now()
+	status["startmenu"] = sendto.IsStartMenuInstalled()
+	startMenuTime := time.Since(t)
+
+	t = time.Now()
+	status["contextmenu"] = sendto.IsContextMenuInstalled()
+	contextMenuTime := time.Since(t)
+
+	t = time.Now()
 	isPath, _ := env.IsPathConfigured(a.executableDir)
 	status["path"] = isPath
+	pathTime := time.Since(t)
+
+	totalTime := time.Since(start)
+
+	// 将配置项载入耗时写入本地调试日志
+	logMsg := fmt.Sprintf("[%s] 配置项载入耗时统计 (总耗时: %v):\n"+
+		"- SendTo 右键发送菜单检测: %v\n"+
+		"- 桌面快捷方式检测: %v\n"+
+		"- 开始菜单快捷方式检测: %v\n"+
+		"- 右键注册表项菜单检测: %v\n"+
+		"- 环境变量 Path 检测: %v\n\n",
+		time.Now().Format("2006-01-02 15:04:05"),
+		totalTime,
+		sendToTime,
+		desktopTime,
+		startMenuTime,
+		contextMenuTime,
+		pathTime,
+	)
+
+	cacheDir, err := os.UserCacheDir()
+	if err == nil {
+		logFile := filepath.Join(cacheDir, "videopress_debug.log")
+		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		if err == nil {
+			_, _ = f.WriteString(logMsg)
+			_ = f.Close()
+		}
+	}
 
 	return status, nil
+}
+
+// GetDebugLogs returns the contents of the debug log
+func (a *App) GetDebugLogs() (string, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+	logFile := filepath.Join(cacheDir, "videopress_debug.log")
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "当前暂无调试日志记录", nil
+		}
+		return "", err
+	}
+	return string(data), nil
+}
+
+// ClearDebugLogs clears all debug logs
+func (a *App) ClearDebugLogs() error {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return err
+	}
+	logFile := filepath.Join(cacheDir, "videopress_debug.log")
+	_ = os.Remove(logFile)
+	// 顺便清除 GPU 缓存以触发重新检测
+	gpuCache := filepath.Join(cacheDir, "videopress_gpu.cache")
+	_ = os.Remove(gpuCache)
+	
+	// 重置运行时缓存
+	ffmpeg.ResetGPUEncoderCache()
+	return nil
+}
+
+// OpenDebugLogFile opens the debug log file in default text editor
+func (a *App) OpenDebugLogFile() error {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return err
+	}
+	logFile := filepath.Join(cacheDir, "videopress_debug.log")
+	if _, err := os.Stat(logFile); os.IsNotExist(err) {
+		_ = os.WriteFile(logFile, []byte(""), 0o644)
+	}
+	cmd := exec.Command("cmd", "/c", "start", "", logFile)
+	return cmd.Run()
 }

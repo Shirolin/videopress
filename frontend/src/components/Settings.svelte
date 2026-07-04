@@ -14,7 +14,9 @@
     UninstallStartMenuShortcut,
     InstallContextMenu,
     UninstallContextMenu,
-    GetIntegrationStatus
+    GetIntegrationStatus,
+    OpenDebugLogFile,
+    ClearDebugLogs
   } from '../../wailsjs/go/main/App.js';
 
   export let preset: string = 'standard';
@@ -109,6 +111,28 @@
     setTimeout(() => {
       statusMessage = '';
     }, 4000);
+  }
+
+  async function handleOpenDebugLog() {
+    try {
+      await OpenDebugLogFile();
+      showStatus("已打开本地调试与性能排查日志", "success");
+    } catch (e: any) {
+      showStatus("打开日志文件失败: " + e.message, "error");
+    }
+  }
+
+  async function handleClearDebugLog() {
+    try {
+      await ClearDebugLogs();
+      showStatus("已成功清空日志并重置硬件加速缓存", "success");
+      // 重新触发一次后台探测，重新填充缓存
+      DetectGPUEncoder().then(gpu => {
+        detectedGPU = gpu;
+      });
+    } catch (e: any) {
+      showStatus("清空日志与缓存失败: " + e.message, "error");
+    }
   }
 
   async function toggleSendTo() {
@@ -389,6 +413,30 @@
         <div class="action-buttons">
           <button class="btn {isPathConfigured ? 'btn-danger' : 'btn-primary'}" on:click={togglePathEnv} disabled={loadingIntegration}>
             {#if loadingIntegration}检测中...{:else}{isPathConfigured ? '移除路径' : '一键配置'}{/if}
+          </button>
+        </div>
+      </div>
+
+      <!-- 6. 调试与排查日志 -->
+      <div class="section-title">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="section-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        调试与排查日志
+      </div>
+
+      <div class="action-card">
+        <div class="action-meta">
+          <div class="action-title-row">
+            <span class="title">系统集成与探测性能日志</span>
+            <span class="status-badge info">开发调试</span>
+          </div>
+          <span class="desc">记录 GPU 探测错误、各模块检测耗时及底层 FFMPEG 出错堆栈，方便排查卡顿和运行异常。</span>
+        </div>
+        <div class="action-buttons">
+          <button class="btn btn-primary" on:click={handleOpenDebugLog}>
+            打开日志文件
+          </button>
+          <button class="btn btn-danger" style="margin-left: 0.4rem;" on:click={handleClearDebugLog}>
+            清空日志与缓存
           </button>
         </div>
       </div>

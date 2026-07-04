@@ -10,6 +10,10 @@ export function CancelCompress() {
   return window['go']['main']['App']['CancelCompress']();
 }
 
+export function ClearDebugLogs() {
+  return window['go']['main']['App']['ClearDebugLogs']();
+}
+
 export function DetectFFmpeg() {
   return window['go']['main']['App']['DetectFFmpeg']();
 }
@@ -20,6 +24,10 @@ export function DetectGPUEncoder() {
 
 export function DownloadFFmpeg() {
   return window['go']['main']['App']['DownloadFFmpeg']();
+}
+
+export function GetDebugLogs() {
+  return window['go']['main']['App']['GetDebugLogs']();
 }
 
 export function GetInitialFiles() {
@@ -52,6 +60,10 @@ export function InstallSendTo() {
 
 export function InstallStartMenuShortcut() {
   return window['go']['main']['App']['InstallStartMenuShortcut']();
+}
+
+export function OpenDebugLogFile() {
+  return window['go']['main']['App']['OpenDebugLogFile']();
 }
 
 export function OpenFolder(arg1) {

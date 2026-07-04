@@ -1,12 +1,11 @@
 package env
 
 import (
-	"bytes"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 type GetPathFunc func() (string, error)
@@ -109,29 +108,31 @@ func joinPath(parts []string) string {
 }
 
 func getPath() (string, error) {
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", `[Environment]::GetEnvironmentVariable("Path", "User")`)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Environment`, registry.QUERY_VALUE)
+	if err != nil {
+		return "", fmt.Errorf("读取注册表失败: %w", err)
 	}
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("读取环境变量失败: %w", err)
+	defer k.Close()
+	val, _, err := k.GetStringValue("Path")
+	if err != nil {
+		// 如果注册表中不存在 Path (虽然罕见)，返回空字符串而不是报错
+		if err == registry.ErrNotExist {
+			return "", nil
+		}
+		return "", fmt.Errorf("读取 Path 变量失败: %w", err)
 	}
-	return strings.TrimSpace(out.String()), nil
+	return val, nil
 }
 
 func setPath(newPath string) error {
-	escapedPath := strings.ReplaceAll(newPath, `'`, `''`)
-	cmdStr := fmt.Sprintf(`[Environment]::SetEnvironmentVariable("Path", '%s', "User")`, escapedPath)
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", cmdStr)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Environment`, registry.SET_VALUE)
+	if err != nil {
+		return fmt.Errorf("打开注册表失败: %w", err)
 	}
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("写入环境变量失败: %w", err)
+	defer k.Close()
+	err = k.SetStringValue("Path", newPath)
+	if err != nil {
+		return fmt.Errorf("写入 Path 变量失败: %w", err)
 	}
 	return nil
 }

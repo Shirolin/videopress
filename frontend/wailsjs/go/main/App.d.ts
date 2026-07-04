@@ -7,11 +7,15 @@ export function AddToPath():Promise<boolean>;
 
 export function CancelCompress():Promise<void>;
 
+export function ClearDebugLogs():Promise<void>;
+
 export function DetectFFmpeg():Promise<string>;
 
 export function DetectGPUEncoder():Promise<string>;
 
 export function DownloadFFmpeg():Promise<void>;
+
+export function GetDebugLogs():Promise<string>;
 
 export function GetInitialFiles():Promise<Array<string>>;
 
@@ -28,6 +32,8 @@ export function InstallDesktopShortcut():Promise<void>;
 export function InstallSendTo():Promise<string>;
 
 export function InstallStartMenuShortcut():Promise<void>;
+
+export function OpenDebugLogFile():Promise<void>;
 
 export function OpenFolder(arg1:string):Promise<void>;
 

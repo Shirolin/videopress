@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 const launcherName = "快速压缩视频.lnk"
@@ -190,12 +192,11 @@ func IsStartMenuInstalled() bool {
 
 // IsContextMenuInstalled 检查右键注册表项是否存在
 func IsContextMenuInstalled() bool {
-	psCmd := `Get-Item -Path 'HKCU:\Software\Classes\*\shell\Videopress' -ErrorAction Stop`
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", psCmd)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: 0x08000000,
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Classes\*\shell\Videopress`, registry.QUERY_VALUE)
+	if err != nil {
+		return false
 	}
-	return cmd.Run() == nil
+	defer k.Close()
+	return true
 }
 
