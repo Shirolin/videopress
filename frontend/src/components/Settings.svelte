@@ -29,7 +29,8 @@
   let statusMessage: string = '';
   let statusType: 'success' | 'info' | 'error' = 'info';
 
-  // System integration status
+  // System integration status loading
+  let loadingIntegration = true;
   let isSendToInstalled = false;
   let isDesktopInstalled = false;
   let isStartMenuInstalled = false;
@@ -66,14 +67,25 @@
 
   onMount(async () => {
     try {
+      loadingIntegration = true;
       presetsList = await GetPresets();
-      detectedGPU = await DetectGPUEncoder();
-      if (detectedGPU !== 'libx264') {
-        hwAccel = true; // Auto-enable if GPU encoder found
+      
+      // 安全探测 GPU 硬件编码器，即便失败也不影响其他状态初始化
+      try {
+        detectedGPU = await DetectGPUEncoder();
+        if (detectedGPU !== 'libx264') {
+          hwAccel = true; // Auto-enable if GPU encoder found
+        }
+      } catch (gpuErr) {
+        console.warn("GPU detector error:", gpuErr);
+        detectedGPU = 'libx264';
       }
+
       await updateIntegrationStatus();
     } catch (e) {
       console.error("Mount error:", e);
+    } finally {
+      loadingIntegration = false;
     }
   });
 
@@ -86,7 +98,9 @@
   }
 
   async function toggleSendTo() {
+    if (loadingIntegration) return;
     try {
+      loadingIntegration = true;
       if (isSendToInstalled) {
         await UninstallSendTo();
         showStatus('已成功移除 SendTo 右键发送快捷方式', 'success');
@@ -97,11 +111,15 @@
       await updateIntegrationStatus();
     } catch (e: any) {
       showStatus(`操作失败: ${e.message || e}`, 'error');
+    } finally {
+      loadingIntegration = false;
     }
   }
 
   async function toggleDesktopShortcut() {
+    if (loadingIntegration) return;
     try {
+      loadingIntegration = true;
       if (isDesktopInstalled) {
         await UninstallDesktopShortcut();
         showStatus('已删除桌面快捷方式', 'success');
@@ -112,11 +130,15 @@
       await updateIntegrationStatus();
     } catch (e: any) {
       showStatus(`操作失败: ${e.message || e}`, 'error');
+    } finally {
+      loadingIntegration = false;
     }
   }
 
   async function toggleStartMenuShortcut() {
+    if (loadingIntegration) return;
     try {
+      loadingIntegration = true;
       if (isStartMenuInstalled) {
         await UninstallStartMenuShortcut();
         showStatus('已从开始菜单移除快捷方式', 'success');
@@ -127,11 +149,15 @@
       await updateIntegrationStatus();
     } catch (e: any) {
       showStatus(`操作失败: ${e.message || e}`, 'error');
+    } finally {
+      loadingIntegration = false;
     }
   }
 
   async function toggleContextMenu() {
+    if (loadingIntegration) return;
     try {
+      loadingIntegration = true;
       if (isContextMenuInstalled) {
         await UninstallContextMenu();
         showStatus('已从系统卸载右键直接压缩菜单', 'success');
@@ -142,11 +168,15 @@
       await updateIntegrationStatus();
     } catch (e: any) {
       showStatus(`操作失败: ${e.message || e}`, 'error');
+    } finally {
+      loadingIntegration = false;
     }
   }
 
   async function togglePathEnv() {
+    if (loadingIntegration) return;
     try {
+      loadingIntegration = true;
       if (isPathConfigured) {
         await RemoveFromPath();
         showStatus('已从系统环境变量 Path 中移除', 'success');
@@ -157,6 +187,8 @@
       await updateIntegrationStatus();
     } catch (e: any) {
       showStatus(`操作失败: ${e.message || e}`, 'error');
+    } finally {
+      loadingIntegration = false;
     }
   }
 </script>
@@ -238,91 +270,111 @@
     </div>
     <div class="sys-actions">
       <!-- 1. 右键直达菜单 -->
-      <div class="action-card">
+      <div class="action-card {loadingIntegration ? 'loading-shimmer' : ''}">
         <div class="action-meta">
           <div class="action-title-row">
             <span class="title">右键直接视频压缩 (推荐)</span>
-            <span class="status-badge {isContextMenuInstalled ? 'success' : 'muted'}">
-              {isContextMenuInstalled ? '已开启' : '已关闭'}
-            </span>
+            {#if loadingIntegration}
+              <span class="status-badge loading">检测中...</span>
+            {:else}
+              <span class="status-badge {isContextMenuInstalled ? 'success' : 'muted'}">
+                {isContextMenuInstalled ? '已开启' : '已关闭'}
+              </span>
+            {/if}
           </div>
           <span class="desc">在资源管理器中直接右键点击任意视频文件，直接在菜单选择“使用 Videopress 压缩”。</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {isContextMenuInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleContextMenu}>
-            {isContextMenuInstalled ? '卸载移除' : '一键开启'}
+          <button class="btn {isContextMenuInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleContextMenu} disabled={loadingIntegration}>
+            {#if loadingIntegration}检测中...{:else}{isContextMenuInstalled ? '卸载移除' : '一键开启'}{/if}
           </button>
         </div>
       </div>
 
       <!-- 2. 桌面快捷方式 -->
-      <div class="action-card">
+      <div class="action-card {loadingIntegration ? 'loading-shimmer' : ''}">
         <div class="action-meta">
           <div class="action-title-row">
             <span class="title">桌面快捷方式</span>
-            <span class="status-badge {isDesktopInstalled ? 'success' : 'muted'}">
-              {isDesktopInstalled ? '已创建' : '未创建'}
-            </span>
+            {#if loadingIntegration}
+              <span class="status-badge loading">检测中...</span>
+            {:else}
+              <span class="status-badge {isDesktopInstalled ? 'success' : 'muted'}">
+                {isDesktopInstalled ? '已创建' : '未创建'}
+              </span>
+            {/if}
           </div>
           <span class="desc">在 Windows 系统桌面上创建 Videopress 的快捷启动方式。</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {isDesktopInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleDesktopShortcut}>
-            {isDesktopInstalled ? '删除图标' : '一键创建'}
+          <button class="btn {isDesktopInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleDesktopShortcut} disabled={loadingIntegration}>
+            {#if loadingIntegration}检测中...{:else}{isDesktopInstalled ? '删除图标' : '一键创建'}{/if}
           </button>
         </div>
       </div>
 
       <!-- 3. 开始菜单快捷方式 -->
-      <div class="action-card">
+      <div class="action-card {loadingIntegration ? 'loading-shimmer' : ''}">
         <div class="action-meta">
           <div class="action-title-row">
             <span class="title">添加至开始菜单</span>
-            <span class="status-badge {isStartMenuInstalled ? 'success' : 'muted'}">
-              {isStartMenuInstalled ? '已添加' : '未添加'}
-            </span>
+            {#if loadingIntegration}
+              <span class="status-badge loading">检测中...</span>
+            {:else}
+              <span class="status-badge {isStartMenuInstalled ? 'success' : 'muted'}">
+                {isStartMenuInstalled ? '已添加' : '未添加'}
+              </span>
+            {/if}
           </div>
           <span class="desc">在 Windows 开始菜单的程序列表中添加 Videopress，可在搜索框快速搜索唤醒。</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {isStartMenuInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleStartMenuShortcut}>
-            {isStartMenuInstalled ? '取消固定' : '一键添加'}
+          <button class="btn {isStartMenuInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleStartMenuShortcut} disabled={loadingIntegration}>
+            {#if loadingIntegration}检测中...{:else}{isStartMenuInstalled ? '取消固定' : '一键添加'}{/if}
           </button>
         </div>
       </div>
 
       <!-- 4. 右键 SendTo 发送到菜单 -->
-      <div class="action-card">
+      <div class="action-card {loadingIntegration ? 'loading-shimmer' : ''}">
         <div class="action-meta">
           <div class="action-title-row">
             <span class="title">发送到快捷菜单 (SendTo)</span>
-            <span class="status-badge {isSendToInstalled ? 'success' : 'muted'}">
-              {isSendToInstalled ? '已开启' : '已关闭'}
-            </span>
+            {#if loadingIntegration}
+              <span class="status-badge loading">检测中...</span>
+            {:else}
+              <span class="status-badge {isSendToInstalled ? 'success' : 'muted'}">
+                {isSendToInstalled ? '已开启' : '已关闭'}
+              </span>
+            {/if}
           </div>
           <span class="desc">在资源管理器右键选中文件 -> 发送到 -> 快速压缩视频。</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {isSendToInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleSendTo}>
-            {isSendToInstalled ? '卸载移除' : '一键开启'}
+          <button class="btn {isSendToInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleSendTo} disabled={loadingIntegration}>
+            {#if loadingIntegration}检测中...{:else}{isSendToInstalled ? '卸载移除' : '一键开启'}{/if}
           </button>
         </div>
       </div>
 
       <!-- 5. 用户 Path 环境变量 -->
-      <div class="action-card">
+      <div class="action-card {loadingIntegration ? 'loading-shimmer' : ''}">
         <div class="action-meta">
           <div class="action-title-row">
             <span class="title">配置用户 Path 环境变量</span>
-            <span class="status-badge {isPathConfigured ? 'success' : 'muted'}">
-              {isPathConfigured ? '已配置' : '未配置'}
-            </span>
+            {#if loadingIntegration}
+              <span class="status-badge loading">检测中...</span>
+            {:else}
+              <span class="status-badge {isPathConfigured ? 'success' : 'muted'}">
+                {isPathConfigured ? '已配置' : '未配置'}
+              </span>
+            {/if}
           </div>
           <span class="desc">把当前程序所在文件夹加入 Path 环境变量，可在任意命令终端直接运行。</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {isPathConfigured ? 'btn-danger' : 'btn-primary'}" on:click={togglePathEnv}>
-            {isPathConfigured ? '移除路径' : '一键配置'}
+          <button class="btn {isPathConfigured ? 'btn-danger' : 'btn-primary'}" on:click={togglePathEnv} disabled={loadingIntegration}>
+            {#if loadingIntegration}检测中...{:else}{isPathConfigured ? '移除路径' : '一键配置'}{/if}
           </button>
         </div>
       </div>
@@ -646,4 +698,52 @@
     border-color: var(--accent-red);
     box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
   }
+
+  .status-badge.loading {
+    background: rgba(168, 85, 247, 0.08);
+    color: var(--text-muted);
+    border: 1px solid rgba(168, 85, 247, 0.15);
+    animation: badge-pulse 1.5s infinite alternate;
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    color: var(--text-muted) !important;
+    border-color: var(--border-color) !important;
+    box-shadow: none !important;
+  }
+
+  .loading-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .loading-shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(168, 85, 247, 0.03) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    animation: shimmer-swipe 2s infinite linear;
+  }
+
+  @keyframes badge-pulse {
+    0% { opacity: 0.6; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes shimmer-swipe {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
 </style>
+
