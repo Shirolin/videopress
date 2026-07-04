@@ -4,7 +4,7 @@
   import FileQueue, { type QueueItem } from './components/FileQueue.svelte';
   import Settings from './components/Settings.svelte';
   
-  import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress } from '../wailsjs/go/main/App.js';
+  import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress, SetDebugMode } from '../wailsjs/go/main/App.js';
   import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
 
   let queueItems: QueueItem[] = [];
@@ -16,6 +16,7 @@
   let copyAudio: boolean = localStorage.getItem('videopress_copy_audio') === 'true';
   let forceMode: boolean = localStorage.getItem('videopress_force_mode') === 'true';
   let skipExisting: boolean = localStorage.getItem('videopress_skip_existing') === 'true';
+  let enableDebugLog: boolean = localStorage.getItem('videopress_enable_debug_log') === 'true';
 
   // Persist settings reactively
   $: if (preset !== undefined) localStorage.setItem('videopress_preset', preset);
@@ -24,6 +25,10 @@
   $: if (copyAudio !== undefined) localStorage.setItem('videopress_copy_audio', copyAudio.toString());
   $: if (forceMode !== undefined) localStorage.setItem('videopress_force_mode', forceMode.toString());
   $: if (skipExisting !== undefined) localStorage.setItem('videopress_skip_existing', skipExisting.toString());
+  $: if (enableDebugLog !== undefined) {
+    localStorage.setItem('videopress_enable_debug_log', enableDebugLog.toString());
+    SetDebugMode(enableDebugLog).catch(console.error);
+  }
 
   let isCompressing = false;
   let ffmpegError = '';
@@ -397,6 +402,7 @@
         bind:copyAudio 
         bind:forceMode 
         bind:skipExisting
+        bind:enableDebugLog
       />
     {:else}
       <div class="dashboard">

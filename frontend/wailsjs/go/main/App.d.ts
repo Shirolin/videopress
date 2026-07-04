@@ -43,6 +43,8 @@ export function SelectFiles():Promise<Array<string>>;
 
 export function SelectFolder():Promise<string>;
 
+export function SetDebugMode(arg1:boolean):Promise<void>;
+
 export function StartCompress(arg1:engine.JobRequest):Promise<Array<engine.JobReport>>;
 
 export function UninstallContextMenu():Promise<void>;

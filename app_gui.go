@@ -26,6 +26,7 @@ type App struct {
 	initialFiles   []string
 	mu             sync.Mutex
 	cancelFunc     context.CancelFunc
+	enableDebug    bool
 }
 
 // NewApp creates a new App struct instance
@@ -264,33 +265,49 @@ func (a *App) GetIntegrationStatus() (map[string]bool, error) {
 
 	totalTime := time.Since(start)
 
-	// 将配置项载入耗时写入本地调试日志
-	logMsg := fmt.Sprintf("[%s] 配置项载入耗时统计 (总耗时: %v):\n"+
-		"- SendTo 右键发送菜单检测: %v\n"+
-		"- 桌面快捷方式检测: %v\n"+
-		"- 开始菜单快捷方式检测: %v\n"+
-		"- 右键注册表项菜单检测: %v\n"+
-		"- 环境变量 Path 检测: %v\n\n",
-		time.Now().Format("2006-01-02 15:04:05"),
-		totalTime,
-		sendToTime,
-		desktopTime,
-		startMenuTime,
-		contextMenuTime,
-		pathTime,
-	)
+	a.mu.Lock()
+	debugEnabled := a.enableDebug
+	a.mu.Unlock()
 
-	cacheDir, err := os.UserCacheDir()
-	if err == nil {
-		logFile := filepath.Join(cacheDir, "videopress_debug.log")
-		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if debugEnabled {
+		// 将配置项载入耗时写入本地调试日志
+		logMsg := fmt.Sprintf("[%s] 配置项载入耗时统计 (总耗时: %v):\n"+
+			"- SendTo 右键发送菜单检测: %v\n"+
+			"- 桌面快捷方式检测: %v\n"+
+			"- 开始菜单快捷方式检测: %v\n"+
+			"- 右键注册表项菜单检测: %v\n"+
+			"- 环境变量 Path 检测: %v\n\n",
+			time.Now().Format("2006-01-02 15:04:05"),
+			totalTime,
+			sendToTime,
+			desktopTime,
+			startMenuTime,
+			contextMenuTime,
+			pathTime,
+		)
+
+		cacheDir, err := os.UserCacheDir()
 		if err == nil {
-			_, _ = f.WriteString(logMsg)
-			_ = f.Close()
+			logFile := filepath.Join(cacheDir, "videopress_debug.log")
+			f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+			if err == nil {
+				_, _ = f.WriteString(logMsg)
+				_ = f.Close()
+			}
 		}
 	}
 
 	return status, nil
+}
+
+// SetDebugMode sets whether debug logging is enabled
+func (a *App) SetDebugMode(enable bool) {
+	a.mu.Lock()
+	a.enableDebug = enable
+	a.mu.Unlock()
+
+	// 同步到 internal/ffmpeg 底层包
+	ffmpeg.EnableDebugLog = enable
 }
 
 // GetDebugLogs returns the contents of the debug log

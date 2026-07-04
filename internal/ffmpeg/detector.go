@@ -15,6 +15,7 @@ import (
 var (
 	cachedGPUEncoder string
 	cacheMu          sync.RWMutex
+	EnableDebugLog   bool // 调试日志全局开关，由 GUI 端进行同步
 )
 
 // ResetGPUEncoderCache 重置 GPU 探测缓存。主要用于测试。
@@ -133,8 +134,8 @@ func DetectGPUEncoder(ffmpegPath string, runCmd func(name string, args []string)
 			cacheFile := filepath.Join(cacheDir, "videopress_gpu.cache")
 			_ = os.WriteFile(cacheFile, []byte(detected), 0o644)
 
-			// 如果存在错误，写入调试日志文件方便定位硬件/驱动/FFmpeg配置问题
-			if len(debugLogs) > 0 {
+			// 如果存在错误，并且启用了调试日志，写入调试日志文件方便定位硬件/驱动/FFmpeg配置问题
+			if len(debugLogs) > 0 && EnableDebugLog {
 				logFile := filepath.Join(cacheDir, "videopress_debug.log")
 				logMsg := fmt.Sprintf("[%s] GPU 探测失败明细 (最终使用 %s):\n%s\n\n",
 					time.Now().Format("2006-01-02 15:04:05"),

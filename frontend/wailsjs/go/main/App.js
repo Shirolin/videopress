@@ -82,6 +82,10 @@ export function SelectFolder() {
   return window['go']['main']['App']['SelectFolder']();
 }
 
+export function SetDebugMode(arg1) {
+  return window['go']['main']['App']['SetDebugMode'](arg1);
+}
+
 export function StartCompress(arg1) {
   return window['go']['main']['App']['StartCompress'](arg1);
 }

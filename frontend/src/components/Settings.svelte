@@ -16,7 +16,8 @@
     UninstallContextMenu,
     GetIntegrationStatus,
     OpenDebugLogFile,
-    ClearDebugLogs
+    ClearDebugLogs,
+    SetDebugMode
   } from '../../wailsjs/go/main/App.js';
 
   export let preset: string = 'standard';
@@ -25,6 +26,11 @@
   export let copyAudio: boolean = false;
   export let forceMode: boolean = false;
   export let skipExisting: boolean = false;
+  export let enableDebugLog: boolean = false;
+
+  $: if (enableDebugLog !== undefined) {
+    SetDebugMode(enableDebugLog).catch(console.error);
+  }
   
   let presetsList: any[] = [];
   let detectedGPU: string = '';
@@ -425,14 +431,17 @@
 
       <div class="action-card">
         <div class="action-meta">
-          <div class="action-title-row">
+          <div class="action-title-row" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
             <span class="title">系统集成与探测性能日志</span>
-            <span class="status-badge info">开发调试</span>
+            <div style="display: flex; align-items: center; gap: 0.3rem;">
+              <span style="font-size: 0.65rem; color: var(--text-muted);">{enableDebugLog ? '已开启' : '已关闭'}</span>
+              <input type="checkbox" bind:checked={enableDebugLog} style="accent-color: var(--accent-purple); cursor: pointer; width: 14px; height: 14px;" />
+            </div>
           </div>
           <span class="desc">记录 GPU 探测错误、各模块检测耗时及底层 FFMPEG 出错堆栈，方便排查卡顿和运行异常。</span>
         </div>
         <div class="action-buttons">
-          <button class="btn btn-primary" on:click={handleOpenDebugLog}>
+          <button class="btn btn-primary" on:click={handleOpenDebugLog} disabled={!enableDebugLog}>
             打开日志文件
           </button>
           <button class="btn btn-danger" style="margin-left: 0.4rem;" on:click={handleClearDebugLog}>
