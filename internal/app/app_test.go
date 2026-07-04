@@ -468,3 +468,40 @@ func TestExecuteUninstallPath(t *testing.T) {
 		t.Fatalf("expected success message in stdout, got %s", stdout.String())
 	}
 }
+
+func TestExecuteWithCRFOverride(t *testing.T) {
+	var calls []recordedCall
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := Execute([]string{"--crf", "18", `C:\videos\clip.mp4`}, Dependencies{
+		ExecutableDir:  `C:\tools`,
+		ExecutablePath: `C:\tools\videopress.exe`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			calls = append(calls, recordedCall{name: name, args: args})
+			return nil
+		},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          stderr,
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d, stderr=%s", exitCode, stderr.String())
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 ffmpeg call, got %d", len(calls))
+	}
+	joined := strings.Join(calls[0].args, " ")
+	if !strings.Contains(joined, "-crf 18") {
+		t.Fatalf("expected custom crf 18 parameter override, got %s", joined)
+	}
+	if strings.Contains(joined, "-crf 27") {
+		t.Fatalf("should override default crf 27 standard preset value, got %s", joined)
+	}
+}

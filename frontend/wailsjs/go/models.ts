@@ -36,6 +36,7 @@ export namespace engine {
 	    VideoCodec: string;
 	    MaxFPS: number;
 	    AudioMode: string;
+	    CRF: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new JobRequest(source);
@@ -54,6 +55,7 @@ export namespace engine {
 	        this.VideoCodec = source["VideoCodec"];
 	        this.MaxFPS = source["MaxFPS"];
 	        this.AudioMode = source["AudioMode"];
+	        this.CRF = source["CRF"];
 	    }
 	}
 

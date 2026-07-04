@@ -16,6 +16,7 @@ type JobRequest struct {
 	VideoCodec   string // "" (auto) | "h264" | "h265" | "av1"
 	MaxFPS       int    // 0 = unlimited, or positive integer like 30, 60
 	AudioMode    string // "" (fallback to CopyAudio) | "compress" | "copy" | "mute"
+	CRF          int    // 0 = use preset default, or positive integer override
 }
 
 // ProgressEvent represents progress updates from the compression engine.

@@ -188,7 +188,15 @@ export const translations: Record<string, Record<string, string>> = {
     'advanced.audio_mode_desc': '音频压缩模式。直通可无损保留原音质，智能压缩会压缩音频以缩小体积。',
     'advanced.audio_mode_auto': '智能压缩（推荐）',
     'advanced.audio_mode_copy': '音频直通（无损保留）',
-    'advanced.audio_mode_mute': '视频静音（去除音轨）'
+    'advanced.audio_mode_mute': '视频静音（去除音轨）',
+    'advanced.crf.title': '自定义质量 (CRF)',
+    'advanced.crf.desc.h264': 'H.264 建议范围：18 - 28。数值越小画质越好，体积越大。',
+    'advanced.crf.desc.h265': 'H.265 建议范围：20 - 30。HEVC 能以更大数值（更小体积）保留优质画面。',
+    'advanced.crf.desc.av1': 'AV1 建议范围：24 - 38。作为下一代编码器，AV1 在高 CRF 数值下依然能保持卓越画质。',
+    'advanced.crf.preset_override': '分辨率预设 (画质已自定义)',
+    'advanced.crf.status.high': '超清/体积大',
+    'advanced.crf.status.balanced': '清晰/均衡',
+    'advanced.crf.status.low': '高压缩/体积小'
   },
   en: {
     // Navigation
@@ -372,7 +380,15 @@ export const translations: Record<string, Record<string, string>> = {
     'advanced.audio_mode_desc': 'Audio compression mode. Copy preserves original audio without loss, compress reduces file size.',
     'advanced.audio_mode_auto': 'Smart Compress (Recommended)',
     'advanced.audio_mode_copy': 'Audio Copy (Lossless)',
-    'advanced.audio_mode_mute': 'Mute Video (Remove Audio)'
+    'advanced.audio_mode_mute': 'Mute Video (Remove Audio)',
+    'advanced.crf.title': 'Custom Quality (CRF)',
+    'advanced.crf.desc.h264': 'H.264 suggested: 18 - 28. Lower means better quality but larger size.',
+    'advanced.crf.desc.h265': 'H.265 suggested: 20 - 30. HEVC can use higher CRF values to achieve smaller size.',
+    'advanced.crf.desc.av1': 'AV1 suggested: 24 - 38. AV1 maintains excellent quality even at higher CRF values.',
+    'advanced.crf.preset_override': 'Resolution Preset (Quality Overridden)',
+    'advanced.crf.status.high': 'Ultra Quality / Large',
+    'advanced.crf.status.balanced': 'Balanced / Good',
+    'advanced.crf.status.low': 'High Compress / Small'
   }
 };
 

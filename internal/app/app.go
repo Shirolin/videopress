@@ -77,6 +77,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "  --max-fps %s           %s\n", cyan("<数字>"), getMsg("限制最大帧率，0 为不限制（默认 0）", "Limit maximum frames per second, 0 for unlimited (default 0)"))
 	fmt.Fprintf(w, "  --audio %s   %s\n", cyan("copy|compress|mute"), getMsg("音频模式（默认 compress）", "Audio mode (default compress)"))
 	fmt.Fprintln(w, getMsg("  --copy-audio, -a                 直接复制音频流，不重编码", "  --copy-audio, -a                 Copy audio stream directly without re-encoding"))
+	fmt.Fprintf(w, "  --crf %s               %s\n", cyan("<数字>"), getMsg("自定义视频质量 (CRF) 参数覆盖，0 为不覆盖（默认 0）", "Override CRF quality value, 0 for preset default (default 0)"))
 	fmt.Fprintln(w, getMsg("  --install-sendto                 安装 SendTo 右键快捷方式", "  --install-sendto                 Install SendTo context shortcut"))
 	fmt.Fprintln(w, getMsg("  --uninstall-sendto               移除 SendTo 快捷方式", "  --uninstall-sendto               Remove SendTo shortcut"))
 	fmt.Fprintln(w, getMsg("  --install-path                   添加程序目录到用户 Path 环境变量", "  --install-path                   Add app directory to user Path environment variable"))
@@ -214,6 +215,7 @@ func Execute(args []string, deps Dependencies) int {
 	codecName := fs.String("codec", "", "video encoder format (h264|h265|av1)")
 	maxFPS := fs.Int("max-fps", 0, "limit max frames per second")
 	audioMode := fs.String("audio", "", "audio mode (copy|compress|mute)")
+	crf := fs.Int("crf", 0, "override preset CRF quality value")
 	sendToMode := fs.Bool("sendto", false, "enable SendTo prompt on exit")
 	installSendTo := fs.Bool("install-sendto", false, "install SendTo shortcut")
 	uninstallSendTo := fs.Bool("uninstall-sendto", false, "remove SendTo shortcut")
@@ -388,6 +390,12 @@ func Execute(args []string, deps Dependencies) int {
 	}
 	fmt.Fprintf(deps.Stdout, " 编码格式: %s\n", cyan(codecPrint))
 
+	if *crf > 0 {
+		fmt.Fprintf(deps.Stdout, " 自定义质量 (CRF): %s\n", cyan(fmt.Sprintf("%d (已覆盖预设)", *crf)))
+	} else {
+		fmt.Fprintf(deps.Stdout, " 自定义质量 (CRF): %s\n", gray("未启用"))
+	}
+
 	if *maxFPS > 0 {
 		fmt.Fprintf(deps.Stdout, " 帧率限制: %s\n", cyan(fmt.Sprintf("%dfps", *maxFPS)))
 	} else {
@@ -531,6 +539,7 @@ func Execute(args []string, deps Dependencies) int {
 			VideoCodec:   *codecName,
 			MaxFPS:       *maxFPS,
 			AudioMode:    *audioMode,
+			CRF:          *crf,
 		}, onProgress)
 
 		if err != nil {

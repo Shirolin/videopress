@@ -7,7 +7,7 @@ import (
 	"videopress/internal/compress"
 )
 
-func BuildArgs(inputPath string, outputPath string, preset compress.Preset, hwEncoder string, copyAudio bool, maxFPS int, audioMode string) []string {
+func BuildArgs(inputPath string, outputPath string, preset compress.Preset, hwEncoder string, copyAudio bool, maxFPS int, audioMode string, crfOverride int) []string {
 	var scaleFilter string
 	if preset.MaxDimension > 0 {
 		scaleFilter = fmt.Sprintf(
@@ -34,6 +34,11 @@ func BuildArgs(inputPath string, outputPath string, preset compress.Preset, hwEn
 		args = append(args, "-r", fmt.Sprintf("%d", maxFPS))
 	}
 
+	crf := preset.CRF
+	if crfOverride > 0 {
+		crf = crfOverride
+	}
+
 	isSoft := hwEncoder == "" || hwEncoder == "libx264" || hwEncoder == "libx265" || hwEncoder == "libsvtav1"
 	if isSoft {
 		codec := hwEncoder
@@ -44,7 +49,7 @@ func BuildArgs(inputPath string, outputPath string, preset compress.Preset, hwEn
 		if codec == "libx264" || codec == "libx265" {
 			args = append(args,
 				"-preset", preset.Preset,
-				"-crf", fmt.Sprintf("%d", preset.CRF),
+				"-crf", fmt.Sprintf("%d", crf),
 			)
 		} else if codec == "libsvtav1" {
 			svtPreset := "6"
@@ -58,17 +63,17 @@ func BuildArgs(inputPath string, outputPath string, preset compress.Preset, hwEn
 			}
 			args = append(args,
 				"-preset", svtPreset,
-				"-crf", fmt.Sprintf("%d", preset.CRF),
+				"-crf", fmt.Sprintf("%d", crf),
 			)
 		}
 	} else {
 		args = append(args, "-c:v", hwEncoder)
 		if strings.HasSuffix(hwEncoder, "_nvenc") {
-			args = append(args, "-rc", "constqp", "-qp", fmt.Sprintf("%d", preset.CRF))
+			args = append(args, "-rc", "constqp", "-qp", fmt.Sprintf("%d", crf))
 		} else if strings.HasSuffix(hwEncoder, "_qsv") {
-			args = append(args, "-global_quality", fmt.Sprintf("%d", preset.CRF))
+			args = append(args, "-global_quality", fmt.Sprintf("%d", crf))
 		} else if strings.HasSuffix(hwEncoder, "_amf") {
-			args = append(args, "-rc", "cqp", "-qp_i", fmt.Sprintf("%d", preset.CRF), "-qp_p", fmt.Sprintf("%d", preset.CRF))
+			args = append(args, "-rc", "cqp", "-qp_i", fmt.Sprintf("%d", crf), "-qp_p", fmt.Sprintf("%d", crf))
 		}
 	}
 

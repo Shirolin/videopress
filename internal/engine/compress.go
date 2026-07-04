@@ -280,7 +280,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 
 				startTime := time.Now()
 				duration, _ := e.deps.GetDuration(ffmpegPath, task.input)
-				args := ffmpeg.BuildArgs(task.input, task.output, preset, hwEncoder, req.CopyAudio, req.MaxFPS, req.AudioMode)
+				args := ffmpeg.BuildArgs(task.input, task.output, preset, hwEncoder, req.CopyAudio, req.MaxFPS, req.AudioMode, req.CRF)
 
 				err := e.runCommandWithProgress(ctx, ffmpegPath, args, duration, filepath.Base(task.input), onProgress)
 				elapsed := time.Since(startTime)

@@ -33,6 +33,49 @@
   let maxFPS: number = parseInt(localStorage.getItem('videopress_max_fps') || '0', 10);
   let audioMode: string = localStorage.getItem('videopress_audio_mode') || '';
   let showAdvanced: boolean = localStorage.getItem('videopress_show_advanced') === 'true';
+  let crfEnabled: boolean = localStorage.getItem('videopress_crf_enabled') === 'true';
+  let crfValue: number = parseInt(localStorage.getItem('videopress_crf_value') || '0', 10);
+
+  $: defaultCrf = videoCodec === 'h265' ? 29 : (videoCodec === 'av1' ? 32 : 27);
+  $: minCrf = videoCodec === 'h265' ? 18 : (videoCodec === 'av1' ? 20 : 15);
+  $: maxCrf = videoCodec === 'h265' ? 38 : (videoCodec === 'av1' ? 45 : 35);
+
+  let lastSavedCodec = localStorage.getItem('videopress_last_codec') || '';
+  $: {
+    if (videoCodec !== lastSavedCodec) {
+      const prevDefault = lastSavedCodec === 'h265' ? 29 : (lastSavedCodec === 'av1' ? 32 : 27);
+      if (crfValue === prevDefault || crfValue === 0) {
+        crfValue = defaultCrf;
+      } else {
+        if (crfValue < minCrf) crfValue = minCrf;
+        if (crfValue > maxCrf) crfValue = maxCrf;
+      }
+      lastSavedCodec = videoCodec;
+      localStorage.setItem('videopress_last_codec', videoCodec);
+    }
+  }
+
+  $: crfStatusWord = (() => {
+    if (videoCodec === 'h265') {
+      if (crfValue <= 23) return $t('advanced.crf.status.high');
+      if (crfValue <= 32) return $t('advanced.crf.status.balanced');
+      return $t('advanced.crf.status.low');
+    } else if (videoCodec === 'av1') {
+      if (crfValue <= 26) return $t('advanced.crf.status.high');
+      if (crfValue <= 38) return $t('advanced.crf.status.balanced');
+      return $t('advanced.crf.status.low');
+    } else {
+      if (crfValue <= 20) return $t('advanced.crf.status.high');
+      if (crfValue <= 29) return $t('advanced.crf.status.balanced');
+      return $t('advanced.crf.status.low');
+    }
+  })();
+
+  $: crfDescText = (() => {
+    if (videoCodec === 'h265') return $t('advanced.crf.desc.h265');
+    if (videoCodec === 'av1') return $t('advanced.crf.desc.av1');
+    return $t('advanced.crf.desc.h264');
+  })();
 
   // Persist settings reactively
   $: if (preset !== undefined) localStorage.setItem('videopress_preset', preset);
@@ -49,6 +92,8 @@
   $: if (maxFPS !== undefined) localStorage.setItem('videopress_max_fps', maxFPS.toString());
   $: if (audioMode !== undefined) localStorage.setItem('videopress_audio_mode', audioMode);
   $: if (showAdvanced !== undefined) localStorage.setItem('videopress_show_advanced', showAdvanced.toString());
+  $: if (crfEnabled !== undefined) localStorage.setItem('videopress_crf_enabled', crfEnabled.toString());
+  $: if (crfValue !== undefined) localStorage.setItem('videopress_crf_value', crfValue.toString());
 
   // 同步语言设置至 Go 后端，重新触发热重写右键注册表项
   $: if ($locale) {
@@ -273,7 +318,8 @@
         OutputDir: customOutputDir,
         VideoCodec: videoCodec,
         MaxFPS: maxFPS,
-        AudioMode: audioMode
+        AudioMode: audioMode,
+        CRF: crfEnabled ? crfValue : 0
       });
 
       // Update queue items with target results
@@ -484,7 +530,14 @@
         <div class="quick-controls-panel glass-panel">
           <!-- Preset tabs -->
           <div class="control-group">
-            <span class="control-label">{$t('controls.preset')}</span>
+            <span class="control-label">
+              {$t('controls.preset')}
+              {#if crfEnabled}
+                <span class="preset-override-tag" title={crfDescText}>
+                  {$t('advanced.crf.preset_override')}
+                </span>
+              {/if}
+            </span>
             <div class="segmented-control">
               <button 
                 class="segment-btn {preset === 'small' ? 'active' : ''}" 
@@ -556,7 +609,7 @@
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
             <span class="toggle-text">{$t('advanced.title')}</span>
-            {#if videoCodec !== '' || maxFPS !== 0 || audioMode !== ''}
+            {#if videoCodec !== '' || maxFPS !== 0 || audioMode !== '' || crfEnabled}
               <span class="advanced-indicator" title="已启用自定义高级配置"></span>
             {/if}
           </button>
@@ -616,6 +669,54 @@
               </div>
               <span class="help-desc">{$t('advanced.audio_mode_desc')}</span>
             </div>
+          </div>
+
+          <!-- CRF settings section -->
+          <div class="crf-settings-section">
+            <div class="crf-header">
+              <label class="crf-toggle-label">
+                <input 
+                  type="checkbox" 
+                  bind:checked={crfEnabled} 
+                  disabled={isCompressing}
+                  class="crf-checkbox"
+                />
+                <span class="control-label">{$t('advanced.crf.title')}</span>
+              </label>
+              {#if crfEnabled}
+                <div class="crf-badge-actions">
+                  <span class="crf-badge">
+                    CRF: {crfValue} <span class="crf-status-word">({crfStatusWord})</span>
+                  </span>
+                  {#if crfValue !== defaultCrf}
+                    <button class="crf-reset-btn" on:click={() => crfValue = defaultCrf} disabled={isCompressing}>
+                      {$t('btn.reset')}
+                    </button>
+                  {/if}
+                </div>
+              {/if}
+            </div>
+            
+            {#if crfEnabled}
+              <div class="crf-slider-container">
+                <input 
+                  type="range" 
+                  min={minCrf} 
+                  max={maxCrf} 
+                  bind:value={crfValue}
+                  disabled={isCompressing}
+                  class="crf-slider"
+                />
+                <div class="crf-ticks">
+                  <span class="tick-label min-label">{minCrf} ({$t('advanced.crf.status.high')})</span>
+                  <span class="tick-label default-label" on:click={() => crfValue = defaultCrf} title="点击恢复默认推荐质量">
+                    {$t('btn.reset')} ({defaultCrf})
+                  </span>
+                  <span class="tick-label max-label">{maxCrf} ({$t('advanced.crf.status.low')})</span>
+                </div>
+                <span class="help-desc crf-help">{crfDescText}</span>
+              </div>
+            {/if}
           </div>
         </div>
 
@@ -1345,5 +1446,143 @@
       grid-template-columns: 1fr;
       gap: 0.8rem;
     }
+  }
+
+  /* CRF specific styles */
+  .preset-override-tag {
+    font-size: 10px;
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--accent-cyan, #06b6d4);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    font-weight: 600;
+    display: inline-block;
+    vertical-align: middle;
+    animation: pulse-border 2.5s infinite;
+  }
+
+  @keyframes pulse-border {
+    0% { border-color: rgba(6, 182, 212, 0.3); }
+    50% { border-color: rgba(6, 182, 212, 0.7); }
+    100% { border-color: rgba(6, 182, 212, 0.3); }
+  }
+
+  .crf-settings-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .crf-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .crf-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .crf-checkbox {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent-cyan, #06b6d4);
+    cursor: pointer;
+  }
+
+  .crf-badge-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .crf-badge {
+    font-size: 0.7rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+
+  .crf-status-word {
+    color: var(--accent-cyan, #06b6d4);
+    margin-left: 2px;
+  }
+
+  .crf-reset-btn {
+    background: none;
+    border: none;
+    color: var(--accent-cyan, #06b6d4);
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .crf-reset-btn:hover {
+    background: rgba(6, 182, 212, 0.1);
+  }
+
+  .crf-slider-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0 0.2rem;
+  }
+
+  .crf-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+    accent-color: var(--accent-cyan, #06b6d4);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .crf-slider::-webkit-slider-runnable-track {
+    background: transparent;
+  }
+
+  .crf-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+  }
+
+  .tick-label {
+    user-select: none;
+  }
+
+  .default-label {
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: color 0.2s;
+  }
+
+  .default-label:hover {
+    color: var(--accent-cyan, #06b6d4);
+    text-decoration: underline;
+  }
+
+  .crf-help {
+    margin-top: 0.2rem;
+    color: var(--text-muted);
+    font-size: 0.65rem;
   }
 </style>

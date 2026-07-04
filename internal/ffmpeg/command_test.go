@@ -13,7 +13,7 @@ func TestBuildArgsForStandardPreset(t *testing.T) {
 		t.Fatalf("PresetByName returned error: %v", err)
 	}
 
-	args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", false, 0, "")
+	args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", false, 0, "", 0)
 	joined := strings.Join(args, " ")
 
 	required := []string{
@@ -52,7 +52,7 @@ func TestBuildArgsForGPUEncoders(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, tt.encoder, false, 0, "")
+		args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, tt.encoder, false, 0, "", 0)
 		joined := strings.Join(args, " ")
 		for _, part := range tt.expected {
 			if !strings.Contains(joined, part) {
@@ -64,7 +64,7 @@ func TestBuildArgsForGPUEncoders(t *testing.T) {
 
 func TestBuildArgsWithCopyAudio(t *testing.T) {
 	preset, _ := compress.PresetByName("standard")
-	args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", true, 0, "")
+	args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", true, 0, "", 0)
 	joined := strings.Join(args, " ")
 
 	if !strings.Contains(joined, "-c:a copy") {
@@ -79,14 +79,14 @@ func TestBuildArgsAdvancedOptions(t *testing.T) {
 	preset, _ := compress.PresetByName("standard")
 
 	// 1. MaxFPS
-	args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", false, 30, "")
+	args := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", false, 30, "", 0)
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined, "-r 30") {
 		t.Fatalf("expected -r 30 parameter, got %s", joined)
 	}
 
 	// 2. AudioMode mute
-	argsMute := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", false, 0, "mute")
+	argsMute := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", false, 0, "mute", 0)
 	joinedMute := strings.Join(argsMute, " ")
 	if !strings.Contains(joinedMute, "-an") {
 		t.Fatalf("expected -an parameter for mute mode, got %s", joinedMute)
@@ -96,9 +96,26 @@ func TestBuildArgsAdvancedOptions(t *testing.T) {
 	}
 
 	// 3. AudioMode copy
-	argsCopy := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", false, 0, "copy")
+	argsCopy := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", false, 0, "copy", 0)
 	joinedCopy := strings.Join(argsCopy, " ")
 	if !strings.Contains(joinedCopy, "-c:a copy") {
 		t.Fatalf("expected -c:a copy parameter for copy mode, got %s", joinedCopy)
+	}
+
+	// 4. CRF Override
+	argsCRF := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "", false, 0, "", 18)
+	joinedCRF := strings.Join(argsCRF, " ")
+	if !strings.Contains(joinedCRF, "-crf 18") {
+		t.Fatalf("expected -crf 18 when crfOverride is 18, got %s", joinedCRF)
+	}
+	if strings.Contains(joinedCRF, "-crf 27") {
+		t.Fatalf("should override default crf 27, got %s", joinedCRF)
+	}
+
+	// 5. CRF Override with GPU Encoder (e.g. nvenc)
+	argsGPURCF := BuildArgs(`C:\videos\input.mov`, `C:\videos\compressed\output.mp4`, preset, "h264_nvenc", false, 0, "", 22)
+	joinedGPURCF := strings.Join(argsGPURCF, " ")
+	if !strings.Contains(joinedGPURCF, "-qp 22") {
+		t.Fatalf("expected nvenc to use qp 22, got %s", joinedGPURCF)
 	}
 }
