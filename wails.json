@@ -14,6 +14,8 @@
     "productName": "Videopress",
     "productVersion": "0.1.0",
     "companyName": "Shirolin",
+    "copyright": "Copyright © 2026 Shirolin. All rights reserved.",
+    "comments": "Built using Wails (https://wails.io)",
     "fileDescription": "极速视频智能压缩工具"
   }
 }
