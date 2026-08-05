@@ -53,8 +53,8 @@ func TestEngineRunSuccess(t *testing.T) {
 		t.Fatalf("expected 1 report, got %d", len(reports))
 	}
 
-	if reports[0].Status != "成功" {
-		t.Fatalf("expected status 成功, got %s", reports[0].Status)
+	if reports[0].Status != "success" {
+		t.Fatalf("expected status success, got %s", reports[0].Status)
 	}
 
 	if len(runArgs) != 1 {
@@ -112,8 +112,8 @@ func TestEngineRunHandlesCancellation(t *testing.T) {
 		t.Fatalf("expected 1 report, got %d", len(reports))
 	}
 
-	if reports[0].Status != "失败" {
-		t.Fatalf("expected status 失败, got %s", reports[0].Status)
+	if reports[0].Status != "failed" {
+		t.Fatalf("expected status failed, got %s", reports[0].Status)
 	}
 
 	if !strings.Contains(reports[0].ErrMessage, "任务已取消") {

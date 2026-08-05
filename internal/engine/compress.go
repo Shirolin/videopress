@@ -39,7 +39,7 @@ func DefaultDependencies(execDir string) Dependencies {
 		},
 		RunCommand: func(name string, args []string) error {
 			cmd := exec.Command(name, args...)
-			prepareCmd(cmd)
+			util.HideConsoleWindow(cmd)
 			return cmd.Run()
 		},
 		GetDuration: ffmpeg.GetDuration,
@@ -74,7 +74,7 @@ func NewCompressEngine(deps Dependencies) *CompressEngine {
 	if deps.RunCommand == nil {
 		deps.RunCommand = func(name string, args []string) error {
 			cmd := exec.Command(name, args...)
-			prepareCmd(cmd)
+			util.HideConsoleWindow(cmd)
 			return cmd.Run()
 		}
 	}
@@ -167,7 +167,8 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 			mu.Lock()
 			allReports = append(allReports, JobReport{
 				InputName:  filepath.Base(input),
-				Status:     "失败",
+				InputPath:  input,
+				Status:     "failed",
 				SourceSize: util.GetFileSize(input),
 				ErrMessage: "输入文件不存在或不可读",
 			})
@@ -175,6 +176,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 			if onProgress != nil {
 				onProgress(ProgressEvent{
 					File:  filepath.Base(input),
+					Path:  input,
 					Done:  true,
 					Error: "输入文件不存在或不可读",
 				})
@@ -187,14 +189,16 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 			mu.Lock()
 			allReports = append(allReports, JobReport{
 				InputName:  filepath.Base(input),
+				InputPath:  input,
 				OutputDir:  filepath.Dir(defaultOutput),
-				Status:     "跳过",
+				Status:     "skipped",
 				SourceSize: util.GetFileSize(input),
 			})
 			mu.Unlock()
 			if onProgress != nil {
 				onProgress(ProgressEvent{
 					File:    filepath.Base(input),
+					Path:    input,
 					Percent: 100,
 					Done:    true,
 				})
@@ -207,7 +211,8 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 			mu.Lock()
 			allReports = append(allReports, JobReport{
 				InputName:  filepath.Base(input),
-				Status:     "失败",
+				InputPath:  input,
+				Status:     "failed",
 				SourceSize: util.GetFileSize(input),
 				ErrMessage: fmt.Sprintf("生成输出路径失败: %v", err),
 			})
@@ -215,6 +220,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 			if onProgress != nil {
 				onProgress(ProgressEvent{
 					File:  filepath.Base(input),
+					Path:  input,
 					Done:  true,
 					Error: fmt.Sprintf("生成输出路径失败: %v", err),
 				})
@@ -226,7 +232,8 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 			mu.Lock()
 			allReports = append(allReports, JobReport{
 				InputName:  filepath.Base(input),
-				Status:     "失败",
+				InputPath:  input,
+				Status:     "failed",
 				SourceSize: util.GetFileSize(input),
 				ErrMessage: fmt.Sprintf("创建输出目录失败: %v", err),
 			})
@@ -234,6 +241,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 			if onProgress != nil {
 				onProgress(ProgressEvent{
 					File:  filepath.Base(input),
+					Path:  input,
 					Done:  true,
 					Error: fmt.Sprintf("创建输出目录失败: %v", err),
 				})
@@ -262,14 +270,16 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 					mu.Lock()
 					allReports = append(allReports, JobReport{
 						InputName:  filepath.Base(task.input),
+						InputPath:  task.input,
 						OutputDir:  filepath.Dir(task.output),
-						Status:     "失败",
+						Status:     "failed",
 						SourceSize: util.GetFileSize(task.input),
 						ErrMessage: "任务已取消",
 					})
 					if onProgress != nil {
 						onProgress(ProgressEvent{
 							File:  filepath.Base(task.input),
+							Path:  task.input,
 							Done:  true,
 							Error: "任务已取消",
 						})
@@ -282,7 +292,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 				duration, _ := e.deps.GetDuration(ffmpegPath, task.input)
 				args := ffmpeg.BuildArgs(task.input, task.output, preset, hwEncoder, req.CopyAudio, req.MaxFPS, req.AudioMode, req.CRF)
 
-				err := e.runCommandWithProgress(ctx, ffmpegPath, args, duration, filepath.Base(task.input), onProgress)
+				err := e.runCommandWithProgress(ctx, ffmpegPath, args, duration, task.input, filepath.Base(task.input), onProgress)
 				elapsed := time.Since(startTime)
 
 				mu.Lock()
@@ -293,8 +303,9 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 					}
 					allReports = append(allReports, JobReport{
 						InputName:  filepath.Base(task.input),
+						InputPath:  task.input,
 						OutputDir:  filepath.Dir(task.output),
-						Status:     "失败",
+						Status:     "failed",
 						SourceSize: util.GetFileSize(task.input),
 						Duration:   elapsed,
 						ErrMessage: friendlyErr,
@@ -302,6 +313,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 					if onProgress != nil {
 						onProgress(ProgressEvent{
 							File:  filepath.Base(task.input),
+							Path:  task.input,
 							Done:  true,
 							Error: friendlyErr,
 						})
@@ -309,8 +321,9 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 				} else {
 					allReports = append(allReports, JobReport{
 						InputName:  filepath.Base(task.input),
+						InputPath:  task.input,
 						OutputDir:  filepath.Dir(task.output),
-						Status:     "成功",
+						Status:     "success",
 						SourceSize: util.GetFileSize(task.input),
 						TargetSize: util.GetFileSize(task.output),
 						Duration:   elapsed,
@@ -318,6 +331,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 					if onProgress != nil {
 						onProgress(ProgressEvent{
 							File:    filepath.Base(task.input),
+							Path:    task.input,
 							Percent: 100,
 							Done:    true,
 						})
@@ -332,7 +346,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 	return allReports, nil
 }
 
-func (e *CompressEngine) runCommandWithProgress(ctx context.Context, ffmpegPath string, args []string, duration time.Duration, prefix string, onProgress func(ProgressEvent)) error {
+func (e *CompressEngine) runCommandWithProgress(ctx context.Context, ffmpegPath string, args []string, duration time.Duration, inputPath string, prefix string, onProgress func(ProgressEvent)) error {
 	if e.hasCustomRun {
 		return e.deps.RunCommand(ffmpegPath, args)
 	}
@@ -342,7 +356,7 @@ func (e *CompressEngine) runCommandWithProgress(ctx context.Context, ffmpegPath 
 	finalArgs = append(finalArgs, "-progress", "-")
 
 	cmd := exec.CommandContext(ctx, ffmpegPath, finalArgs...)
-	prepareCmd(cmd)
+	util.HideConsoleWindow(cmd)
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -357,6 +371,7 @@ func (e *CompressEngine) runCommandWithProgress(ctx context.Context, ffmpegPath 
 	if onProgress != nil {
 		onProgress(ProgressEvent{
 			File:    prefix,
+			Path:    inputPath,
 			Percent: 0,
 		})
 	}
@@ -370,6 +385,7 @@ func (e *CompressEngine) runCommandWithProgress(ctx context.Context, ffmpegPath 
 					lastPercent = percent
 					onProgress(ProgressEvent{
 						File:    prefix,
+						Path:    inputPath,
 						Percent: percent,
 					})
 				}

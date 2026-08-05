@@ -2,20 +2,22 @@ export namespace engine {
 	
 	export class JobReport {
 	    InputName: string;
+	    InputPath: string;
 	    OutputDir: string;
 	    Status: string;
 	    SourceSize: number;
 	    TargetSize: number;
 	    Duration: number;
 	    ErrMessage: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new JobReport(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.InputName = source["InputName"];
+	        this.InputPath = source["InputPath"];
 	        this.OutputDir = source["OutputDir"];
 	        this.Status = source["Status"];
 	        this.SourceSize = source["SourceSize"];
