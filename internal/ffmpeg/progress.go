@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"videopress/internal/util"
 )
 
 var durationRegex = regexp.MustCompile(`Duration:\s*(\d{2}):(\d{2}):(\d{2})\.(\d+)`)
@@ -42,7 +44,7 @@ func ParseDuration(metadata string) (time.Duration, error) {
 // GetDuration 运行 ffmpeg -i 探测视频时长
 func GetDuration(ffmpegPath string, inputPath string) (time.Duration, error) {
 	cmd := exec.Command(ffmpegPath, "-i", inputPath)
-	prepareCmd(cmd)
+	util.HideConsoleWindow(cmd)
 	output, _ := cmd.CombinedOutput()
 	return ParseDuration(string(output))
 }

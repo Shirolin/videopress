@@ -25,6 +25,7 @@ func BuildArgs(inputPath string, outputPath string, preset compress.Preset, hwEn
 
 	args := []string{
 		"-hide_banner",
+		"-nostats",
 		"-y",
 		"-i", inputPath,
 		"-vf", scaleFilter,

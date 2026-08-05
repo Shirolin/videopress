@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"videopress/internal/util"
 )
 
 var (
@@ -122,8 +124,8 @@ func DetectGPUEncoder(ffmpegPath string, codec string, runCmd func(name string, 
 					"-",
 				}
 				cmd := exec.CommandContext(ctx, ffmpegPath, args...)
-				prepareCmd(cmd)
-				
+				util.HideConsoleWindow(cmd)
+
 				var stderrBuf bytes.Buffer
 				cmd.Stderr = &stderrBuf
 				err := cmd.Run()
@@ -157,7 +159,7 @@ func DetectGPUEncoder(ffmpegPath string, codec string, runCmd func(name string, 
 		cacheDir, err := os.UserCacheDir()
 		if err == nil {
 			cacheFile := filepath.Join(cacheDir, "videopress_gpu.cache")
-			
+
 			// 读取现有缓存合并，保留其他 codec 的探测结果
 			var diskCache map[string]string = make(map[string]string)
 			if data, err := os.ReadFile(cacheFile); err == nil {
@@ -166,7 +168,14 @@ func DetectGPUEncoder(ffmpegPath string, codec string, runCmd func(name string, 
 			diskCache[codec] = detected
 
 			if data, err := json.Marshal(diskCache); err == nil {
-				_ = os.WriteFile(cacheFile, data, 0o644)
+				// 临时文件 + 先删旧 + rename 原子写，避免并发进程写坏 JSON
+				tmpFile := cacheFile + ".tmp"
+				if err := os.WriteFile(tmpFile, data, 0o644); err == nil {
+					_ = os.Remove(cacheFile) // Windows 下 rename 不覆盖已存在文件，需先删除
+					if err := os.Rename(tmpFile, cacheFile); err != nil {
+						_ = os.Remove(tmpFile)
+					}
+				}
 			}
 
 			// 如果存在错误，并且启用了调试日志，写入调试日志文件方便定位硬件/驱动/FFmpeg配置问题
