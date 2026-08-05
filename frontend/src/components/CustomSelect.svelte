@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { slide, fade } from 'svelte/transition';
+  import { slide } from 'svelte/transition';
 
   interface SelectOption {
     value: any;
@@ -8,14 +8,22 @@
     desc?: string;
   }
 
-  export let value: any;
-  export let options: SelectOption[] = [];
-  export let disabled = false;
+  let {
+    value = $bindable(),
+    options = [],
+    disabled = false,
+    onchange
+  }: {
+    value?: any;
+    options?: SelectOption[];
+    disabled?: boolean;
+    onchange?: (value: any) => void;
+  } = $props();
 
-  let isOpen = false;
+  let isOpen = $state(false);
   let containerEl: HTMLDivElement;
 
-  $: selectedOption = options.find(opt => opt.value === value) || options[0];
+  let selectedOption = $derived(options.find(opt => opt.value === value) || options[0]);
 
   function toggleOpen() {
     if (disabled) return;
@@ -25,6 +33,7 @@
   function selectOption(val: any) {
     value = val;
     isOpen = false;
+    onchange?.(val);
   }
 
   // Handle click outside to close the menu
@@ -48,7 +57,7 @@
   <button 
     type="button"
     class="select-trigger glass-panel {isOpen ? 'focused' : ''} {disabled ? 'disabled' : ''}" 
-    on:click={toggleOpen}
+    onclick={toggleOpen}
     {disabled}
   >
     <div class="trigger-label">
@@ -71,7 +80,16 @@
         {#each options as option}
           <div 
             class="option-item {option.value === value ? 'selected' : ''}" 
-            on:click={() => selectOption(option.value)}
+            role="option"
+            aria-selected={option.value === value}
+            tabindex="0"
+            onclick={() => selectOption(option.value)}
+            onkeydown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectOption(option.value);
+              }
+            }}
           >
             <div class="option-text-group">
               <span class="option-label">{option.label}</span>

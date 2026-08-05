@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import DropZone from './components/DropZone.svelte';
   import CustomSelect from './components/CustomSelect.svelte';
   import FileQueue, { type QueueItem } from './components/FileQueue.svelte';
@@ -9,39 +10,39 @@
   import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress, SetDebugMode, GetLanguage, SetLanguage } from '../wailsjs/go/main/App.js';
   import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
 
-  let queueItems: QueueItem[] = [];
+  let queueItems = $state<QueueItem[]>([]);
   
   // Compression Settings initialized from localStorage with safe recommended defaults
-  let preset: string = localStorage.getItem('videopress_preset') || 'standard';
-  let concurrency: number = parseInt(localStorage.getItem('videopress_concurrency') || '1', 10);
-  let hwAccel: boolean = localStorage.getItem('videopress_hw_accel') !== null 
+  let preset = $state<string>(localStorage.getItem('videopress_preset') || 'standard');
+  let concurrency = $state<number>(parseInt(localStorage.getItem('videopress_concurrency') || '1', 10));
+  let hwAccel = $state<boolean>(localStorage.getItem('videopress_hw_accel') !== null 
     ? localStorage.getItem('videopress_hw_accel') === 'true' 
-    : true;
-  let copyAudio: boolean = localStorage.getItem('videopress_copy_audio') !== null 
+    : true);
+  let copyAudio = $state<boolean>(localStorage.getItem('videopress_copy_audio') !== null 
     ? localStorage.getItem('videopress_copy_audio') === 'true' 
-    : true;
-  let forceMode: boolean = localStorage.getItem('videopress_force_mode') !== null 
+    : true);
+  let forceMode = $state<boolean>(localStorage.getItem('videopress_force_mode') !== null 
     ? localStorage.getItem('videopress_force_mode') === 'true' 
-    : false;
-  let skipExisting: boolean = localStorage.getItem('videopress_skip_existing') !== null 
+    : false);
+  let skipExisting = $state<boolean>(localStorage.getItem('videopress_skip_existing') !== null 
     ? localStorage.getItem('videopress_skip_existing') === 'true' 
-    : false;
-  let enableDebugLog: boolean = localStorage.getItem('videopress_enable_debug_log') === 'true';
+    : false);
+  let enableDebugLog = $state<boolean>(localStorage.getItem('videopress_enable_debug_log') === 'true');
 
   // Advanced settings
-  let videoCodec: string = localStorage.getItem('videopress_video_codec') || '';
-  let maxFPS: number = parseInt(localStorage.getItem('videopress_max_fps') || '0', 10);
-  let audioMode: string = localStorage.getItem('videopress_audio_mode') || '';
-  let showAdvanced: boolean = localStorage.getItem('videopress_show_advanced') === 'true';
-  let crfEnabled: boolean = localStorage.getItem('videopress_crf_enabled') === 'true';
-  let crfValue: number = parseInt(localStorage.getItem('videopress_crf_value') || '0', 10);
+  let videoCodec = $state<string>(localStorage.getItem('videopress_video_codec') || '');
+  let maxFPS = $state<number>(parseInt(localStorage.getItem('videopress_max_fps') || '0', 10));
+  let audioMode = $state<string>(localStorage.getItem('videopress_audio_mode') || '');
+  let showAdvanced = $state<boolean>(localStorage.getItem('videopress_show_advanced') === 'true');
+  let crfEnabled = $state<boolean>(localStorage.getItem('videopress_crf_enabled') === 'true');
+  let crfValue = $state<number>(parseInt(localStorage.getItem('videopress_crf_value') || '0', 10));
 
-  $: defaultCrf = videoCodec === 'h265' ? 29 : (videoCodec === 'av1' ? 32 : 27);
-  $: minCrf = videoCodec === 'h265' ? 18 : (videoCodec === 'av1' ? 20 : 15);
-  $: maxCrf = videoCodec === 'h265' ? 38 : (videoCodec === 'av1' ? 45 : 35);
+  let defaultCrf = $derived(videoCodec === 'h265' ? 29 : (videoCodec === 'av1' ? 32 : 27));
+  let minCrf = $derived(videoCodec === 'h265' ? 18 : (videoCodec === 'av1' ? 20 : 15));
+  let maxCrf = $derived(videoCodec === 'h265' ? 38 : (videoCodec === 'av1' ? 45 : 35));
 
-  let lastSavedCodec = localStorage.getItem('videopress_last_codec') || '';
-  $: {
+  let lastSavedCodec = $state(localStorage.getItem('videopress_last_codec') || '');
+  $effect(() => {
     if (videoCodec !== lastSavedCodec) {
       const prevDefault = lastSavedCodec === 'h265' ? 29 : (lastSavedCodec === 'av1' ? 32 : 27);
       if (crfValue === prevDefault || crfValue === 0) {
@@ -53,9 +54,9 @@
       lastSavedCodec = videoCodec;
       localStorage.setItem('videopress_last_codec', videoCodec);
     }
-  }
+  });
 
-  $: crfStatusWord = (() => {
+  let crfStatusWord = $derived((() => {
     if (videoCodec === 'h265') {
       if (crfValue <= 23) return $t('advanced.crf.status.high');
       if (crfValue <= 32) return $t('advanced.crf.status.balanced');
@@ -69,13 +70,13 @@
       if (crfValue <= 29) return $t('advanced.crf.status.balanced');
       return $t('advanced.crf.status.low');
     }
-  })();
+  })());
 
-  $: crfDescText = (() => {
+  let crfDescText = $derived((() => {
     if (videoCodec === 'h265') return $t('advanced.crf.desc.h265');
     if (videoCodec === 'av1') return $t('advanced.crf.desc.av1');
     return $t('advanced.crf.desc.h264');
-  })();
+  })());
 
   function handleCRFBlur() {
     if (isNaN(crfValue) || crfValue === null || crfValue === undefined) {
@@ -90,43 +91,47 @@
   }
 
   // Persist settings reactively
-  $: if (preset !== undefined) localStorage.setItem('videopress_preset', preset);
-  $: if (concurrency !== undefined) localStorage.setItem('videopress_concurrency', concurrency.toString());
-  $: if (hwAccel !== undefined) localStorage.setItem('videopress_hw_accel', hwAccel.toString());
-  $: if (copyAudio !== undefined) localStorage.setItem('videopress_copy_audio', copyAudio.toString());
-  $: if (forceMode !== undefined) localStorage.setItem('videopress_force_mode', forceMode.toString());
-  $: if (skipExisting !== undefined) localStorage.setItem('videopress_skip_existing', skipExisting.toString());
-  $: if (enableDebugLog !== undefined) {
-    localStorage.setItem('videopress_enable_debug_log', enableDebugLog.toString());
-    SetDebugMode(enableDebugLog).catch(console.error);
-  }
-  $: if (videoCodec !== undefined) localStorage.setItem('videopress_video_codec', videoCodec);
-  $: if (maxFPS !== undefined) localStorage.setItem('videopress_max_fps', maxFPS.toString());
-  $: if (audioMode !== undefined) localStorage.setItem('videopress_audio_mode', audioMode);
-  $: if (showAdvanced !== undefined) localStorage.setItem('videopress_show_advanced', showAdvanced.toString());
-  $: if (crfEnabled !== undefined) localStorage.setItem('videopress_crf_enabled', crfEnabled.toString());
-  $: if (crfValue !== undefined) localStorage.setItem('videopress_crf_value', crfValue.toString());
+  $effect(() => {
+    if (preset !== undefined) localStorage.setItem('videopress_preset', preset);
+    if (concurrency !== undefined) localStorage.setItem('videopress_concurrency', concurrency.toString());
+    if (hwAccel !== undefined) localStorage.setItem('videopress_hw_accel', hwAccel.toString());
+    if (copyAudio !== undefined) localStorage.setItem('videopress_copy_audio', copyAudio.toString());
+    if (forceMode !== undefined) localStorage.setItem('videopress_force_mode', forceMode.toString());
+    if (skipExisting !== undefined) localStorage.setItem('videopress_skip_existing', skipExisting.toString());
+    if (enableDebugLog !== undefined) {
+      localStorage.setItem('videopress_enable_debug_log', enableDebugLog.toString());
+      SetDebugMode(enableDebugLog).catch(console.error);
+    }
+    if (videoCodec !== undefined) localStorage.setItem('videopress_video_codec', videoCodec);
+    if (maxFPS !== undefined) localStorage.setItem('videopress_max_fps', maxFPS.toString());
+    if (audioMode !== undefined) localStorage.setItem('videopress_audio_mode', audioMode);
+    if (showAdvanced !== undefined) localStorage.setItem('videopress_show_advanced', showAdvanced.toString());
+    if (crfEnabled !== undefined) localStorage.setItem('videopress_crf_enabled', crfEnabled.toString());
+    if (crfValue !== undefined) localStorage.setItem('videopress_crf_value', crfValue.toString());
+  });
 
   // 同步语言设置至 Go 后端，仅在实际语言变化时调用，避免每次启动重复热写注册表
-  let lastSyncedLang = '';
-  $: if ($locale && $locale !== lastSyncedLang) {
-    lastSyncedLang = $locale;
-    SetLanguage($locale).catch(console.error);
-  }
+  let lastSyncedLang = $state('');
+  $effect(() => {
+    if ($locale && $locale !== lastSyncedLang) {
+      lastSyncedLang = $locale;
+      SetLanguage($locale).catch(console.error);
+    }
+  });
 
-  let isCompressing = false;
-  let ffmpegError = '';
-  let showSettings = false;
-  let appVersion = 'v0.1.0';
+  let isCompressing = $state(false);
+  let ffmpegError = $state('');
+  let showSettings = $state(false);
+  let appVersion = $state('v0.1.0');
 
   // FFmpeg auto-download state
-  let isDownloadingFFmpeg = false;
-  let downloadPercent = 0;
-  let downloadError = '';
+  let isDownloadingFFmpeg = $state(false);
+  let downloadPercent = $state(0);
+  let downloadError = $state('');
 
   // Custom output directory with localStorage persistence - optimized to avoid reactive trigger on initial load
-  let customOutputDir = localStorage.getItem('videopress_custom_output_dir') || '';
-  let lastOutputDir = '';
+  let customOutputDir = $state(localStorage.getItem('videopress_custom_output_dir') || '');
+  let lastOutputDir = $state('');
 
   function saveCustomOutputDir(dir: string) {
     customOutputDir = dir;
@@ -134,24 +139,24 @@
   }
 
   // Real-time stats calculation
-  $: totalCount = queueItems.length;
-  $: successItems = queueItems.filter(item => item.status === 'success');
-  $: successCount = successItems.length;
-  $: compressingCount = queueItems.filter(item => item.status === 'compressing').length;
-  $: waitingCount = queueItems.filter(item => item.status === 'waiting').length;
+  let totalCount = $derived(queueItems.length);
+  let successItems = $derived(queueItems.filter(item => item.status === 'success'));
+  let successCount = $derived(successItems.length);
+  let compressingCount = $derived(queueItems.filter(item => item.status === 'compressing').length);
+  let waitingCount = $derived(queueItems.filter(item => item.status === 'waiting').length);
 
-  $: totalSavedBytes = successItems.reduce((sum, item) => {
+  let totalSavedBytes = $derived(successItems.reduce((sum, item) => {
     if (item.size && item.targetSize && item.size > item.targetSize) {
       return sum + (item.size - item.targetSize);
     }
     return sum;
-  }, 0);
+  }, 0));
 
-  $: totalOriginalBytes = successItems.reduce((sum, item) => sum + (item.size || 0), 0);
+  let totalOriginalBytes = $derived(successItems.reduce((sum, item) => sum + (item.size || 0), 0));
   
-  $: averageRatio = totalOriginalBytes > 0 
+  let averageRatio = $derived(totalOriginalBytes > 0 
     ? ((totalSavedBytes / totalOriginalBytes) * 100).toFixed(1) + '%' 
-    : '0.0%';
+    : '0.0%');
 
   function formatSavedSize(bytes: number): string {
     if (bytes <= 0) return '0 MB';
@@ -177,7 +182,7 @@
     try {
       await DetectFFmpeg();
     } catch (e: any) {
-      ffmpegError = e.message || $t('app.ffmpeg_not_found');
+      ffmpegError = e.message || get(t)('app.ffmpeg_not_found');
     }
 
     // Load application version
@@ -300,12 +305,11 @@
     }
   }
 
-  function handleFileSelect(e: CustomEvent<string[]>) {
-    addFilesToQueue(e.detail);
+  function handleFileSelect(files: string[]) {
+    addFilesToQueue(files);
   }
 
-  function handleRemove(e: CustomEvent<number>) {
-    const index = e.detail;
+  function handleRemove(index: number) {
     queueItems = queueItems.filter((_, i) => i !== index);
   }
 
@@ -423,7 +427,7 @@
   }
 </script>
 
-<div class="app-layout" on:dragover|preventDefault on:drop|preventDefault>
+<div class="app-layout" role="presentation" ondragover={(e) => e.preventDefault()} ondrop={(e) => e.preventDefault()}>
   <!-- Top Navigation Bar -->
   <header class="app-header glass-panel">
     <div class="brand">
@@ -442,7 +446,7 @@
       <div class="segmented-control" style="height: 32px;">
         <button 
           class="segment-btn {!showSettings ? 'active' : ''}" 
-          on:click={() => showSettings = false}
+          onclick={() => showSettings = false}
           disabled={isCompressing}
           style="display: flex; align-items: center; gap: 0.35rem; padding: 0 0.8rem;"
         >
@@ -453,7 +457,7 @@
         </button>
         <button 
           class="segment-btn {showSettings ? 'active' : ''}" 
-          on:click={() => showSettings = true}
+          onclick={() => showSettings = true}
           disabled={isCompressing}
           style="display: flex; align-items: center; gap: 0.35rem; padding: 0 0.8rem;"
         >
@@ -491,13 +495,13 @@
           </div>
         {:else}
           <div class="setup-actions">
-            <button class="setup-download-btn" on:click={handleDownloadFFmpeg}>
+            <button class="setup-download-btn" onclick={handleDownloadFFmpeg}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon-down">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>
               </svg>
               {$t('app.setup_btn_auto')}
             </button>
-            <button class="setup-config-btn" on:click={() => showSettings = true}>
+            <button class="setup-config-btn" onclick={() => showSettings = true}>
               {$t('app.setup_btn_manual')}
             </button>
           </div>
@@ -566,21 +570,21 @@
             <div class="segmented-control">
               <button 
                 class="segment-btn {preset === 'small' ? 'active' : ''}" 
-                on:click={() => preset = 'small'}
+                onclick={() => preset = 'small'}
                 disabled={isCompressing}
               >
                 {$t('preset.small')}
               </button>
               <button 
                 class="segment-btn {preset === 'standard' ? 'active' : ''}" 
-                on:click={() => preset = 'standard'}
+                onclick={() => preset = 'standard'}
                 disabled={isCompressing}
               >
                 {$t('preset.standard')}
               </button>
               <button 
                 class="segment-btn {preset === 'quality' ? 'active' : ''}" 
-                on:click={() => preset = 'quality'}
+                onclick={() => preset = 'quality'}
                 disabled={isCompressing}
               >
                 {$t('preset.quality')}
@@ -607,7 +611,7 @@
               <div class="path-actions">
                 <button 
                   class="path-btn change" 
-                  on:click={handleChangeOutputDir}
+                  onclick={handleChangeOutputDir}
                   disabled={isCompressing}
                 >
                   {$t('btn.change')}
@@ -615,7 +619,7 @@
                 {#if customOutputDir}
                   <button 
                     class="path-btn reset" 
-                    on:click={() => customOutputDir = ''} 
+                    onclick={() => customOutputDir = ''} 
                     disabled={isCompressing}
                     title={$t('btn.reset_path_title')}
                   >
@@ -629,7 +633,7 @@
 
         <!-- Advanced Settings Toggle -->
         <div class="advanced-toggle-bar">
-          <button class="advanced-toggle-btn" on:click={() => showAdvanced = !showAdvanced}>
+          <button class="advanced-toggle-btn" onclick={() => showAdvanced = !showAdvanced}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="chevron-icon {showAdvanced ? 'rotate-90' : ''}">
               <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
@@ -644,7 +648,7 @@
         <div class="advanced-settings-panel glass-panel {showAdvanced ? 'show' : ''}">
           <div class="advanced-grid">
             <div class="advanced-group">
-              <label class="control-label">{$t('advanced.video_codec')}</label>
+              <span class="control-label">{$t('advanced.video_codec')}</span>
               <div class="select-container">
                 <CustomSelect
                   options={[
@@ -654,7 +658,7 @@
                     { value: 'av1', label: 'AV1 (Next-Gen)' }
                   ]}
                   value={videoCodec}
-                  on:change={(e) => videoCodec = e.detail}
+                  onchange={(v) => videoCodec = v}
                   disabled={isCompressing}
                 />
               </div>
@@ -662,7 +666,7 @@
             </div>
 
             <div class="advanced-group">
-              <label class="control-label">{$t('advanced.max_fps')}</label>
+              <span class="control-label">{$t('advanced.max_fps')}</span>
               <div class="select-container">
                 <CustomSelect
                   options={[
@@ -671,7 +675,7 @@
                     { value: '60', label: '60 FPS' }
                   ]}
                   value={maxFPS.toString()}
-                  on:change={(e) => maxFPS = parseInt(e.detail, 10)}
+                  onchange={(v) => maxFPS = parseInt(v, 10)}
                   disabled={isCompressing}
                 />
               </div>
@@ -679,7 +683,7 @@
             </div>
 
             <div class="advanced-group">
-              <label class="control-label">{$t('advanced.audio_mode')}</label>
+              <span class="control-label">{$t('advanced.audio_mode')}</span>
               <div class="select-container">
                 <CustomSelect
                   options={[
@@ -688,7 +692,7 @@
                     { value: 'mute', label: $t('advanced.audio_mode_mute') }
                   ]}
                   value={audioMode}
-                  on:change={(e) => audioMode = e.detail}
+                  onchange={(v) => audioMode = v}
                   disabled={isCompressing}
                 />
               </div>
@@ -717,7 +721,7 @@
                       min={minCrf} 
                       max={maxCrf} 
                       bind:value={crfValue} 
-                      on:blur={handleCRFBlur}
+                      onblur={handleCRFBlur}
                       disabled={isCompressing}
                       class="crf-number-input"
                     />
@@ -726,7 +730,7 @@
                     <span class="crf-status-word">{crfStatusWord}</span>
                   </span>
                   {#if crfValue !== defaultCrf}
-                    <button class="crf-reset-btn" on:click={() => crfValue = defaultCrf} disabled={isCompressing}>
+                    <button class="crf-reset-btn" onclick={() => crfValue = defaultCrf} disabled={isCompressing}>
                       {$t('btn.reset')}
                     </button>
                   {/if}
@@ -746,7 +750,7 @@
                 />
                 <div class="crf-ticks">
                   <span class="tick-label min-label">{minCrf} ({$t('advanced.crf.status.high')})</span>
-                  <span class="tick-label default-label" on:click={() => crfValue = defaultCrf} title="点击恢复默认推荐质量">
+                  <span class="tick-label default-label" role="button" tabindex="0" onclick={() => crfValue = defaultCrf} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); crfValue = defaultCrf; } }} title="点击恢复默认推荐质量">
                     {$t('btn.reset')} ({defaultCrf})
                   </span>
                   <span class="tick-label max-label">{maxCrf} ({$t('advanced.crf.status.low')})</span>
@@ -758,27 +762,27 @@
         </div>
 
         <!-- Drop Zone (Collapses to small bar if queue not empty) -->
-        <DropZone compact={totalCount > 0} disabled={isCompressing} on:select={handleFileSelect} />
+        <DropZone compact={totalCount > 0} disabled={isCompressing} onselect={handleFileSelect} />
         
         <!-- Scrollable File Queue (Automatically expands to take all space) -->
         <FileQueue 
           items={queueItems} 
           isCompressing={isCompressing}
-          on:remove={handleRemove} 
-          on:clear={handleClear} 
+          onremove={handleRemove} 
+          onclear={handleClear} 
         />
 
         <!-- Action Panel (Fixed size, locked at the bottom) -->
         <div class="action-panel">
           {#if queueItems.some(item => item.status === 'success' || item.status === 'failed' || item.status === 'skipped')}
-            <button class="btn-folder" on:click={handleOpenOutputFolder}>
+            <button class="btn-folder" onclick={handleOpenOutputFolder}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
               {$t('btn.open_output_folder')}
             </button>
           {/if}
 
           {#if isCompressing}
-            <button class="compress-trigger-btn cancel-btn" on:click={handleCancelCompression}>
+            <button class="compress-trigger-btn cancel-btn" onclick={handleCancelCompression}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
               {$t('btn.cancel_compress')}
             </button>
@@ -786,7 +790,7 @@
             <button 
               class="compress-trigger-btn" 
               disabled={queueItems.length === 0 || !!ffmpegError}
-              on:click={triggerCompression}
+              onclick={triggerCompression}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               {$t('btn.start_compress')}
@@ -853,6 +857,7 @@
     font-weight: 800;
     letter-spacing: -0.02em;
     background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -867,58 +872,9 @@
     border: 1px solid rgba(168, 85, 247, 0.15);
   }
 
-  .nav-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
-    font-size: 0.76rem;
-    font-weight: 650;
-    padding: 0.35rem 0.75rem;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .nav-btn:hover {
-    border-color: rgba(255, 255, 255, 0.12);
-    color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  .nav-btn.active {
-    background: var(--accent-purple);
-    color: white;
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 12px rgba(168, 85, 247, 0.35);
-  }
-
   .nav-icon {
     width: 12px;
     height: 12px;
-  }
-
-  /* Error Banner */
-  .error-banner {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    background: rgba(244, 63, 94, 0.08);
-    border: 1px solid rgba(244, 63, 94, 0.18);
-    padding: 0.6rem 0.8rem;
-    border-radius: 8px;
-    color: var(--accent-red);
-    font-size: 0.75rem;
-    font-weight: 600;
-    flex-shrink: 0;
-  }
-
-  .error-icon {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
   }
 
   /* Workspace Container */
@@ -1221,20 +1177,6 @@
     height: 13px;
   }
 
-  .spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top: 2px solid white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-
   /* FFmpeg Autoconfig Setup panel styles */
   .setup-container {
     display: flex;
@@ -1276,10 +1218,6 @@
     color: var(--text-secondary);
     line-height: 1.6;
     margin-bottom: 2.2rem;
-  }
-
-  .setup-desc strong {
-    color: var(--accent-purple);
   }
 
   .setup-actions {
@@ -1546,16 +1484,6 @@
     gap: 0.5rem;
   }
 
-  .crf-badge {
-    font-size: 0.7rem;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--text-main);
-    padding: 2px 8px;
-    border-radius: 6px;
-    font-weight: 600;
-  }
-
   .crf-status-word {
     color: var(--accent-cyan, #06b6d4);
     margin-left: 2px;
@@ -1668,6 +1596,7 @@
   }
 
   .crf-number-input[type=number] {
+    appearance: textfield;
     -moz-appearance: textfield;
   }
 

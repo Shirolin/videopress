@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import CustomSelect from './CustomSelect.svelte';
   import { t, locale } from '../i18n.js';
   import { 
@@ -22,77 +23,91 @@
     SetLanguage
   } from '../../wailsjs/go/main/App.js';
 
-  export let preset: string = 'standard';
-  export let concurrency: number = 1;
-  export let hwAccel: boolean = false;
-  export let copyAudio: boolean = false;
-  export let forceMode: boolean = false;
-  export let skipExisting: boolean = false;
-  export let enableDebugLog: boolean = false;
+  let {
+    preset = $bindable('standard'),
+    concurrency = $bindable(1),
+    hwAccel = $bindable(false),
+    copyAudio = $bindable(false),
+    forceMode = $bindable(false),
+    skipExisting = $bindable(false),
+    enableDebugLog = $bindable(false)
+  }: {
+    preset?: string;
+    concurrency?: number;
+    hwAccel?: boolean;
+    copyAudio?: boolean;
+    forceMode?: boolean;
+    skipExisting?: boolean;
+    enableDebugLog?: boolean;
+  } = $props();
 
-  $: if (enableDebugLog !== undefined) {
-    SetDebugMode(enableDebugLog).catch(console.error);
-  }
+  $effect(() => {
+    if (enableDebugLog !== undefined) {
+      SetDebugMode(enableDebugLog).catch(console.error);
+    }
+  });
 
   // 当界面语言发生改变时，通知 Go 后端热重写注册表并重新加载预设信息
-  $: if ($locale) {
-    SetLanguage($locale).catch(console.error);
-    GetPresets().then(list => {
-      presetsList = list;
-    }).catch(console.error);
-  }
+  $effect(() => {
+    if ($locale) {
+      SetLanguage($locale).catch(console.error);
+      GetPresets().then(list => {
+        presetsList = list;
+      }).catch(console.error);
+    }
+  });
   
-  let presetsList: any[] = [];
-  let detectedGPU: string = '';
-  let statusMessage: string = '';
-  let statusType: 'success' | 'info' | 'error' = 'info';
+  let presetsList = $state<any[]>([]);
+  let detectedGPU = $state('');
+  let statusMessage = $state('');
+  let statusType = $state<'success' | 'info' | 'error'>('info');
 
   // System integration status loading
-  let loadingIntegration = true;
-  let isSendToInstalled = false;
-  let isDesktopInstalled = false;
-  let isStartMenuInstalled = false;
-  let isContextMenuInstalled = false;
-  let isPathConfigured = false;
+  let loadingIntegration = $state(true);
+  let isSendToInstalled = $state(false);
+  let isDesktopInstalled = $state(false);
+  let isStartMenuInstalled = $state(false);
+  let isContextMenuInstalled = $state(false);
+  let isPathConfigured = $state(false);
 
   const languageOptions = [
     { value: 'zh', label: '简体中文', desc: 'Chinese (Simplified)' },
     { value: 'en', label: 'English', desc: 'English' }
   ];
 
-  $: presetLabels = {
+  let presetLabels = $derived<Record<string, string>>({
     small: $t('status.preset_small'),
     standard: $t('status.preset_standard'),
     quality: $t('status.preset_quality')
-  };
+  });
 
   // Map presets list to CustomSelect format
-  $: presetOptions = presetsList.map(p => ({
+  let presetOptions = $derived(presetsList.map(p => ({
     value: p.name,
     label: presetLabels[p.name] || p.name,
     desc: p.description
-  }));
+  })));
 
   // Concurrency list for CustomSelect based on actual CPU cores
   const maxCores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
-  let concurrencyOptions: any[] = [];
-  $: {
-    concurrencyOptions = [
+  let concurrencyOptions = $derived((() => {
+    const opts: any[] = [
       { value: 1, label: $t('settings.concurrency_1'), desc: $t('settings.concurrency_1_desc') }
     ];
     if (maxCores >= 2) {
-      concurrencyOptions.push({ value: 2, label: $t('settings.concurrency_n', {num: 2}), desc: $t('settings.concurrency_n_desc', {num: 2}) });
+      opts.push({ value: 2, label: $t('settings.concurrency_n', {num: 2}), desc: $t('settings.concurrency_n_desc', {num: 2}) });
     }
     if (maxCores >= 4) {
-      concurrencyOptions.push({ value: 4, label: $t('settings.concurrency_n', {num: 4}), desc: $t('settings.concurrency_n_desc', {num: 4}) });
+      opts.push({ value: 4, label: $t('settings.concurrency_n', {num: 4}), desc: $t('settings.concurrency_n_desc', {num: 4}) });
     }
     if (maxCores >= 8) {
-      concurrencyOptions.push({ value: 8, label: $t('settings.concurrency_n', {num: 8}), desc: $t('settings.concurrency_n_desc', {num: 8}) });
+      opts.push({ value: 8, label: $t('settings.concurrency_n', {num: 8}), desc: $t('settings.concurrency_n_desc', {num: 8}) });
     }
     if (maxCores > 8) {
-      concurrencyOptions.push({ value: maxCores, label: $t('settings.concurrency_n', {num: maxCores}), desc: $t('settings.concurrency_all_desc') });
+      opts.push({ value: maxCores, label: $t('settings.concurrency_n', {num: maxCores}), desc: $t('settings.concurrency_all_desc') });
     }
-  }
+    return opts;
+  })());
 
   async function updateIntegrationStatus() {
     try {
@@ -146,22 +161,22 @@
   async function handleOpenDebugLog() {
     try {
       await OpenDebugLogFile();
-      showStatus($t('toast.log_opened'), "success");
+      showStatus(get(t)('toast.log_opened'), "success");
     } catch (e: any) {
-      showStatus($t('toast.log_open_failed', {err: e.message}), "error");
+      showStatus(get(t)('toast.log_open_failed', {err: e.message}), "error");
     }
   }
 
   async function handleClearDebugLog() {
     try {
       await ClearDebugLogs();
-      showStatus($t('toast.log_cleared'), "success");
+      showStatus(get(t)('toast.log_cleared'), "success");
       // 重新触发一次后台探测，重新填充缓存
       DetectGPUEncoder().then(gpu => {
         detectedGPU = gpu;
       });
     } catch (e: any) {
-      showStatus($t('toast.log_clear_failed', {err: e.message}), "error");
+      showStatus(get(t)('toast.log_clear_failed', {err: e.message}), "error");
     }
   }
 
@@ -171,14 +186,14 @@
       loadingIntegration = true;
       if (isSendToInstalled) {
         await UninstallSendTo();
-        showStatus($t('toast.sendto_removed'), 'success');
+        showStatus(get(t)('toast.sendto_removed'), 'success');
       } else {
         await InstallSendTo();
-        showStatus($t('toast.sendto_added'), 'success');
+        showStatus(get(t)('toast.sendto_added'), 'success');
       }
       await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus($t('toast.action_failed', {err: e.message || e}), 'error');
+      showStatus(get(t)('toast.action_failed', {err: e.message || e}), 'error');
     } finally {
       loadingIntegration = false;
     }
@@ -190,14 +205,14 @@
       loadingIntegration = true;
       if (isDesktopInstalled) {
         await UninstallDesktopShortcut();
-        showStatus($t('toast.desktop_removed'), 'success');
+        showStatus(get(t)('toast.desktop_removed'), 'success');
       } else {
         await InstallDesktopShortcut();
-        showStatus($t('toast.desktop_added'), 'success');
+        showStatus(get(t)('toast.desktop_added'), 'success');
       }
       await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus($t('toast.action_failed', {err: e.message || e}), 'error');
+      showStatus(get(t)('toast.action_failed', {err: e.message || e}), 'error');
     } finally {
       loadingIntegration = false;
     }
@@ -209,14 +224,14 @@
       loadingIntegration = true;
       if (isStartMenuInstalled) {
         await UninstallStartMenuShortcut();
-        showStatus($t('toast.startmenu_removed'), 'success');
+        showStatus(get(t)('toast.startmenu_removed'), 'success');
       } else {
         await InstallStartMenuShortcut();
-        showStatus($t('toast.startmenu_added'), 'success');
+        showStatus(get(t)('toast.startmenu_added'), 'success');
       }
       await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus($t('toast.action_failed', {err: e.message || e}), 'error');
+      showStatus(get(t)('toast.action_failed', {err: e.message || e}), 'error');
     } finally {
       loadingIntegration = false;
     }
@@ -228,14 +243,14 @@
       loadingIntegration = true;
       if (isContextMenuInstalled) {
         await UninstallContextMenu();
-        showStatus($t('toast.contextmenu_removed'), 'success');
+        showStatus(get(t)('toast.contextmenu_removed'), 'success');
       } else {
         await InstallContextMenu();
-        showStatus($t('toast.contextmenu_added'), 'success');
+        showStatus(get(t)('toast.contextmenu_added'), 'success');
       }
       await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus($t('toast.action_failed', {err: e.message || e}), 'error');
+      showStatus(get(t)('toast.action_failed', {err: e.message || e}), 'error');
     } finally {
       loadingIntegration = false;
     }
@@ -247,14 +262,14 @@
       loadingIntegration = true;
       if (isPathConfigured) {
         await RemoveFromPath();
-        showStatus($t('toast.path_removed'), 'success');
+        showStatus(get(t)('toast.path_removed'), 'success');
       } else {
         await AddToPath();
-        showStatus($t('toast.path_added'), 'success');
+        showStatus(get(t)('toast.path_added'), 'success');
       }
       await updateIntegrationStatus();
     } catch (e: any) {
-      showStatus($t('toast.action_failed', {err: e.message || e}), 'error');
+      showStatus(get(t)('toast.action_failed', {err: e.message || e}), 'error');
     } finally {
       loadingIntegration = false;
     }
@@ -353,7 +368,7 @@
           <span class="desc">{$t('settings.contextmenu_desc')}</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {isContextMenuInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleContextMenu} disabled={loadingIntegration}>
+          <button class="btn {isContextMenuInstalled ? 'btn-danger' : 'btn-primary'}" onclick={toggleContextMenu} disabled={loadingIntegration}>
             {#if loadingIntegration}{$t('status.checking')}{:else}{isContextMenuInstalled ? $t('btn.disable') : $t('btn.enable')}{/if}
           </button>
         </div>
@@ -375,7 +390,7 @@
           <span class="desc">{$t('settings.desktop_desc')}</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {isDesktopInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleDesktopShortcut} disabled={loadingIntegration}>
+          <button class="btn {isDesktopInstalled ? 'btn-danger' : 'btn-primary'}" onclick={toggleDesktopShortcut} disabled={loadingIntegration}>
             {#if loadingIntegration}{$t('status.checking')}{:else}{isDesktopInstalled ? $t('btn.delete_icon') : $t('btn.create')}{/if}
           </button>
         </div>
@@ -397,7 +412,7 @@
           <span class="desc">{$t('settings.startmenu_desc')}</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {isStartMenuInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleStartMenuShortcut} disabled={loadingIntegration}>
+          <button class="btn {isStartMenuInstalled ? 'btn-danger' : 'btn-primary'}" onclick={toggleStartMenuShortcut} disabled={loadingIntegration}>
             {#if loadingIntegration}{$t('status.checking')}{:else}{isStartMenuInstalled ? $t('btn.remove') : $t('btn.add')}{/if}
           </button>
         </div>
@@ -419,7 +434,7 @@
           <span class="desc">{$t('settings.sendto_desc')}</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {isSendToInstalled ? 'btn-danger' : 'btn-primary'}" on:click={toggleSendTo} disabled={loadingIntegration}>
+          <button class="btn {isSendToInstalled ? 'btn-danger' : 'btn-primary'}" onclick={toggleSendTo} disabled={loadingIntegration}>
             {#if loadingIntegration}{$t('status.checking')}{:else}{isSendToInstalled ? $t('btn.disable') : $t('btn.enable')}{/if}
           </button>
         </div>
@@ -441,7 +456,7 @@
           <span class="desc">{$t('settings.path_desc')}</span>
         </div>
         <div class="action-buttons">
-          <button class="btn {isPathConfigured ? 'btn-danger' : 'btn-primary'}" on:click={togglePathEnv} disabled={loadingIntegration}>
+          <button class="btn {isPathConfigured ? 'btn-danger' : 'btn-primary'}" onclick={togglePathEnv} disabled={loadingIntegration}>
             {#if loadingIntegration}{$t('status.checking')}{:else}{isPathConfigured ? $t('btn.remove_path') : $t('btn.configure')}{/if}
           </button>
         </div>
@@ -493,10 +508,10 @@
           <span class="desc">{$t('settings.debug.file_desc')}</span>
         </div>
         <div class="action-buttons">
-          <button class="btn btn-secondary" on:click={handleOpenDebugLog} disabled={!enableDebugLog} style="opacity: {enableDebugLog ? 1 : 0.4};">
+          <button class="btn btn-secondary" onclick={handleOpenDebugLog} disabled={!enableDebugLog} style="opacity: {enableDebugLog ? 1 : 0.4};">
             {$t('btn.open_log')}
           </button>
-          <button class="btn btn-danger" style="margin-left: 0.4rem;" on:click={handleClearDebugLog}>
+          <button class="btn btn-danger" style="margin-left: 0.4rem;" onclick={handleClearDebugLog}>
             {$t('btn.clear_log')}
           </button>
         </div>

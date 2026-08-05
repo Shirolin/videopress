@@ -1,4 +1,4 @@
-<script context="module" lang="ts">
+<script module lang="ts">
   export interface QueueItem {
     path: string;
     name: string;
@@ -13,12 +13,19 @@
 </script>
 
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { t } from '../i18n.js';
 
-  export let items: QueueItem[] = [];
-  export let isCompressing = false;
-  const dispatch = createEventDispatcher();
+  let {
+    items = [],
+    isCompressing = false,
+    onremove,
+    onclear
+  }: {
+    items?: QueueItem[];
+    isCompressing?: boolean;
+    onremove?: (index: number) => void;
+    onclear?: () => void;
+  } = $props();
 
   function formatSize(bytes: number): string {
     if (!bytes || bytes <= 0) return '-';
@@ -37,17 +44,13 @@
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
   }
-
-  function handleRemove(index: number) {
-    dispatch('remove', index);
-  }
 </script>
 
 <div class="queue-container glass-panel">
   <div class="queue-header">
     <span class="title">{$t('queue.title')} <span class="counter">{items.length}</span></span>
     {#if items.length > 0}
-      <button class="clear-btn" on:click={() => dispatch('clear')} disabled={isCompressing}>{$t('queue.clear')}</button>
+      <button class="clear-btn" onclick={() => onclear?.()} disabled={isCompressing}>{$t('queue.clear')}</button>
     {/if}
   </div>
 
@@ -68,7 +71,7 @@
               <span class="file-name" title={item.path}>{item.name}</span>
             </div>
             {#if item.status === 'waiting' && !isCompressing}
-              <button class="remove-btn" on:click={() => handleRemove(index)} title={$t('queue.remove_task')}>
+              <button class="remove-btn" onclick={() => onremove?.(index)} title={$t('queue.remove_task')}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="close-icon"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
             {/if}

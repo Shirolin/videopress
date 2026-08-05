@@ -1,20 +1,25 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { SelectFiles } from '../../wailsjs/go/main/App.js';
   import { t } from '../i18n.js';
 
-  export let compact = false;
-  export let disabled = false;
+  let {
+    compact = false,
+    disabled = false,
+    onselect
+  }: {
+    compact?: boolean;
+    disabled?: boolean;
+    onselect?: (files: string[]) => void;
+  } = $props();
 
-  const dispatch = createEventDispatcher();
-  let isDragOver = false;
+  let isDragOver = $state(false);
 
   async function handleClick() {
     if (disabled) return;
     try {
       const files = await SelectFiles();
       if (files && files.length > 0) {
-        dispatch('select', files);
+        onselect?.(files);
       }
     } catch (err) {
       console.error("Select files error:", err);
@@ -49,7 +54,7 @@
         }
       }
       if (files.length > 0) {
-        dispatch('select', files);
+        onselect?.(files);
       }
     }
   }
@@ -57,10 +62,20 @@
 
 <div 
   class="drop-zone glass-panel neon-hover {compact ? 'compact' : ''} {isDragOver ? 'drag-over' : ''} {disabled ? 'disabled' : ''}"
-  on:click={handleClick}
-  on:dragover={handleDragOver}
-  on:dragleave={handleDragLeave}
-  on:drop={handleDrop}
+  role="button"
+  tabindex={disabled ? -1 : 0}
+  aria-disabled={disabled}
+  onclick={handleClick}
+  onkeydown={(e) => {
+    if (disabled) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  }}
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
+  ondrop={handleDrop}
 >
   {#if disabled}
     <div class="compact-content">
