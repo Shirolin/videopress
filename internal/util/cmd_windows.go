@@ -1,13 +1,14 @@
 //go:build windows
 
-package engine
+package util
 
 import (
 	"os/exec"
 	"syscall"
 )
 
-func prepareCmd(cmd *exec.Cmd) {
+// HideConsoleWindow 隐藏子进程控制台窗口，避免 GUI 模式下弹出黑色命令行窗口。
+func HideConsoleWindow(cmd *exec.Cmd) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}

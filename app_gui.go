@@ -137,16 +137,6 @@ func (a *App) StartCompress(req engine.JobRequest) ([]engine.JobReport, error) {
 		return nil, err
 	}
 
-	// Summarize results log
-	reportsByDir := make(map[string][]engine.JobReport)
-	for _, r := range reports {
-		if r.OutputDir != "" {
-			reportsByDir[r.OutputDir] = append(reportsByDir[r.OutputDir], r)
-		}
-	}
-	// We can write to summary log as well (similar to CLI version)
-	// (Implementation omitted or kept simple)
-
 	return reports, nil
 }
 
@@ -378,7 +368,7 @@ func (a *App) ClearDebugLogs() error {
 	// 顺便清除 GPU 缓存以触发重新检测
 	gpuCache := filepath.Join(cacheDir, "videopress_gpu.cache")
 	_ = os.Remove(gpuCache)
-	
+
 	// 重置运行时缓存
 	ffmpeg.ResetGPUEncoderCache()
 	return nil
