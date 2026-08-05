@@ -25,11 +25,16 @@ var EnableConsoleColors = func() {}
 var (
 	systemLangOnce sync.Once
 	cachedLang     string
+	testLang       string // 仅供测试注入，非空时优先返回，避免 CI 多语言环境断言漂移
 )
 
 // systemLanguage 返回系统 UI 语言（zh/en），仅首次调用触发 syscall，之后走缓存。
 func systemLanguage() string {
 	systemLangOnce.Do(func() {
+		if testLang != "" {
+			cachedLang = testLang
+			return
+		}
 		cachedLang = getSystemLanguage()
 	})
 	return cachedLang
@@ -37,8 +42,9 @@ func systemLanguage() string {
 
 // setSystemLanguageForTest 仅供测试覆盖系统语言检测结果，保证多语言环境下的断言稳定。
 func setSystemLanguageForTest(lang string) {
+	testLang = lang
 	systemLangOnce = sync.Once{}
-	cachedLang = lang
+	cachedLang = ""
 }
 
 func colorize(text string, colorCode string) string {

@@ -22,6 +22,29 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// TestSystemLanguageInjection 验证语言注入优先于真实系统检测，
+// 确保英文系统 CI 环境下测试断言仍稳定使用中文。
+func TestSystemLanguageInjection(t *testing.T) {
+	setSystemLanguageForTest("en")
+	if got := systemLanguage(); got != "en" {
+		t.Fatalf("expected injected lang en, got %q", got)
+	}
+	setSystemLanguageForTest("zh")
+	if got := systemLanguage(); got != "zh" {
+		t.Fatalf("expected injected lang zh, got %q", got)
+	}
+	// 清空注入后应回落到真实系统检测
+	setSystemLanguageForTest("")
+	if got := systemLanguage(); got != getSystemLanguage() {
+		t.Fatalf("expected system lang %q, got %q", getSystemLanguage(), got)
+	}
+	// 恢复为 zh，避免影响其余依赖中文断言的多语言环境测试
+	setSystemLanguageForTest("zh")
+	if got := systemLanguage(); got != "zh" {
+		t.Fatalf("expected restored lang zh, got %q", got)
+	}
+}
+
 func TestExecuteUsesStandardPresetByDefault(t *testing.T) {
 	var calls []recordedCall
 	var createdDirs []string
