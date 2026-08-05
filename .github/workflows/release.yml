@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "发布版本号（如 0.2.0），留空则使用当前 git 分支名"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -22,26 +27,43 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Build frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
       - name: Compute version
         id: version
         shell: bash
-        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-      - name: Build
-        run: go build -ldflags "-s -w -X main.version=${{ steps.version.outputs.value }}" -o videopress.exe .
+        run: |
+          VER="${{ inputs.version }}"
+          if [ -z "$VER" ]; then
+            VER="${GITHUB_REF_NAME#v}"
+          fi
+          echo "value=$VER" >> "$GITHUB_OUTPUT"
+      - name: Sync version into wails.json
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'wails.json';
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            j.info.productVersion = process.argv[1];
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+            console.log('productVersion -> ' + process.argv[1]);
+          " "${{ steps.version.outputs.value }}"
+      - name: Install Wails CLI
+        shell: bash
+        run: |
+          WAILS_VER=$(grep 'github.com/wailsapp/wails/v2' go.mod | awk '{print $2}')
+          echo "Installing wails@$WAILS_VER"
+          go install github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VER
+      - name: Build (Wails)
+        run: wails build -clean -ldflags "-s -w -X main.version=${{ steps.version.outputs.value }}"
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: videopress.exe
+          files: build/bin/videopress.exe
           generate_release_notes: true
       - name: Upload build artifact
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: videopress
-          path: videopress.exe
+          path: build/bin/videopress.exe

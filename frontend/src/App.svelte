@@ -122,7 +122,7 @@
   let isCompressing = $state(false);
   let ffmpegError = $state('');
   let showSettings = $state(false);
-  let appVersion = $state('v0.1.0');
+  let appVersion = $state('');
 
   // FFmpeg auto-download state
   let isDownloadingFFmpeg = $state(false);
