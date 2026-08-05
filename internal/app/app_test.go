@@ -16,6 +16,12 @@ type recordedCall struct {
 
 func accessibleInput(_ string) bool { return true }
 
+// TestMain 固定系统语言为中文，保证测试断言不依赖 CI 机器的 UI 语言。
+func TestMain(m *testing.M) {
+	setSystemLanguageForTest("zh")
+	os.Exit(m.Run())
+}
+
 func TestExecuteUsesStandardPresetByDefault(t *testing.T) {
 	var calls []recordedCall
 	var createdDirs []string
@@ -81,7 +87,7 @@ func TestExecuteSkipsNonVideoFilesButKeepsGoing(t *testing.T) {
 		PathExists:      func(path string) bool { return false },
 		InputAccessible: accessibleInput,
 		Stdout:          stdout,
-		Stderr:     stderr,
+		Stderr:          stderr,
 	})
 
 	if exitCode != 0 {

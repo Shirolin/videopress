@@ -1,13 +1,11 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -19,9 +17,29 @@ import (
 	"videopress/internal/util"
 )
 
-const Version = "0.1.0"
+// Version 应用版本号，可在构建时通过 -ldflags "-X main.version=..." 注入。
+var Version = "0.1.0"
 
 var EnableConsoleColors = func() {}
+
+var (
+	systemLangOnce sync.Once
+	cachedLang     string
+)
+
+// systemLanguage 返回系统 UI 语言（zh/en），仅首次调用触发 syscall，之后走缓存。
+func systemLanguage() string {
+	systemLangOnce.Do(func() {
+		cachedLang = getSystemLanguage()
+	})
+	return cachedLang
+}
+
+// setSystemLanguageForTest 仅供测试覆盖系统语言检测结果，保证多语言环境下的断言稳定。
+func setSystemLanguageForTest(lang string) {
+	systemLangOnce = sync.Once{}
+	cachedLang = lang
+}
 
 func colorize(text string, colorCode string) string {
 	return fmt.Sprintf("\033[%sm%s\033[0m", colorCode, text)
@@ -35,29 +53,28 @@ func cyan(text string) string    { return colorize(text, "36") }
 func gray(text string) string    { return colorize(text, "90") }
 
 type Dependencies struct {
-	ExecutableDir          string
-	ExecutablePath         string
-	ResolveBinary          func(dir string) (string, error)
-	RunCommand             func(name string, args []string) error
-	RunCommandWithProgress func(ffmpegPath string, args []string, duration time.Duration, prefix string, stdout io.Writer, simpleProgress bool) error
-	GetDuration            func(ffmpegPath string, inputPath string) (time.Duration, error)
-	DetectGPUEncoder       func(ffmpegPath string, codec string, runCmd func(string, []string) error) string
-	MkdirAll               func(path string, perm os.FileMode) error
-	PathExists             func(path string) bool
-	InputAccessible        func(path string) bool
-	Stdout                 io.Writer
-	Stderr                 io.Writer
-	Stdin                  io.Reader
-	InstallSendTo          func(executablePath string) (string, error)
-	UninstallSendTo        func() error
-	AddToPath              func(dir string) (bool, error)
-	RemoveFromPath         func(dir string) (bool, error)
+	ExecutableDir    string
+	ExecutablePath   string
+	ResolveBinary    func(dir string) (string, error)
+	RunCommand       func(name string, args []string) error
+	GetDuration      func(ffmpegPath string, inputPath string) (time.Duration, error)
+	DetectGPUEncoder func(ffmpegPath string, codec string, runCmd func(string, []string) error) string
+	MkdirAll         func(path string, perm os.FileMode) error
+	PathExists       func(path string) bool
+	InputAccessible  func(path string) bool
+	Stdout           io.Writer
+	Stderr           io.Writer
+	Stdin            io.Reader
+	InstallSendTo    func(executablePath string) (string, error)
+	UninstallSendTo  func() error
+	AddToPath        func(dir string) (bool, error)
+	RemoveFromPath   func(dir string) (bool, error)
 }
 
 type JobReport = engine.JobReport
 
 func getMsg(zh, en string) string {
-	if getSystemLanguage() == "en" {
+	if systemLanguage() == "en" {
 		return en
 	}
 	return zh
@@ -107,61 +124,6 @@ func Execute(args []string, deps Dependencies) int {
 		}
 	}
 	hasCustomRunCommand := deps.RunCommand != nil
-	if deps.RunCommand == nil {
-		deps.RunCommand = runCommand
-	}
-	if deps.RunCommandWithProgress == nil {
-		if hasCustomRunCommand {
-			deps.RunCommandWithProgress = func(ffmpegPath string, args []string, duration time.Duration, prefix string, stdout io.Writer, simpleProgress bool) error {
-				return deps.RunCommand(ffmpegPath, args)
-			}
-		} else {
-			deps.RunCommandWithProgress = func(ffmpegPath string, args []string, duration time.Duration, prefix string, stdout io.Writer, simpleProgress bool) error {
-				finalArgs := make([]string, 0, len(args)+2)
-				finalArgs = append(finalArgs, args...)
-				finalArgs = append(finalArgs, "-progress", "-")
-
-				cmd := exec.Command(ffmpegPath, finalArgs...)
-				stdoutPipe, err := cmd.StdoutPipe()
-				if err != nil {
-					return err
-				}
-				var stderrBuf bytes.Buffer
-				cmd.Stderr = &stderrBuf
-
-				if err := cmd.Start(); err != nil {
-					return err
-				}
-
-				if simpleProgress {
-					fmt.Fprintf(stdout, getMsg("[%s] 开始压缩...\n", "[%s] Starting compression...\n"), prefix)
-					io.Copy(io.Discard, stdoutPipe)
-				} else {
-					if duration > 0 {
-						ffmpeg.TrackProgress(stdoutPipe, duration, func(percent float64) {
-							ffmpeg.RenderProgressBar(stdout, percent, prefix)
-						})
-					} else {
-						io.Copy(io.Discard, stdoutPipe)
-					}
-				}
-
-				err = cmd.Wait()
-				if err != nil {
-					if !simpleProgress {
-						fmt.Fprintln(stdout)
-					}
-					return fmt.Errorf("%w: %s", err, stderrBuf.String())
-				}
-				if !simpleProgress {
-					fmt.Fprintln(stdout)
-				} else {
-					fmt.Fprintf(stdout, getMsg("[%s] 压缩完成\n", "[%s] Compression completed\n"), prefix)
-				}
-				return nil
-			}
-		}
-	}
 	if deps.GetDuration == nil {
 		deps.GetDuration = ffmpeg.GetDuration
 	}
@@ -383,7 +345,7 @@ func Execute(args []string, deps Dependencies) int {
 	fmt.Fprintf(deps.Stdout, " 缩放比例: %s\n", cyan(fmt.Sprintf("%.0f%%", preset.ScaleFactor*100)))
 	fmt.Fprintf(deps.Stdout, " 最大分辨率限制: %s\n", cyan(maxDimStr))
 	fmt.Fprintf(deps.Stdout, " 并发限制: %s\n", cyan(fmt.Sprintf("%d", limit)))
-	
+
 	codecPrint := *codecName
 	if codecPrint == "" {
 		codecPrint = "h264 (自动)"
@@ -451,7 +413,7 @@ func Execute(args []string, deps Dependencies) int {
 			allReports = append(allReports, JobReport{
 				InputName:  filepath.Base(input),
 				OutputDir:  filepath.Dir(defaultOutput),
-				Status:     "跳过",
+				Status:     "skipped",
 				SourceSize: util.GetFileSize(input),
 			})
 			mu.Unlock()
@@ -467,7 +429,7 @@ func Execute(args []string, deps Dependencies) int {
 			continue
 		}
 
-		outputMap[filepath.Base(input)] = output
+		outputMap[input] = output
 		engineFiles = append(engineFiles, input)
 	}
 
@@ -475,12 +437,15 @@ func Execute(args []string, deps Dependencies) int {
 		engDeps := engine.Dependencies{
 			ExecutableDir:    deps.ExecutableDir,
 			ResolveBinary:    deps.ResolveBinary,
-			RunCommand:       deps.RunCommand,
+			RunCommand:       nil, // 生产路径传 nil 解锁引擎进度分析流水线；测试通过注入 mock 保留
 			GetDuration:      deps.GetDuration,
 			DetectGPUEncoder: deps.DetectGPUEncoder,
 			MkdirAll:         deps.MkdirAll,
 			PathExists:       deps.PathExists,
 			InputAccessible:  deps.InputAccessible,
+		}
+		if hasCustomRunCommand {
+			engDeps.RunCommand = deps.RunCommand
 		}
 		eng := engine.NewCompressEngine(engDeps)
 
@@ -504,17 +469,8 @@ func Execute(args []string, deps Dependencies) int {
 					fmt.Fprintf(deps.Stdout, "[%s] 压缩完成\n", ev.File)
 				} else {
 					fmt.Fprintln(deps.Stdout)
-					outPath := outputMap[ev.File]
-					// 还原原有的单文件压缩完成打印，ev.File 此时是 basename
-					// 寻找完整的 input path
-					var fullInput string
-					for _, in := range engineFiles {
-						if filepath.Base(in) == ev.File {
-							fullInput = in
-							break
-						}
-					}
-					fmt.Fprintf(deps.Stdout, "压缩完成: %s -> %s\n", fullInput, outPath)
+					outPath := outputMap[ev.Path]
+					fmt.Fprintf(deps.Stdout, "压缩完成: %s -> %s\n", ev.Path, outPath)
 				}
 				return
 			}
@@ -548,7 +504,7 @@ func Execute(args []string, deps Dependencies) int {
 		}
 
 		for _, r := range reports {
-			if r.Status == "成功" {
+			if r.Status == "success" {
 				successes++
 			} else {
 				failures++
@@ -571,7 +527,7 @@ func Execute(args []string, deps Dependencies) int {
 			fmt.Fprintf(f, "[%s] 开始压缩任务\n", time.Now().Format("2006-01-02 15:04:05"))
 			for _, r := range reps {
 				switch r.Status {
-				case "成功":
+				case "success":
 					saved := 0.0
 					if r.SourceSize > 0 {
 						saved = float64(r.SourceSize-r.TargetSize) / float64(r.SourceSize) * 100.0
@@ -583,9 +539,9 @@ func Execute(args []string, deps Dependencies) int {
 						saved,
 						r.Duration.Round(time.Millisecond).String(),
 					)
-				case "跳过":
+				case "skipped":
 					fmt.Fprintf(f, "跳过: %s (已存在)\n", r.InputName)
-				case "失败":
+				case "failed":
 					fmt.Fprintf(f, "失败: %s (错误信息: %s)\n", r.InputName, r.ErrMessage)
 				}
 			}
@@ -608,11 +564,11 @@ func Execute(args []string, deps Dependencies) int {
 	for _, r := range allReports {
 		var statusStr string
 		switch r.Status {
-		case "成功":
+		case "success":
 			statusStr = green("成功") + "  "
-		case "跳过":
+		case "skipped":
 			statusStr = yellow("跳过") + "  "
-		case "失败":
+		case "failed":
 			statusStr = red("失败") + "  "
 		}
 
@@ -623,18 +579,18 @@ func Execute(args []string, deps Dependencies) int {
 		}
 
 		savedStr := "-"
-		if r.Status == "成功" && r.SourceSize > 0 {
+		if r.Status == "success" && r.SourceSize > 0 {
 			saved := float64(r.SourceSize-r.TargetSize) / float64(r.SourceSize) * 100.0
 			savedStr = fmt.Sprintf("%.1f%%", saved)
 		}
 
 		targetSizeStr := "-"
-		if r.Status == "成功" {
+		if r.Status == "success" {
 			targetSizeStr = fmt.Sprintf("%.1fMB", float64(r.TargetSize)/(1024*1024))
 		}
 
 		durationStr := "-"
-		if r.Status != "跳过" {
+		if r.Status != "skipped" {
 			durationStr = r.Duration.Round(time.Millisecond).String()
 		}
 

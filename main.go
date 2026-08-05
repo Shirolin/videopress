@@ -19,7 +19,14 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// version 可通过构建参数注入：go build -ldflags "-X main.version=1.2.3"
+var version = "0.1.0"
+
 func main() {
+	if version != "" {
+		app.Version = version
+	}
+
 	executablePath, err := os.Executable()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "无法获取可执行文件路径:", err)
