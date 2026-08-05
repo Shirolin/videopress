@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import CustomSelect from './CustomSelect.svelte';
-  import { t, locale } from '../i18n.ts';
+  import { t, locale } from '../i18n.js';
   import { 
     GetPresets, 
     DetectGPUEncoder, 

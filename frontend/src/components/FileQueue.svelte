@@ -1,7 +1,4 @@
-<script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { t } from '../i18n.ts';
-  
+<script context="module" lang="ts">
   export interface QueueItem {
     path: string;
     name: string;
@@ -13,6 +10,11 @@
     error?: string;
     isWarning?: boolean;
   }
+</script>
+
+<script lang="ts">
+  import { createEventDispatcher } from 'svelte';
+  import { t } from '../i18n.js';
 
   export let items: QueueItem[] = [];
   export let isCompressing = false;

@@ -244,8 +244,6 @@ export const translations: Record<string, Record<string, string>> = {
     'btn.start_compress': 'Start Compression',
 
     // Queue Table
-    'queue.clear': 'Clear Queue',
-    // Queue Table
     'queue.title': 'Task Queue',
     'queue.clear': 'Clear Queue',
     'queue.no': 'No.',

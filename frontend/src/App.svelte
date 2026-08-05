@@ -4,7 +4,7 @@
   import CustomSelect from './components/CustomSelect.svelte';
   import FileQueue, { type QueueItem } from './components/FileQueue.svelte';
   import Settings from './components/Settings.svelte';
-  import { t, locale } from './i18n.ts';
+  import { t, locale } from './i18n.js';
   
   import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress, SetDebugMode, GetLanguage, SetLanguage } from '../wailsjs/go/main/App.js';
   import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
@@ -107,8 +107,10 @@
   $: if (crfEnabled !== undefined) localStorage.setItem('videopress_crf_enabled', crfEnabled.toString());
   $: if (crfValue !== undefined) localStorage.setItem('videopress_crf_value', crfValue.toString());
 
-  // 同步语言设置至 Go 后端，重新触发热重写右键注册表项
-  $: if ($locale) {
+  // 同步语言设置至 Go 后端，仅在实际语言变化时调用，避免每次启动重复热写注册表
+  let lastSyncedLang = '';
+  $: if ($locale && $locale !== lastSyncedLang) {
+    lastSyncedLang = $locale;
     SetLanguage($locale).catch(console.error);
   }
 
@@ -205,9 +207,9 @@
   });
 
   function handleProgressEvent(ev: any) {
-    const fileBase = ev.File;
     queueItems = queueItems.map(item => {
-      if (item.name === fileBase) {
+      const matches = ev.Path ? item.path === ev.Path : item.name === ev.File;
+      if (matches) {
         let status = item.status;
         if (ev.Error) {
           status = 'failed';
@@ -263,20 +265,31 @@
     }
   }
 
+  // 与后端 util.IsVideoFile 保持一致的白名单，避免非视频文件永久停留在队列中
+  const VIDEO_EXTENSIONS = new Set([
+    '.mp4', '.mov', '.mkv', '.avi', '.m4v', '.wmv', '.webm',
+    '.ts', '.flv', '.mpg', '.mpeg', '.3gp'
+  ]);
+
   function addFilesToQueue(paths: string[]) {
-    const newItems = paths.map(path => {
-      const name = path.split(/[/\\]/).pop() || path;
-      const isAlreadyCompressed = name.includes('.compressed');
-      return {
-        path,
-        name,
-        size: 0,
-        percent: 0,
-        status: 'waiting' as const,
-        error: isAlreadyCompressed ? '警告：该视频可能已经被压缩过，二次压缩会损害画质。' : undefined,
-        isWarning: isAlreadyCompressed,
-      };
-    });
+    const newItems = paths
+      .filter(path => {
+        const ext = path.slice(path.lastIndexOf('.')).toLowerCase();
+        return VIDEO_EXTENSIONS.has(ext);
+      })
+      .map(path => {
+        const name = path.split(/[/\\]/).pop() || path;
+        const isAlreadyCompressed = name.includes('.compressed');
+        return {
+          path,
+          name,
+          size: 0,
+          percent: 0,
+          status: 'waiting' as const,
+          error: isAlreadyCompressed ? '警告：该视频可能已经被压缩过，二次压缩会损害画质。' : undefined,
+          isWarning: isAlreadyCompressed,
+        };
+      });
 
     // Add only new unique paths
     const existingPaths = new Set(queueItems.map(item => item.path));
@@ -336,15 +349,15 @@
 
       // Update queue items with target results
       queueItems = queueItems.map(item => {
-        const report = reports.find((r: any) => r.InputName === item.name);
+        const report = reports.find((r: any) => r.InputPath ? r.InputPath === item.path : r.InputName === item.name);
         if (report) {
-          let status = 'success' as const;
-          if (report.Status === '跳过') {
-            status = 'skipped' as const;
-          } else if (report.Status === '失败') {
-            status = 'failed' as const;
+          let status: 'success' | 'failed' | 'skipped' = 'success';
+          if (report.Status === 'skipped') {
+            status = 'skipped';
+          } else if (report.Status === 'failed') {
+            status = 'failed';
           }
-          if (report.Status === '成功' && report.OutputDir) {
+          if (report.Status === 'success' && report.OutputDir) {
             lastOutputDir = report.OutputDir;
           }
           return {

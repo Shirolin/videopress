@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { SelectFiles } from '../../wailsjs/go/main/App.js';
-  import { t } from '../i18n.ts';
+  import { t } from '../i18n.js';
 
   export let compact = false;
   export let disabled = false;
@@ -40,8 +40,10 @@
       const files: string[] = [];
       for (let i = 0; i < e.dataTransfer.files.length; i++) {
         const file = e.dataTransfer.files[i];
-        if (file.path) {
-          files.push(file.path);
+        // Wails 拖拽注入的绝对路径位于 File.path 非标准字段上
+        const filePath = (file as any).path;
+        if (filePath) {
+          files.push(filePath);
         } else {
           files.push(file.name);
         }
