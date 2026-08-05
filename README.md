@@ -127,10 +127,13 @@ videopress.exe --install-path
 
 ### 命令行版本直接编译（不包含 GUI 界面）
 
-若你仅需要纯命令行版本，可直接使用 Go 编译：
+若你仅需要纯命令行版本，可直接使用 Go 编译（程序主包位于仓库根目录，编译前需先构建前端资源，因为 `main.go` 通过 `go:embed` 打包前端）：
 ```powershell
-# 编译 CLI 静态程序
-go build -o .\bin\videopress.exe .\main.go
+# 1. 构建前端资源（生成 frontend/dist，仅首次或前端变更后需要）
+cd frontend; npm install; npm run build; cd ..
+
+# 2. 编译 CLI 静态程序
+go build -o .\bin\videopress.exe .
 ```
 
 ### GUI+CLI 双入口完整版编译（推荐）

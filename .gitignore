@@ -15,10 +15,10 @@ frontend/dist/
 frontend/package.json.md5
 
 # Local FFmpeg Binaries (prevent heavy media tools checkin)
-ffmpeg
-ffmpeg.exe
-ffprobe
-ffprobe.exe
+/ffmpeg
+/ffmpeg.exe
+/ffprobe
+/ffprobe.exe
 
 # Testing and Coverage
 coverage.out
