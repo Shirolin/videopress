@@ -4,9 +4,36 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"unsafe"
 
 	"golang.org/x/sys/windows/registry"
 )
+
+var (
+	user32                  = syscall.NewLazyDLL("user32.dll")
+	procSendMessageTimeoutW = user32.NewProc("SendMessageTimeoutW")
+)
+
+const (
+	wmSettingChange = 0x001A
+	hwndBroadcast   = 0xFFFF
+)
+
+// broadcastEnvironmentChange 广播 WM_SETTINGCHANGE，让 Explorer 刷新环境变量缓存。
+// 否则已打开的进程与新终端可能读不到刚写入的 Path。
+func broadcastEnvironmentChange() {
+	s, _ := syscall.UTF16PtrFromString("Environment")
+	procSendMessageTimeoutW.Call(
+		uintptr(hwndBroadcast),
+		uintptr(wmSettingChange),
+		0,
+		uintptr(unsafe.Pointer(s)),
+		uintptr(0x0002), // SMTO_ABORTIFHUNG
+		5000,
+		0,
+	)
+}
 
 type GetPathFunc func() (string, error)
 type SetPathFunc func(string) error
@@ -134,5 +161,6 @@ func setPath(newPath string) error {
 	if err != nil {
 		return fmt.Errorf("写入 Path 变量失败: %w", err)
 	}
+	broadcastEnvironmentChange()
 	return nil
 }

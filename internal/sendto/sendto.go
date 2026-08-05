@@ -95,7 +95,15 @@ func UninstallStartMenu() error {
 		return err
 	}
 	appDir := filepath.Join(startMenuDir, startMenuSubDir)
-	return os.RemoveAll(appDir)
+	lnkPath := filepath.Join(appDir, appLnkName)
+	if _, err := os.Stat(lnkPath); err == nil {
+		if err := os.Remove(lnkPath); err != nil {
+			return err
+		}
+	}
+	// 仅删除空目录；若用户曾向该目录放入其他文件则静默保留
+	_ = os.Remove(appDir)
+	return nil
 }
 
 // RegisterContextMenu 注册右键直接压缩菜单 (注册表 HKCU，免管理员)
@@ -144,11 +152,13 @@ func UnregisterContextMenu() error {
 }
 
 func createLnk(lnkPath string, targetPath string, arguments string) error {
-	psCmd := fmt.Sprintf(
-		`$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%s'); $Shortcut.TargetPath = '%s'; $Shortcut.Arguments = '%s'; $Shortcut.Save()`,
-		lnkPath, targetPath, arguments,
-	)
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", psCmd)
+	psScript := `param($lnkPath, $targetPath, $arguments);` +
+		`$WshShell = New-Object -ComObject WScript.Shell;` +
+		`$Shortcut = $WshShell.CreateShortcut($lnkPath);` +
+		`$Shortcut.TargetPath = $targetPath;` +
+		`$Shortcut.Arguments = $arguments;` +
+		`$Shortcut.Save()`
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", psScript, lnkPath, targetPath, arguments)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
 		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
@@ -219,4 +229,3 @@ func IsContextMenuInstalled() bool {
 	defer k.Close()
 	return true
 }
-
