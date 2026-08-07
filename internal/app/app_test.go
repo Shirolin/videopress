@@ -321,7 +321,6 @@ func TestExecuteConcurrency(t *testing.T) {
 
 func TestExecuteSendToMode(t *testing.T) {
 	stdout := &bytes.Buffer{}
-	stdin := strings.NewReader("\n")
 
 	exitCode := Execute([]string{"--sendto", `C:\videos\clip.mp4`}, Dependencies{
 		ExecutableDir:  `C:\tools`,
@@ -337,14 +336,16 @@ func TestExecuteSendToMode(t *testing.T) {
 		InputAccessible: accessibleInput,
 		Stdout:          stdout,
 		Stderr:          &bytes.Buffer{},
-		Stdin:           stdin,
+		SendToNotify: func(executablePath string, title, body string) error {
+			return nil
+		},
 	})
 
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d", exitCode)
 	}
-	if !strings.Contains(stdout.String(), "秒后自动关闭") {
-		t.Fatalf("expected sendto exit prompt with countdown, got %s", stdout.String())
+	if strings.Contains(stdout.String(), "秒后自动关闭") {
+		t.Fatalf("sendto mode should be silent with no countdown, got %s", stdout.String())
 	}
 }
 

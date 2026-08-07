@@ -67,15 +67,6 @@ func main() {
 	}
 
 	if isCLIMode {
-		// SendTo 由 Explorer 触发时进程没有控制台，先分配可见窗口以显示压缩进度
-		consoleAttached := false
-		for _, arg := range os.Args[1:] {
-			if strings.EqualFold(arg, "--sendto") {
-				consoleAttached = app.AttachSendToConsole()
-				break
-			}
-		}
-
 		exitCode := app.Execute(os.Args[1:], app.Dependencies{
 			ExecutableDir:   execDir,
 			ExecutablePath:  executablePath,
@@ -86,10 +77,6 @@ func main() {
 			AddToPath:       env.AddToPath,
 			RemoveFromPath:  env.RemoveFromPath,
 		})
-
-		if consoleAttached {
-			app.DetachConsole()
-		}
 		os.Exit(exitCode)
 	}
 

@@ -14,6 +14,7 @@ import (
 	"videopress/internal/compress"
 	"videopress/internal/engine"
 	"videopress/internal/ffmpeg"
+	"videopress/internal/notify"
 	"videopress/internal/util"
 )
 
@@ -75,6 +76,8 @@ type Dependencies struct {
 	UninstallSendTo  func() error
 	AddToPath        func(dir string) (bool, error)
 	RemoveFromPath   func(dir string) (bool, error)
+	// SendToNotify 在 SendTo 静默压缩结束时发送系统通知（title/body 已按语言生成）。
+	SendToNotify func(executablePath string, title, body string) error
 }
 
 type JobReport = engine.JobReport
@@ -84,6 +87,25 @@ func getMsg(zh, en string) string {
 		return en
 	}
 	return zh
+}
+
+// sendToNotify 发送 SendTo 静默压缩的系统通知，并确保 Toast 所需的 AUMID 快捷方式存在。
+func sendToNotify(executablePath string, title, body string) error {
+	if executablePath != "" {
+		_ = notify.EnsureShortcut(executablePath)
+	}
+	return notify.Notify(title, body)
+}
+
+func sendToResultTitle(successes, failures int) string {
+	if failures > 0 {
+		return getMsg("压缩完成，存在失败", "Compression finished with failures")
+	}
+	return getMsg("压缩完成", "Compression complete")
+}
+
+func sendToResultBody(successes, failures int) string {
+	return fmt.Sprintf(getMsg("成功 %d 个，失败 %d 个", "Succeeded: %d, Failed: %d"), successes, failures)
 }
 
 func printUsage(w io.Writer) {
@@ -159,6 +181,9 @@ func Execute(args []string, deps Dependencies) int {
 		deps.RemoveFromPath = func(dir string) (bool, error) {
 			return false, fmt.Errorf("未配置 RemoveFromPath")
 		}
+	}
+	if deps.SendToNotify == nil {
+		deps.SendToNotify = sendToNotify
 	}
 
 	for _, arg := range args {
@@ -278,9 +303,7 @@ func Execute(args []string, deps Dependencies) int {
 	if len(files) == 0 {
 		printUsage(deps.Stderr)
 		if *sendToMode {
-			fmt.Fprintln(deps.Stdout, "\n未指定视频文件。按回车键退出...")
-			var b [1]byte
-			deps.Stdin.Read(b[:])
+			_ = deps.SendToNotify(deps.ExecutablePath, getMsg("压缩失败", "Compression failed"), getMsg("未指定视频文件", "No video files specified"))
 		}
 		return 1
 	}
@@ -300,9 +323,7 @@ func Execute(args []string, deps Dependencies) int {
 	if err != nil {
 		fmt.Fprintln(deps.Stderr, red(err.Error()))
 		if *sendToMode {
-			fmt.Fprintln(deps.Stdout, "\n预设无效。按回车键退出...")
-			var b [1]byte
-			deps.Stdin.Read(b[:])
+			_ = deps.SendToNotify(deps.ExecutablePath, getMsg("压缩失败", "Compression failed"), getMsg("预设无效", "Invalid preset"))
 		}
 		return 1
 	}
@@ -311,9 +332,7 @@ func Execute(args []string, deps Dependencies) int {
 	if err != nil {
 		fmt.Fprintln(deps.Stderr, red(err.Error()))
 		if *sendToMode {
-			fmt.Fprintln(deps.Stdout, "\n未找到 FFmpeg。按回车键退出...")
-			var b [1]byte
-			deps.Stdin.Read(b[:])
+			_ = deps.SendToNotify(deps.ExecutablePath, getMsg("压缩失败", "Compression failed"), getMsg("未找到 FFmpeg，请安装后重试", "FFmpeg not found, please install and retry"))
 		}
 		return 1
 	}
@@ -619,50 +638,8 @@ func Execute(args []string, deps Dependencies) int {
 	}
 
 	if *sendToMode {
-		fmt.Fprintln(deps.Stdout)
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
-		countdown := 5
-
-		doneChan := make(chan bool)
-		inputChan := make(chan bool)
-
-		go func() {
-			for {
-				select {
-				case <-doneChan:
-					return
-				default:
-					if hasKey() {
-						_ = readKey() // 消费按键
-						inputChan <- true
-						return
-					}
-					time.Sleep(50 * time.Millisecond)
-				}
-			}
-		}()
-
-		fmt.Fprintf(deps.Stdout, "处理完成。%d 秒后自动关闭（或按任意键立即关闭）...   \r", countdown)
-
-		for countdown > 0 {
-			select {
-			case <-ticker.C:
-				countdown--
-				if countdown <= 0 {
-					close(doneChan)
-					fmt.Fprint(deps.Stdout, "\n")
-					return exitCode
-				}
-				fmt.Fprintf(deps.Stdout, "处理完成。%d 秒后自动关闭（或按任意键立即关闭）...   \r", countdown)
-			case <-inputChan:
-				close(doneChan)
-				fmt.Fprint(deps.Stdout, "\n")
-				return exitCode
-			}
-		}
+		_ = deps.SendToNotify(deps.ExecutablePath, sendToResultTitle(successes, failures), sendToResultBody(successes, failures))
 	}
-
 	return exitCode
 }
 
