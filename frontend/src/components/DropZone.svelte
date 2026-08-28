@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SelectFiles } from '../../wailsjs/go/main/App.js';
+  import { SelectFiles } from '../../wailsjs/go/gui/App.js';
   import { t } from '../i18n.js';
 
   let {

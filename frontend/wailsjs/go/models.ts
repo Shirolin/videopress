@@ -9,11 +9,11 @@ export namespace engine {
 	    TargetSize: number;
 	    Duration: number;
 	    ErrMessage: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new JobReport(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.InputName = source["InputName"];
@@ -63,7 +63,7 @@ export namespace engine {
 
 }
 
-export namespace main {
+export namespace gui {
 	
 	export class PresetInfo {
 	    name: string;

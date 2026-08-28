@@ -1,4 +1,4 @@
-package app
+package cli
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"videopress/internal/locale"
 )
 
 type recordedCall struct {
@@ -35,8 +37,8 @@ func TestSystemLanguageInjection(t *testing.T) {
 	}
 	// 清空注入后应回落到真实系统检测
 	setSystemLanguageForTest("")
-	if got := systemLanguage(); got != getSystemLanguage() {
-		t.Fatalf("expected system lang %q, got %q", getSystemLanguage(), got)
+	if got := systemLanguage(); got != locale.System() {
+		t.Fatalf("expected system lang %q, got %q", locale.System(), got)
 	}
 	// 恢复为 zh，避免影响其余依赖中文断言的多语言环境测试
 	setSystemLanguageForTest("zh")

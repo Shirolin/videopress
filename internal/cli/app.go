@@ -1,4 +1,4 @@
-package app
+package cli
 
 import (
 	"context"
@@ -14,11 +14,12 @@ import (
 	"videopress/internal/compress"
 	"videopress/internal/engine"
 	"videopress/internal/ffmpeg"
+	"videopress/internal/locale"
 	"videopress/internal/notify"
 	"videopress/internal/util"
 )
 
-// Version 应用版本号，可在构建时通过 -ldflags "-X main.version=..." 注入。
+// Version 应用版本号，可在构建时通过 -ldflags "-X videopress/internal/cli.Version=..." 注入。
 var Version = "0.1.0"
 
 var EnableConsoleColors = func() {}
@@ -36,7 +37,7 @@ func systemLanguage() string {
 			cachedLang = testLang
 			return
 		}
-		cachedLang = getSystemLanguage()
+		cachedLang = locale.System()
 	})
 	return cachedLang
 }

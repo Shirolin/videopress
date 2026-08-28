@@ -5,10 +5,18 @@
   import CustomSelect from './components/CustomSelect.svelte';
   import FileQueue, { type QueueItem } from './components/FileQueue.svelte';
   import Settings from './components/Settings.svelte';
+  import WindowControls from './components/WindowControls.svelte';
   import { t, locale } from './i18n.js';
   
-  import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress, SetDebugMode, GetLanguage, SetLanguage } from '../wailsjs/go/main/App.js';
-  import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
+  import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress, SetDebugMode, GetLanguage, SetLanguage } from '../wailsjs/go/gui/App.js';
+  import { EventsOn, EventsOff, WindowToggleMaximise, WindowIsMaximised } from '../wailsjs/runtime/runtime.js';
+
+  let isMaximised = $state(false);
+
+  async function handleHeaderDblClick() {
+    WindowToggleMaximise();
+    isMaximised = await WindowIsMaximised();
+  }
 
   let queueItems = $state<QueueItem[]>([]);
   
@@ -428,22 +436,26 @@
 </script>
 
 <div class="app-layout" role="presentation" ondragover={(e) => e.preventDefault()} ondrop={(e) => e.preventDefault()}>
-  <!-- Top Navigation Bar -->
-  <header class="app-header hem-panel">
-    <div class="brand">
-      <div class="logo-box">
-        <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="23 7 16 12 23 17 23 7"></polygon>
-          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-        </svg>
-      </div>
-      <div class="brand-text">
-        <h1>Videopress</h1>
-        <span class="brand-sub">压片</span>
-        <span class="badge">{appVersion}</span>
+  <header class="app-header" style="--wails-draggable: drag">
+    <div class="header-brand" style="--wails-draggable:no-drag">
+      <div class="brand">
+        <div class="logo-box">
+          <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="23 7 16 12 23 17 23 7"></polygon>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Videopress</h1>
+          <span class="brand-sub">压片</span>
+          <span class="badge">{appVersion}</span>
+        </div>
       </div>
     </div>
-    
+
+    <div class="header-spacer" ondblclick={handleHeaderDblClick}></div>
+
+    <div class="header-actions" style="--wails-draggable:no-drag">
       <div class="segmented-control" style="height: 32px;">
         <button 
           class="segment-btn {!showSettings ? 'active' : ''}" 
@@ -469,8 +481,11 @@
           {$t('nav.settings')}
         </button>
       </div>
+      <WindowControls bind:maximised={isMaximised} />
+    </div>
   </header>
 
+  <div class="app-body">
   <!-- Main Responsive Workspace -->
   <div class="workspace">
     {#if ffmpegError && !showSettings}
@@ -801,6 +816,7 @@
       </div>
     {/if}
   </div>
+  </div>
 </div>
 
 <style>
@@ -808,20 +824,54 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    overflow: hidden;
+  }
+
+  .app-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     padding: 0.8rem 1rem;
     gap: 0.8rem;
     max-width: 960px;
+    width: 100%;
     margin: 0 auto;
-    overflow: hidden; /* Lock the global viewport */
+    overflow: hidden;
+    min-height: 0;
   }
 
   .app-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.6rem 1.1rem;
+    align-items: stretch;
+    width: 100%;
     height: 52px;
-    flex-shrink: 0;      /* Header never shrinks */
+    flex-shrink: 0;
+    background: var(--desk-hem);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .header-brand {
+    display: flex;
+    align-items: center;
+    padding: 0 0.6rem 0 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .header-spacer {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: stretch;
+    flex-shrink: 0;
+    gap: 0.6rem;
+    padding-left: 0.6rem;
+  }
+
+  .header-actions .segmented-control {
+    align-self: center;
   }
 
   .brand {

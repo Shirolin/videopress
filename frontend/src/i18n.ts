@@ -13,6 +13,12 @@ export const translations: Record<string, Record<string, string>> = {
     'nav.workspace': '主工作区',
     'nav.settings': '配置面板',
 
+    // Window controls
+    'window.minimize': '最小化',
+    'window.maximize': '最大化',
+    'window.restore': '还原',
+    'window.close': '关闭',
+
     // Dropzone
     'dropzone.title': '拖入视频文件',
     'dropzone.sub': '或点击选择',
@@ -202,6 +208,12 @@ export const translations: Record<string, Record<string, string>> = {
     // Navigation
     'nav.workspace': 'Workspace',
     'nav.settings': 'Settings',
+
+    // Window controls
+    'window.minimize': 'Minimize',
+    'window.maximize': 'Maximize',
+    'window.restore': 'Restore',
+    'window.close': 'Close',
 
     // Dropzone
     'dropzone.title': 'Drop video files here',

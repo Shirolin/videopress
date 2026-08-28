@@ -54,7 +54,7 @@ jobs:
           echo "Installing wails@$WAILS_VER"
           go install github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VER
       - name: Build (Wails)
-        run: wails build -clean -ldflags "-s -w -X main.version=${{ steps.version.outputs.value }}"
+        run: wails build -clean -ldflags "-s -w -X videopress/internal/cli.Version=${{ steps.version.outputs.value }}"
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2

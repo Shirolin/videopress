@@ -125,15 +125,16 @@ videopress.exe --install-path
 
 若需从源码构建，请确保你的本地已安装 Go 1.26+ 环境：
 
-### 命令行版本直接编译（不包含 GUI 界面）
+### 命令行版本直接编译
 
-若你仅需要纯命令行版本，可直接使用 Go 编译（程序主包位于仓库根目录，编译前需先构建前端资源，因为 `main.go` 通过 `go:embed` 打包前端）：
+若仅需验证 Go 编译（含嵌入的前端资源），需先构建前端：
+
 ```powershell
-# 1. 构建前端资源（生成 frontend/dist，仅首次或前端变更后需要）
+# 1. 构建前端资源
 cd frontend; npm install; npm run build; cd ..
 
-# 2. 编译 CLI 静态程序
-go build -o .\bin\videopress.exe .
+# 2. 编译（产物可指定任意路径）
+go build -o .\build\bin\videopress.exe .
 ```
 
 ### GUI+CLI 双入口完整版编译（推荐）
@@ -150,4 +151,5 @@ wails dev
 # 3. 编译发布 Windows 完整版单文件程序
 wails build
 ```
-编译生成的 `videopress.exe` 将输出在根目录下，双击即可启动高颜值 GUI 界面，拖入命令行即可执行 CLI 压缩。
+
+编译生成的 `videopress.exe` 输出在 `build/bin/` 目录。项目结构说明见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，视觉规范见 [`docs/DESIGN.md`](docs/DESIGN.md)。

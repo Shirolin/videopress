@@ -1,55 +1,64 @@
-# Binaries and Build Artifacts
-bin/
-dist/
-build/bin/
+# --- Build artifacts ---
+/build/bin/
+/bin/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+
+# --- Go ---
 *.test
 *.prof
+coverage.out
+*.coverprofile
 .gopath/
+
+# --- Frontend ---
 frontend/node_modules/
 frontend/dist/
 frontend/package.json.md5
+**/.vite-temp/
 
-# Local FFmpeg Binaries (prevent heavy media tools checkin)
+# --- Local FFmpeg (do not commit binaries) ---
 /ffmpeg
 /ffmpeg.exe
 /ffprobe
 /ffprobe.exe
 
-# Testing and Coverage
-coverage.out
-*.coverprofile
-*.test
-
-# Local Output & Logs
+# --- Runtime output ---
 compressed/
-*.log
 compress_summary.log
+*.log
+
+# --- Package manager logs ---
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Environment configs
+# --- Environment ---
 .env
 .env*.local
 
-# IDEs and Text Editors
+# --- IDE ---
 .idea/
 .vscode/
+!frontend/.vscode/
+!frontend/.vscode/**
 *.suo
 *.ntvs*
 *.user
 *.sln
 *.docstates
 
-# System Files
+# --- OS ---
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
+
+# --- Local AI / agent tool caches ---
+.agents/
+.codex/

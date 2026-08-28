@@ -51,6 +51,13 @@ Videopress 是 Windows 桌面视频压缩工具。界面隐喻为**暖色暗金�
 
 `.hem-panel`：不透明 `--desk-hem` 背景，`1px solid var(--rule)` 边框，`border-radius: var(--radius)`。无 `backdrop-filter`、无光晕、无渐变边框。
 
+## 标题栏
+
+- 无边框窗口，顶栏 `--desk-hem` 全宽贴顶，底边 `--rule` 分隔
+- 品牌、导航、窗口按钮为 `no-drag`；中间空白区可拖拽移动窗口
+- 窗口按钮（最小化 / 最大化 / 关闭）为功能性控件，关闭 hover 使用 `--danger`
+- 双击空白拖拽区切换最大化
+
 ## 签名动效（唯一）
 
 队列项变为完成时：行 `translateY(1px)` 按压感 + 钨色进度条填满，`180–220ms cubic-bezier(0.16, 1, 0.3, 1)`。空态拖放区落定 `8px`。其余交互保持安静。`prefers-reduced-motion: reduce` 时跳过。
