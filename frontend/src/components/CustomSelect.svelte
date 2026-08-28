@@ -56,7 +56,7 @@
   <!-- Trigger Button -->
   <button 
     type="button"
-    class="select-trigger glass-panel {isOpen ? 'focused' : ''} {disabled ? 'disabled' : ''}" 
+    class="select-trigger hem-panel {isOpen ? 'focused' : ''} {disabled ? 'disabled' : ''}" 
     onclick={toggleOpen}
     {disabled}
   >
@@ -75,7 +75,7 @@
 
   <!-- Options Menu -->
   {#if isOpen}
-    <div class="options-menu glass-panel" transition:slide={{ duration: 180 }}>
+    <div class="options-menu hem-panel" transition:slide={{ duration: 180 }}>
       <div class="options-list">
         {#each options as option}
           <div 
@@ -122,26 +122,25 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: rgba(18, 18, 24, 0.55) !important;
-    border: 1px solid var(--border-color);
+    background: var(--desk-inset) !important;
+    border: 1px solid var(--rule);
     padding: 0.5rem 0.9rem;
-    border-radius: 8px;
-    color: var(--text-primary);
+    border-radius: var(--radius);
+    color: var(--ink);
     cursor: pointer;
     text-align: left;
     outline: none;
     font-size: 0.8rem;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: border-color 0.15s ease, background 0.15s ease;
   }
 
   .select-trigger:hover:not(.disabled) {
-    border-color: rgba(255, 255, 255, 0.15);
-    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: var(--rule-strong);
+    background: var(--desk-hem) !important;
   }
 
   .select-trigger.focused {
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+    border-color: var(--tungsten);
   }
 
   .select-trigger.disabled {
@@ -184,22 +183,19 @@
 
   .arrow-icon.rotated {
     transform: rotate(180deg);
-    color: var(--accent-purple);
+    color: var(--tungsten);
   }
 
-  /* Popover list styling */
   .options-menu {
     position: absolute;
     top: calc(100% + 5px);
     right: 0;
     width: 100%;
     z-index: 999;
-    background: rgba(12, 12, 16, 0.92) !important;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    background: var(--desk-hem) !important;
+    border: 1px solid var(--rule-strong);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
     overflow: hidden;
   }
 
@@ -221,15 +217,13 @@
   }
 
   .option-item:hover {
-    background: rgba(168, 85, 247, 0.1);
-    color: var(--text-primary);
+    background: var(--desk-inset);
+    color: var(--ink);
   }
 
   .option-item.selected {
-    background: rgba(168, 85, 247, 0.2);
-    border-left: 2.5px solid var(--accent-purple);
-    border-top-left-radius: 2px;
-    border-bottom-left-radius: 2px;
+    background: var(--desk-inset);
+    border-left: 2px solid var(--tungsten);
   }
 
   .option-text-group {
@@ -256,7 +250,7 @@
   .check-icon {
     width: 12px;
     height: 12px;
-    color: var(--accent-purple);
+    color: var(--tungsten);
     flex-shrink: 0;
   }
 </style>

@@ -429,7 +429,7 @@
 
 <div class="app-layout" role="presentation" ondragover={(e) => e.preventDefault()} ondrop={(e) => e.preventDefault()}>
   <!-- Top Navigation Bar -->
-  <header class="app-header glass-panel">
+  <header class="app-header hem-panel">
     <div class="brand">
       <div class="logo-box">
         <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -439,6 +439,7 @@
       </div>
       <div class="brand-text">
         <h1>Videopress</h1>
+        <span class="brand-sub">压片</span>
         <span class="badge">{appVersion}</span>
       </div>
     </div>
@@ -474,7 +475,7 @@
   <div class="workspace">
     {#if ffmpegError && !showSettings}
       <!-- FFmpeg 缺失自配置面板 -->
-      <div class="setup-container glass-panel">
+      <div class="setup-container hem-panel">
         <div class="setup-header">
           <svg class="setup-logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>
@@ -527,13 +528,13 @@
       <div class="dashboard">
         <!-- Stats Dashboard Banner (Only visible when items exist) -->
         {#if totalCount > 0}
-          <div class="stats-banner glass-panel">
+          <div class="stats-banner hem-panel">
             <div class="stat-card">
               <span class="val">{totalCount}</span>
               <span class="label">{$t('stats.total')}</span>
             </div>
             <div class="stat-card">
-              <span class="val text-purple">
+              <span class="val text-tungsten">
                 {#if compressingCount > 0}
                   {compressingCount} <span class="mini-status">{$t('stats.processing')}</span>
                 {:else if waitingCount > 0}
@@ -549,14 +550,14 @@
               <span class="label">{$t('stats.saved_space')}</span>
             </div>
             <div class="stat-card">
-              <span class="val text-magenta">{averageRatio}</span>
+              <span class="val text-dim">{averageRatio}</span>
               <span class="label">{$t('stats.avg_ratio')}</span>
             </div>
           </div>
         {/if}
 
         <!-- Quick Controls Panel (Preset selector and custom output path) -->
-        <div class="quick-controls-panel glass-panel">
+        <div class="quick-controls-panel hem-panel">
           <!-- Preset tabs -->
           <div class="control-group">
             <span class="control-label">
@@ -645,7 +646,7 @@
         </div>
 
         <!-- Advanced Settings Panel -->
-        <div class="advanced-settings-panel glass-panel {showAdvanced ? 'show' : ''}">
+        <div class="advanced-settings-panel hem-panel {showAdvanced ? 'show' : ''}">
           <div class="advanced-grid">
             <div class="advanced-group">
               <span class="control-label">{$t('advanced.video_codec')}</span>
@@ -833,43 +834,49 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(217, 70, 239, 0.2) 100%);
-    border: 1px solid rgba(168, 85, 247, 0.3);
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
     padding: 0.4rem;
-    border-radius: 8px;
-    box-shadow: 0 0 12px rgba(168, 85, 247, 0.1);
+    border-radius: var(--radius);
   }
 
   .logo-icon {
     width: 16px;
     height: 16px;
-    color: var(--accent-purple);
+    color: var(--tungsten);
   }
 
   .brand-text {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    align-items: baseline;
+    gap: 0.45rem;
   }
 
   h1 {
     font-size: 1.05rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    font-family: var(--font-wordmark);
+  }
+
+  .brand-sub {
+    font-family: var(--font-wordmark);
+    font-weight: 600;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.02em;
   }
 
   .badge {
     font-size: 0.62rem;
-    font-weight: 750;
-    background: rgba(168, 85, 247, 0.12);
-    color: var(--accent-purple);
+    font-weight: 600;
+    font-family: var(--font-mono);
+    background: var(--desk-inset);
+    color: var(--ink-dim);
     padding: 0.1rem 0.35rem;
-    border-radius: 4px;
-    border: 1px solid rgba(168, 85, 247, 0.15);
+    border-radius: 3px;
+    border: 1px solid var(--rule);
   }
 
   .nav-icon {
@@ -899,8 +906,6 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     padding: 0.75rem 0.5rem;
-    background: rgba(255, 255, 255, 0.015);
-    border-radius: 12px;
     flex-shrink: 0;
   }
 
@@ -918,11 +923,12 @@
 
   .stat-card .val {
     font-size: 0.95rem;
-    font-weight: 800;
-    color: var(--text-primary);
+    font-weight: 700;
+    color: var(--ink);
     display: flex;
     align-items: baseline;
     gap: 0.15rem;
+    font-family: var(--font-mono);
   }
 
   .mini-status {
@@ -938,18 +944,15 @@
     margin-top: 0.15rem;
   }
 
-  .text-purple { color: var(--accent-purple) !important; }
-  .text-green { color: var(--accent-green) !important; }
-  .text-magenta { color: var(--accent-magenta) !important; }
+  .text-tungsten { color: var(--tungsten) !important; }
+  .text-green { color: var(--ok) !important; }
+  .text-dim { color: var(--ink-dim) !important; }
 
-  /* Quick Controls Panel Styling */
   .quick-controls-panel {
     display: flex;
     gap: 1.2rem;
     padding: 0.8rem 1.1rem;
     align-items: flex-end;
-    background: rgba(255, 255, 255, 0.012) !important;
-    border-radius: 12px;
     flex-shrink: 0;
     position: relative;
     z-index: 10;
@@ -975,43 +978,39 @@
 
   .control-label {
     font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-weight: 600;
+    color: var(--ink-faint);
   }
 
-  /* Segmented Preset Switcher */
   .segmented-control {
     display: flex;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--border-color);
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
     padding: 2px;
-    border-radius: 8px;
+    border-radius: var(--radius);
     height: 32px;
   }
 
   .segment-btn {
     border: none;
     background: transparent;
-    color: var(--text-secondary);
+    color: var(--ink-dim);
     font-size: 0.76rem;
     font-weight: 600;
     padding: 0 0.85rem;
-    border-radius: 6px;
+    border-radius: 3px;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: color 0.15s ease, background 0.15s ease;
     white-space: nowrap;
   }
 
   .segment-btn:hover:not(:disabled) {
-    color: var(--text-primary);
+    color: var(--ink);
   }
 
   .segment-btn.active {
-    background: var(--accent-purple-gradient);
-    color: white;
-    box-shadow: var(--shadow-sm);
+    background: var(--tungsten);
+    color: var(--tungsten-ink);
   }
 
   .segment-btn:disabled {
@@ -1022,9 +1021,9 @@
   /* Output Path Bar Container */
   .path-bar-container {
     display: flex;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
     height: 32px;
     padding: 2px;
     align-items: center;
@@ -1044,17 +1043,17 @@
   .path-icon {
     width: 13px;
     height: 13px;
-    color: var(--accent-purple);
+    color: var(--tungsten);
     flex-shrink: 0;
   }
 
   .path-text {
     font-size: 0.75rem;
-    color: var(--text-secondary);
+    color: var(--ink-dim);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-weight: 550;
+    font-weight: 500;
   }
 
   .path-actions {
@@ -1067,33 +1066,33 @@
 
   .path-btn {
     border: none;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
+    background: var(--desk-hem);
+    border: 1px solid var(--rule);
+    color: var(--ink);
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: 600;
     height: 24px;
     padding: 0 0.6rem;
-    border-radius: 5px;
+    border-radius: 3px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background 0.15s, border-color 0.15s;
     white-space: nowrap;
   }
 
   .path-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.12);
+    background: var(--desk-inset);
+    border-color: var(--rule-strong);
   }
 
   .path-btn.reset {
-    color: var(--accent-red);
-    background: rgba(244, 63, 94, 0.04);
-    border-color: rgba(244, 63, 94, 0.1);
+    color: var(--danger);
+    background: var(--desk-hem);
+    border-color: var(--rule);
   }
 
   .path-btn.reset:hover:not(:disabled) {
-    background: rgba(244, 63, 94, 0.12);
-    border-color: rgba(244, 63, 94, 0.2);
+    background: var(--desk-inset);
+    border-color: var(--danger);
   }
 
   .path-btn:disabled {
@@ -1112,64 +1111,65 @@
     flex: 1;
     height: 44px;
     border: none;
-    border-radius: 10px;
-    background: var(--accent-purple-gradient);
-    color: white;
+    border-radius: var(--radius);
+    background: var(--tungsten);
+    color: var(--tungsten-ink);
     font-size: 0.85rem;
-    font-weight: 750;
+    font-weight: 700;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    box-shadow: 0 4px 14px rgba(168, 85, 247, 0.25);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background 0.15s ease, transform 0.15s ease;
   }
 
   .compress-trigger-btn.cancel-btn {
-    background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
-    box-shadow: 0 4px 14px rgba(244, 63, 94, 0.25);
+    background: var(--desk-inset);
+    color: var(--ink-dim);
+    border: 1px solid var(--rule);
   }
 
   .compress-trigger-btn.cancel-btn:hover:not(:disabled) {
-    box-shadow: 0 6px 18px rgba(244, 63, 94, 0.4);
+    background: var(--desk-hem);
+    color: var(--danger);
+    border-color: var(--danger);
   }
 
   .compress-trigger-btn:hover:not(:disabled) {
-    transform: translateY(-1.5px);
-    box-shadow: 0 6px 18px rgba(168, 85, 247, 0.4);
+    background: var(--tungsten-hover);
   }
 
   .compress-trigger-btn:active:not(:disabled) {
-    transform: translateY(0);
+    background: var(--tungsten-press);
+    transform: translateY(1px);
   }
 
   .compress-trigger-btn:disabled {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--border-color);
-    color: var(--text-muted);
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
+    color: var(--ink-faint);
     cursor: not-allowed;
-    box-shadow: none;
   }
 
   .btn-folder {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
+    color: var(--ink);
     padding: 0 1rem;
-    border-radius: 10px;
+    border-radius: var(--radius);
     font-size: 0.8rem;
-    font-weight: 650;
+    font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    transition: all 0.2s;
+    transition: background 0.15s, border-color 0.15s;
   }
 
   .btn-folder:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.12);
+    background: var(--desk-hem);
+    border-color: var(--rule-strong);
   }
 
   .btn-icon {
@@ -1187,9 +1187,6 @@
     max-width: 580px;
     margin: 4rem auto;
     text-align: center;
-    border-radius: 16px;
-    background: rgba(18, 18, 24, 0.4);
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
   }
 
   .setup-header {
@@ -1197,25 +1194,24 @@
     align-items: center;
     gap: 0.8rem;
     margin-bottom: 1.2rem;
-    color: var(--accent-magenta);
+    color: var(--tungsten);
   }
 
   .setup-logo-icon {
     width: 32px;
     height: 32px;
-    color: var(--accent-magenta);
+    color: var(--tungsten);
   }
 
   .setup-header h2 {
     font-size: 1.3rem;
     font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text-primary);
+    color: var(--ink);
   }
 
   .setup-desc {
     font-size: 0.85rem;
-    color: var(--text-secondary);
+    color: var(--ink-dim);
     line-height: 1.6;
     margin-bottom: 2.2rem;
   }
@@ -1230,24 +1226,27 @@
 
   .setup-download-btn {
     height: 46px;
-    background: var(--accent-purple-gradient);
+    background: var(--tungsten);
     border: none;
-    border-radius: 10px;
-    color: white;
+    border-radius: var(--radius);
+    color: var(--tungsten-ink);
     font-size: 0.85rem;
-    font-weight: 750;
+    font-weight: 700;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
-    transition: all 0.2s;
+    transition: background 0.15s ease, transform 0.15s ease;
   }
 
   .setup-download-btn:hover {
-    transform: translateY(-1.5px);
-    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.45);
+    background: var(--tungsten-hover);
+  }
+
+  .setup-download-btn:active {
+    background: var(--tungsten-press);
+    transform: translateY(1px);
   }
 
   .btn-icon-down {
@@ -1257,19 +1256,20 @@
 
   .setup-config-btn {
     height: 40px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    color: var(--text-secondary);
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    color: var(--ink-dim);
     font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background 0.15s, border-color 0.15s;
   }
 
   .setup-config-btn:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.12);
+    background: var(--desk-hem);
+    border-color: var(--rule-strong);
+    color: var(--ink);
   }
 
   .download-progress-container {
@@ -1283,22 +1283,23 @@
 
   .download-status {
     font-size: 0.8rem;
-    font-weight: 650;
-    color: var(--accent-purple);
+    font-weight: 600;
+    color: var(--tungsten);
   }
 
   .setup-progress-bar {
     width: 100%;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 10px;
+    height: 6px;
+    background: var(--desk-inset);
+    border-radius: 3px;
     overflow: hidden;
+    border: 1px solid var(--rule);
   }
 
   .setup-progress-fill {
     height: 100%;
-    background: var(--accent-purple-gradient);
-    border-radius: 10px;
+    background: var(--tungsten);
+    border-radius: 2px;
     transition: width 0.1s linear;
   }
 
@@ -1311,11 +1312,11 @@
   .setup-error-msg {
     margin-top: 1.5rem;
     padding: 0.6rem 1rem;
-    background: rgba(244, 63, 94, 0.08);
-    border: 1px solid rgba(244, 63, 94, 0.2);
-    color: var(--accent-red);
+    background: var(--desk-inset);
+    border: 1px solid var(--danger);
+    color: var(--danger);
     font-size: 0.75rem;
-    border-radius: 8px;
+    border-radius: var(--radius);
     font-weight: 600;
   }
 
@@ -1334,18 +1335,18 @@
     border: none;
     cursor: pointer;
     padding: 0.2rem 0.5rem;
-    border-radius: 6px;
-    color: var(--text-muted);
+    border-radius: 3px;
+    color: var(--ink-faint);
     font-size: 0.75rem;
     font-weight: 600;
     gap: 0.3rem;
-    transition: all 0.2s ease;
+    transition: color 0.15s ease, background 0.15s ease;
     user-select: none;
   }
 
   .advanced-toggle-btn:hover {
-    color: var(--text-main);
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--ink);
+    background: var(--desk-inset);
   }
 
   .chevron-icon {
@@ -1361,21 +1362,18 @@
   .advanced-indicator {
     width: 6px;
     height: 6px;
-    background-color: var(--accent-cyan, #06b6d4);
+    background-color: var(--tungsten);
     border-radius: 50%;
     margin-left: 0.2rem;
-    box-shadow: 0 0 8px var(--accent-cyan, #06b6d4);
-    animation: pulse 2s infinite;
   }
 
   .advanced-settings-panel {
     display: none;
     opacity: 0;
-    transform: translateY(-8px);
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateY(-4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
     margin-bottom: 0.8rem;
     padding: 1rem;
-    border-radius: 12px;
     position: relative;
     z-index: 8;
   }
@@ -1404,20 +1402,8 @@
 
   .help-desc {
     font-size: 0.65rem;
-    color: var(--text-muted);
+    color: var(--ink-faint);
     line-height: 1.3;
-  }
-
-  @keyframes pulse {
-    0% {
-      box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7);
-    }
-    70% {
-      box-shadow: 0 0 0 6px rgba(6, 182, 212, 0);
-    }
-    100% {
-      box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
-    }
   }
 
   @media (max-width: 768px) {
@@ -1430,28 +1416,21 @@
   /* CRF specific styles */
   .preset-override-tag {
     font-size: 10px;
-    background: rgba(6, 182, 212, 0.15);
-    color: var(--accent-cyan, #06b6d4);
-    border: 1px solid rgba(6, 182, 212, 0.3);
+    background: var(--desk-inset);
+    color: var(--tungsten);
+    border: 1px solid var(--rule);
     padding: 1px 6px;
-    border-radius: 4px;
+    border-radius: 3px;
     margin-left: 8px;
     font-weight: 600;
     display: inline-block;
     vertical-align: middle;
-    animation: pulse-border 2.5s infinite;
-  }
-
-  @keyframes pulse-border {
-    0% { border-color: rgba(6, 182, 212, 0.3); }
-    50% { border-color: rgba(6, 182, 212, 0.7); }
-    100% { border-color: rgba(6, 182, 212, 0.3); }
   }
 
   .crf-settings-section {
     margin-top: 1rem;
     padding-top: 1rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--rule);
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
@@ -1474,7 +1453,7 @@
   .crf-checkbox {
     width: 14px;
     height: 14px;
-    accent-color: var(--accent-cyan, #06b6d4);
+    accent-color: var(--tungsten);
     cursor: pointer;
   }
 
@@ -1485,24 +1464,24 @@
   }
 
   .crf-status-word {
-    color: var(--accent-cyan, #06b6d4);
+    color: var(--tungsten);
     margin-left: 2px;
   }
 
   .crf-reset-btn {
     background: none;
     border: none;
-    color: var(--accent-cyan, #06b6d4);
+    color: var(--tungsten);
     font-size: 0.7rem;
     font-weight: 600;
     cursor: pointer;
     padding: 2px 6px;
-    border-radius: 4px;
-    transition: background 0.2s;
+    border-radius: 3px;
+    transition: background 0.15s;
   }
 
   .crf-reset-btn:hover {
-    background: rgba(6, 182, 212, 0.1);
+    background: var(--desk-inset);
   }
 
   .crf-slider-container {
@@ -1516,11 +1495,10 @@
     width: 100%;
     height: 6px;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--desk-inset);
     outline: none;
-    accent-color: var(--accent-cyan, #06b6d4);
+    accent-color: var(--tungsten);
     cursor: pointer;
-    transition: background 0.2s;
   }
 
   .crf-slider::-webkit-slider-runnable-track {
@@ -1545,45 +1523,46 @@
   }
 
   .default-label:hover {
-    color: var(--accent-cyan, #06b6d4);
+    color: var(--tungsten);
     text-decoration: underline;
   }
 
   .crf-help {
     margin-top: 0.2rem;
-    color: var(--text-muted);
+    color: var(--ink-faint);
     font-size: 0.65rem;
   }
 
-  /* Custom quality CRF numeric input */
   .crf-input-container {
     display: flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 6px;
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
     padding: 2px 4px 2px 8px;
     gap: 6px;
-    transition: border-color 0.2s;
+    transition: border-color 0.15s;
   }
 
   .crf-input-container:focus-within {
-    border-color: var(--accent-cyan, #06b6d4);
+    border-color: var(--tungsten);
   }
 
   .crf-input-label {
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--ink-faint);
     font-weight: 600;
+    font-family: var(--font-mono);
   }
 
   .crf-number-input {
     width: 40px;
     background: none;
     border: none;
-    color: var(--text-main);
+    color: var(--ink);
     font-size: 0.75rem;
     font-weight: 700;
+    font-family: var(--font-mono);
     text-align: center;
     outline: none;
     padding: 0;
@@ -1602,11 +1581,12 @@
 
   .crf-status-badge {
     font-size: 0.7rem;
-    background: rgba(6, 182, 212, 0.1);
-    border: 1px solid rgba(6, 182, 212, 0.2);
-    color: var(--accent-cyan, #06b6d4);
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
+    color: var(--tungsten);
     padding: 3px 8px;
-    border-radius: 6px;
+    border-radius: var(--radius);
     font-weight: 600;
+    font-family: var(--font-mono);
   }
 </style>

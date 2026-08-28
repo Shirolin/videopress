@@ -46,7 +46,7 @@
   }
 </script>
 
-<div class="queue-container glass-panel">
+<div class="queue-container hem-panel">
   <div class="queue-header">
     <span class="title">{$t('queue.title')} <span class="counter">{items.length}</span></span>
     {#if items.length > 0}
@@ -154,12 +154,10 @@
   .queue-container {
     display: flex;
     flex-direction: column;
-    flex: 1;               /* Let container fill the remaining space */
-    min-height: 0;         /* Crucial for flex box nesting scroll to work */
+    flex: 1;
+    min-height: 0;
     padding: 1.2rem;
     overflow: hidden;
-    background: rgba(18, 18, 24, 0.4);
-    border-radius: 12px;
   }
 
   .queue-header {
@@ -175,7 +173,7 @@
   .title {
     font-size: 0.85rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--ink);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -184,23 +182,25 @@
   .counter {
     font-size: 0.72rem;
     padding: 0.1rem 0.4rem;
-    background: rgba(255, 255, 255, 0.06);
-    border-radius: 20px;
-    color: var(--text-secondary);
+    background: var(--desk-inset);
+    border-radius: 3px;
+    color: var(--ink-dim);
+    border: 1px solid var(--rule);
+    font-family: var(--font-mono);
   }
 
   .clear-btn {
     background: transparent;
     border: none;
-    color: var(--accent-magenta);
+    color: var(--ink-dim);
     font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: color 0.15s;
   }
 
-  .clear-btn:hover {
-    opacity: 0.85;
+  .clear-btn:hover:not(:disabled) {
+    color: var(--danger);
     text-decoration: underline;
   }
 
@@ -240,40 +240,36 @@
   }
 
   .queue-item {
-    background: rgba(255, 255, 255, 0.015);
-    border: 1px solid var(--border-color);
-    border-left: 3.5px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule-strong);
+    border-radius: var(--radius);
     padding: 0.8rem 0.9rem;
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
-    transition: all 0.2s ease;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
 
   .queue-item:hover {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.08);
+    background: var(--desk-hem);
+    border-color: var(--rule-strong);
   }
 
   .queue-item.status-compressing {
-    border-left-color: var(--accent-purple);
-    background: rgba(168, 85, 247, 0.02);
+    border-left-color: var(--tungsten);
   }
 
   .queue-item.status-success {
-    border-left-color: var(--accent-green);
-    background: rgba(16, 185, 129, 0.015);
+    border-left-color: var(--ok);
   }
 
   .queue-item.status-skipped {
-    border-left-color: var(--accent-yellow);
-    background: rgba(245, 158, 11, 0.015);
+    border-left-color: var(--warn);
   }
 
   .queue-item.status-failed {
-    border-left-color: var(--accent-red);
-    background: rgba(244, 63, 94, 0.015);
+    border-left-color: var(--danger);
   }
 
   .item-meta {
@@ -293,7 +289,7 @@
   .file-name {
     font-size: 0.82rem;
     font-weight: 550;
-    color: var(--text-primary);
+    color: var(--ink);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -302,18 +298,18 @@
   .remove-btn {
     background: transparent;
     border: none;
-    color: var(--text-muted);
+    color: var(--ink-faint);
     cursor: pointer;
     display: flex;
     align-items: center;
     padding: 3px;
-    border-radius: 4px;
+    border-radius: 3px;
     transition: background 0.15s, color 0.15s;
   }
 
   .remove-btn:hover {
-    background: rgba(244, 63, 94, 0.1);
-    color: var(--accent-red);
+    background: var(--desk-hem);
+    color: var(--danger);
   }
 
   .close-icon {
@@ -331,64 +327,63 @@
 
   .progress-bar {
     flex: 1;
-    height: 7px;
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 10px;
+    height: 6px;
+    background: var(--desk);
+    border-radius: 3px;
     overflow: hidden;
     position: relative;
+    border: 1px solid var(--rule);
   }
 
   .progress-fill {
     height: 100%;
-    transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: width 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .progress-fill.status-waiting {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--rule-strong);
   }
 
   .progress-fill.status-compressing {
-    background: linear-gradient(90deg, #a855f7, #d946ef, #a855f7);
-    background-size: 200px 100%;
-    animation: shimmer-move 1.5s linear infinite;
+    background: var(--tungsten);
   }
 
   .progress-fill.status-success {
-    background: var(--accent-green);
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+    background: var(--tungsten);
   }
 
   .progress-fill.status-skipped {
-    background: var(--accent-yellow);
+    background: var(--warn);
   }
 
   .progress-fill.status-failed {
-    background: var(--accent-red);
+    background: var(--danger);
   }
 
   .percent-label {
     font-size: 0.72rem;
     font-weight: 700;
-    color: var(--text-muted);
+    color: var(--ink-faint);
     width: 65px;
     text-align: right;
     white-space: nowrap;
+    font-family: var(--font-mono);
   }
 
   .percent-label.status-compressing {
-    color: var(--accent-purple);
+    color: var(--tungsten);
   }
 
   .percent-label.status-success {
-    color: var(--accent-green);
+    color: var(--ok);
   }
 
   .percent-label.status-skipped {
-    color: var(--accent-yellow);
+    color: var(--warn);
   }
 
   .percent-label.status-failed {
-    color: var(--accent-red);
+    color: var(--danger);
   }
 
   /* Result details grid */
@@ -396,34 +391,29 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 0.5rem;
-    background: rgba(0, 0, 0, 0.12);
+    background: var(--desk);
     padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.02);
-  }
-
-  .stat {
-    display: flex;
-    flex-direction: column;
-    gap: 0.08rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--rule);
   }
 
   .stat .label {
     font-size: 0.65rem;
     font-weight: 500;
-    color: var(--text-muted);
+    color: var(--ink-faint);
   }
 
   .stat .val {
     font-size: 0.78rem;
     font-weight: 650;
-    color: var(--text-secondary);
+    color: var(--ink-dim);
+    font-family: var(--font-mono);
   }
 
-  .text-green { color: var(--accent-green) !important; }
+  .text-green { color: var(--ok) !important; }
   
   .ratio-badge {
-    color: var(--accent-magenta) !important;
+    color: var(--ink-dim) !important;
     font-weight: 700 !important;
   }
 
@@ -443,12 +433,12 @@
   }
 
   .skipped-txt {
-    color: var(--accent-yellow);
+    color: var(--warn);
     font-weight: 550;
   }
 
   .failed-txt {
-    color: var(--accent-red);
+    color: var(--danger);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -457,12 +447,12 @@
   }
 
   .warning-box {
-    background: rgba(245, 158, 11, 0.05) !important;
-    border: 1px solid rgba(245, 158, 11, 0.15) !important;
+    background: var(--desk) !important;
+    border: 1px solid var(--warn) !important;
   }
 
   .warning-txt {
-    color: var(--accent-yellow);
+    color: var(--warn);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
