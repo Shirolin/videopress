@@ -45,7 +45,6 @@
       const files: string[] = [];
       for (let i = 0; i < e.dataTransfer.files.length; i++) {
         const file = e.dataTransfer.files[i];
-        // Wails 拖拽注入的绝对路径位于 File.path 非标准字段上
         const filePath = (file as any).path;
         if (filePath) {
           files.push(filePath);
@@ -61,7 +60,7 @@
 </script>
 
 <div 
-  class="drop-zone glass-panel neon-hover {compact ? 'compact' : ''} {isDragOver ? 'drag-over' : ''} {disabled ? 'disabled' : ''}"
+  class="drop-zone hem-panel {compact ? 'compact' : ''} {isDragOver ? 'drag-over' : ''} {disabled ? 'disabled' : ''}"
   role="button"
   tabindex={disabled ? -1 : 0}
   aria-disabled={disabled}
@@ -79,10 +78,10 @@
 >
   {#if disabled}
     <div class="compact-content">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon-small" style="color: var(--text-muted)">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon-small" style="color: var(--ink-faint)">
         <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
       </svg>
-      <span class="compact-text" style="color: var(--text-muted)">{$t('dropzone.disabled')}</span>
+      <span class="compact-text muted">{$t('dropzone.disabled')}</span>
     </div>
   {:else if compact}
     <div class="compact-content">
@@ -116,33 +115,31 @@
     padding: 2.2rem;
     border-style: dashed;
     border-width: 1.5px;
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: var(--rule-strong);
     cursor: pointer;
     text-align: center;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: border-color 0.15s ease, background 0.15s ease;
     height: 180px;
-    background: rgba(255, 255, 255, 0.015);
-    border-radius: 12px;
+    background: var(--desk-inset);
   }
 
   .drop-zone.compact {
     height: 52px;
     padding: 0;
     border-width: 1px;
-    background: rgba(168, 85, 247, 0.03);
-    border-color: rgba(168, 85, 247, 0.2);
+    border-style: solid;
+    background: var(--desk-inset);
+    border-color: var(--rule);
   }
 
   .drop-zone.compact:hover {
-    border-color: rgba(168, 85, 247, 0.45);
-    background: rgba(168, 85, 247, 0.06);
-    box-shadow: 0 0 12px rgba(168, 85, 247, 0.1);
+    border-color: var(--tungsten);
+    background: var(--desk-hem);
   }
 
   .drag-over {
-    border-color: var(--accent-purple) !important;
-    background: rgba(168, 85, 247, 0.08) !important;
-    box-shadow: 0 0 20px rgba(168, 85, 247, 0.2) !important;
+    border-color: var(--tungsten) !important;
+    background: var(--desk-hem) !important;
   }
 
   .compact-content {
@@ -154,24 +151,22 @@
   .compact-text {
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--accent-purple);
+    color: var(--tungsten);
+  }
+
+  .compact-text.muted {
+    color: var(--ink-faint);
   }
 
   .upload-icon-small {
     width: 15px;
     height: 15px;
-    color: var(--accent-purple);
+    color: var(--tungsten);
   }
 
   .icon-container {
     margin-bottom: 0.8rem;
-    color: var(--text-secondary);
-    transition: transform 0.25s ease;
-  }
-
-  .drop-zone:hover:not(.compact) .icon-container {
-    transform: translateY(-4px);
-    color: var(--accent-purple);
+    color: var(--ink-dim);
   }
 
   .upload-icon {
@@ -183,18 +178,17 @@
     font-size: 1.05rem;
     font-weight: 600;
     margin-bottom: 0.25rem;
-    color: var(--text-primary);
-    letter-spacing: -0.01em;
+    color: var(--ink);
   }
 
   p {
     font-size: 0.8rem;
-    color: var(--text-secondary);
+    color: var(--ink-dim);
   }
 
   .file-types {
     font-size: 0.72rem;
-    color: var(--text-muted);
+    color: var(--ink-faint);
     margin-top: 0.4rem;
   }
 
@@ -202,16 +196,12 @@
     opacity: 0.55;
     cursor: not-allowed;
     border-style: solid;
-    border-color: rgba(255, 255, 255, 0.08) !important;
-    background: rgba(255, 255, 255, 0.005) !important;
-    box-shadow: none !important;
+    border-color: var(--rule) !important;
+    background: var(--desk-inset) !important;
   }
-  .drop-zone.disabled .compact-text {
-    color: var(--text-muted) !important;
-  }
+
   .drop-zone.disabled .upload-icon-small,
   .drop-zone.disabled .upload-icon {
-    color: var(--text-muted) !important;
+    color: var(--ink-faint) !important;
   }
 </style>
-

@@ -276,7 +276,7 @@
   }
 </script>
 
-<div class="settings-container glass-panel">
+<div class="settings-container hem-panel">
   <div class="settings-scroll-area">
     <div class="section-title">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="title-icon"><polygon points="6 2 18 2 18 6 6 6 6 2"></polygon><rect x="3" y="6" width="18" height="16" rx="2"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
@@ -535,10 +535,8 @@
   .settings-container {
     display: flex;
     flex-direction: column;
-    height: 100%;          /* Fill workspace area */
+    height: 100%;
     overflow: hidden;
-    background: rgba(18, 18, 24, 0.4);
-    border-radius: 12px;
   }
 
   .settings-scroll-area {
@@ -565,9 +563,7 @@
   .section-title {
     font-size: 0.8rem;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-muted);
+    color: var(--ink-faint);
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -577,7 +573,7 @@
   .title-icon {
     width: 14px;
     height: 14px;
-    color: var(--accent-purple);
+    color: var(--tungsten);
   }
 
   .margin-top {
@@ -618,33 +614,27 @@
     display: flex;
     gap: 0.8rem;
     padding: 0.8rem 0.9rem;
-    background: rgba(255, 255, 255, 0.015);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
     cursor: pointer;
     align-items: flex-start;
-    transition: all 0.2s ease;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
 
   .toggle-card:hover {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: var(--desk-hem);
+    border-color: var(--rule-strong);
   }
 
   .toggle-card.checked {
-    border-color: rgba(168, 85, 247, 0.25);
-    background: rgba(168, 85, 247, 0.02);
-  }
-
-  .checkbox-container {
-    display: flex;
-    align-items: center;
-    height: 18px;
+    border-color: var(--tungsten);
+    background: var(--desk-hem);
   }
 
   .toggle-card input[type="checkbox"] {
     cursor: pointer;
-    accent-color: var(--accent-purple);
+    accent-color: var(--tungsten);
     width: 14px;
     height: 14px;
   }
@@ -667,7 +657,7 @@
   }
 
   .gpu-active {
-    color: var(--accent-green);
+    color: var(--ok);
     font-weight: 700;
   }
 
@@ -683,10 +673,10 @@
     justify-content: space-between;
     align-items: center;
     gap: 1.5rem;
-    background: rgba(255, 255, 255, 0.012);
-    border: 1px solid var(--border-color);
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
     padding: 0.8rem 1rem;
-    border-radius: 10px;
+    border-radius: var(--radius);
   }
 
   @media (max-width: 600px) {
@@ -737,16 +727,19 @@
   }
 
   .btn-primary {
-    background: rgba(168, 85, 247, 0.15);
-    color: var(--accent-purple);
-    border: 1px solid rgba(168, 85, 247, 0.25);
+    background: var(--tungsten);
+    color: var(--tungsten-ink);
+    border: 1px solid var(--tungsten);
   }
 
-  .btn-primary:hover {
-    background: var(--accent-purple);
-    color: white;
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 10px rgba(168, 85, 247, 0.25);
+  .btn-primary:hover:not(:disabled) {
+    background: var(--tungsten-hover);
+    border-color: var(--tungsten-hover);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    background: var(--tungsten-press);
+    transform: translateY(1px);
   }
 
   .btn-muted {
@@ -780,13 +773,13 @@
   }
 
   .toast-message.success {
-    border-color: rgba(16, 185, 129, 0.3);
-    color: var(--accent-green);
+    border-color: var(--ok);
+    color: var(--ok);
   }
 
   .toast-message.error {
-    border-color: rgba(244, 63, 94, 0.3);
-    color: var(--accent-red);
+    border-color: var(--danger);
+    color: var(--danger);
   }
 
   .toast-icon {
@@ -813,35 +806,33 @@
   }
 
   .status-badge.success {
-    background: rgba(16, 185, 129, 0.12);
-    color: var(--accent-green);
-    border: 1px solid rgba(16, 185, 129, 0.2);
+    background: var(--desk-inset);
+    color: var(--ok);
+    border: 1px solid var(--rule);
   }
 
   .status-badge.muted {
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--text-muted);
-    border: 1px solid var(--border-color);
+    background: var(--desk-inset);
+    color: var(--ink-faint);
+    border: 1px solid var(--rule);
   }
 
   .btn-danger {
-    background: rgba(244, 63, 94, 0.08);
-    color: var(--accent-red);
-    border: 1px solid rgba(244, 63, 94, 0.2);
+    background: var(--desk-inset);
+    color: var(--danger);
+    border: 1px solid var(--rule);
   }
 
-  .btn-danger:hover {
-    background: var(--accent-red);
-    color: white;
-    border-color: var(--accent-red);
-    box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
+  .btn-danger:hover:not(:disabled) {
+    background: var(--desk-hem);
+    color: var(--danger);
+    border-color: var(--danger);
   }
 
   .status-badge.loading {
-    background: rgba(168, 85, 247, 0.08);
-    color: var(--text-muted);
-    border: 1px solid rgba(168, 85, 247, 0.15);
-    animation: badge-pulse 1.5s infinite alternate;
+    background: var(--desk-inset);
+    color: var(--ink-faint);
+    border: 1px solid var(--rule);
   }
 
   button:disabled {
@@ -867,16 +858,11 @@
     height: 100%;
     background: linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(168, 85, 247, 0.03) 50%,
-      rgba(255, 255, 255, 0) 100%
+      transparent 0%,
+      rgba(196, 165, 116, 0.04) 50%,
+      transparent 100%
     );
     animation: shimmer-swipe 2s infinite linear;
-  }
-
-  @keyframes badge-pulse {
-    0% { opacity: 0.6; }
-    100% { opacity: 1; }
   }
 
   @keyframes shimmer-swipe {
@@ -906,10 +892,10 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(255, 255, 255, 0.08);
-    transition: .25s ease;
+    background-color: var(--desk-inset);
+    transition: .2s ease;
     border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid var(--rule);
   }
 
   .slider:before {
@@ -919,19 +905,19 @@
     width: 10px;
     left: 3px;
     bottom: 3px;
-    background-color: var(--text-muted);
-    transition: .25s ease;
+    background-color: var(--ink-faint);
+    transition: .2s ease;
     border-radius: 50%;
   }
 
   input:checked + .slider {
-    background-color: rgba(168, 85, 247, 0.25);
-    border-color: rgba(168, 85, 247, 0.45);
+    background-color: var(--desk-hem);
+    border-color: var(--tungsten);
   }
 
   input:checked + .slider:before {
     transform: translateX(18px);
-    background-color: var(--accent-purple);
+    background-color: var(--tungsten);
   }
 </style>
 

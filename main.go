@@ -94,7 +94,7 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 10, G: 10, B: 12, A: 1},
+		BackgroundColour: &options.RGBA{R: 22, G: 20, B: 16, A: 1}, // --desk #161410
 		OnStartup:        guiApp.startup,
 		Bind: []interface{}{
 			guiApp,
