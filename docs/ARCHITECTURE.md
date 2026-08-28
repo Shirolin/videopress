@@ -58,18 +58,32 @@ Wails v2 CLI 假定 **main 包与 wails.json 同在仓库根目录**。将入口
 
 前端构建产物 `frontend/dist/` 由 [`frontend/embed.go`](../frontend/embed.go) 嵌入，`internal/desktop` 通过 `frontend.Dist` 提供给 Wails AssetServer。
 
+**硬约束**：`frontend/dist` 在 `.gitignore` 中，任何 Go 命令（`go test`、`go build`、`wails generate module`）都依赖它已存在。不要直接裸跑 `go test ./...`，使用下方构建入口。
+
 ## 构建命令
 
+统一入口为 [`scripts/make.ps1`](../scripts/make.ps1)（Windows 推荐）或 [`Makefile`](../Makefile)（需安装 `make`）：
+
 ```powershell
-# 完整 GUI+CLI 版（推荐）
-wails build
+# 本地测试（自动先构建 frontend/dist）
+pwsh -File scripts/make.ps1 test
+
+# 完整 GUI 发布构建
+pwsh -File scripts/make.ps1 build
 # 产物：build/bin/videopress.exe
 
-# 仅验证 Go 包（CI 用，需先构建前端）
-cd frontend; npm ci; npm run build; cd ..
-go build ./...
-go test ./...
+# 与 CI 相同的全量检查
+pwsh -File scripts/make.ps1 ci
 ```
+
+```bash
+# 有 make 时等价
+make test
+make build
+make ci
+```
+
+仅当已手动构建过 `frontend/dist` 时，才可裸跑 `go test ./...`。
 
 ## 版本注入
 

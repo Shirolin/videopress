@@ -19,24 +19,10 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-      - name: Build frontend (for go:embed)
-        working-directory: frontend
-        run: npm run build
       - name: Install Wails CLI
         shell: bash
         run: |
           WAILS_VER=$(grep 'github.com/wailsapp/wails/v2' go.mod | awk '{print $2}')
           go install github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VER
-      - name: Generate Wails bindings
-        run: wails generate module
-      - name: Check and rebuild frontend
-        working-directory: frontend
-        run: |
-          npm run check
-          npm run build
-      - run: go build ./...
-      - run: go vet ./...
-      - run: go test ./...
+      - name: CI (frontend dist → bindings → go test)
+        run: pwsh -NoProfile -File scripts/make.ps1 ci

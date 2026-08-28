@@ -123,33 +123,21 @@ videopress.exe --install-path
 
 ## 📦 自行构建
 
-若需从源码构建，请确保你的本地已安装 Go 1.26+ 环境：
+若需从源码构建，请确保本地已安装 Go 1.26+、Node.js，以及 [Wails CLI](https://wails.io/zh-Hans/docs/gettingstarted/installation)。
 
-### 命令行版本直接编译
-
-若仅需验证 Go 编译（含嵌入的前端资源），需先构建前端：
+项目使用 [`scripts/make.ps1`](scripts/make.ps1) 统一构建顺序（`frontend/dist` 必须在 Go 编译前生成，见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)）：
 
 ```powershell
-# 1. 构建前端资源
-cd frontend; npm install; npm run build; cd ..
+# 运行测试（推荐入口，自动构建前端）
+pwsh -File scripts/make.ps1 test
 
-# 2. 编译（产物可指定任意路径）
-go build -o .\build\bin\videopress.exe .
-```
-
-### GUI+CLI 双入口完整版编译（推荐）
-
-完整版需要使用 [Wails CLI](https://wails.io/zh-Hans/docs/gettingstarted/installation) 工具进行构建（需本地安装 Node.js 以编译前端 Svelte）：
-
-```powershell
-# 1. 安装 Wails CLI（如未安装）
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-# 2. 启动本地热重载开发环境
+# 开发热重载
 wails dev
 
-# 3. 编译发布 Windows 完整版单文件程序
-wails build
+# 发布完整版 GUI+CLI
+pwsh -File scripts/make.ps1 build
 ```
 
-编译生成的 `videopress.exe` 输出在 `build/bin/` 目录。项目结构说明见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，视觉规范见 [`docs/DESIGN.md`](docs/DESIGN.md)。
+已安装 `make` 时可用 `make test` / `make build` / `make ci`，逻辑相同。
+
+编译产物输出在 `build/bin/videopress.exe`。视觉规范见 [`docs/DESIGN.md`](docs/DESIGN.md)。
