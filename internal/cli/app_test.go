@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"videopress/internal/gif"
 	"videopress/internal/locale"
 )
 
@@ -535,5 +536,158 @@ func TestExecuteWithCRFOverride(t *testing.T) {
 	}
 	if strings.Contains(joined, "-crf 27") {
 		t.Fatalf("should override default crf 27 standard preset value, got %s", joined)
+	}
+}
+
+func TestGifExportAllSkippedExitsOne(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := runGifExport(Dependencies{
+		ExecutableDir: `C:\tools`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return true },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          stderr,
+	}, []string{`C:\videos\clip.mp4`}, "balanced", nil, false)
+
+	if exitCode != 1 {
+		t.Fatalf("all-skipped gif export should exit 1, got %d", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "跳过") {
+		t.Fatalf("expected skip message, got %s", stdout.String())
+	}
+}
+
+func TestGifExportDedupesRepeatedFormats(t *testing.T) {
+	var calls []recordedCall
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := runGifExport(Dependencies{
+		ExecutableDir: `C:\tools`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			calls = append(calls, recordedCall{name: name, args: args})
+			return nil
+		},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          stderr,
+	}, []string{`C:\videos\clip.mp4`}, "balanced", gifFormatList{gif.FormatGIF, gif.FormatGIF, gif.FormatWebP}, true)
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d, stderr=%s", exitCode, stderr.String())
+	}
+	if len(calls) != 2 {
+		t.Fatalf("expected deduped 2 ffmpeg calls, got %d", len(calls))
+	}
+}
+
+func TestExecuteWarnsGifFlagsInCompressMode(t *testing.T) {
+	var calls []recordedCall
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := Execute([]string{"--tier", "hd", `C:\videos\clip.mp4`}, Dependencies{
+		ExecutableDir:  `C:\tools`,
+		ExecutablePath: `C:\tools\videopress.exe`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			calls = append(calls, recordedCall{name: name, args: args})
+			return nil
+		},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          stderr,
+	})
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d, stderr=%s", exitCode, stderr.String())
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 compression call, got %d", len(calls))
+	}
+	if !strings.Contains(stderr.String(), "--tier/--format") {
+		t.Fatalf("expected gif-flag warning in stderr, got %s", stderr.String())
+	}
+}
+
+func TestGifExportPrintsOverBudgetNote(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "clip.mp4")
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := runGifExport(Dependencies{
+		ExecutableDir: `C:\tools`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			out := args[len(args)-1]
+			return os.WriteFile(out, make([]byte, 3<<20), 0644)
+		},
+		MkdirAll:        os.MkdirAll,
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          stderr,
+	}, []string{input}, "balanced", gifFormatList{gif.FormatGIF}, true)
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d, stderr=%s", exitCode, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "超体积") {
+		t.Fatalf("expected over-budget note in stdout, got %s", stdout.String())
+	}
+}
+
+func TestGifExportSkippedPrintsOverBudgetNote(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "clip.mp4")
+	outDir := filepath.Join(dir, "gif_export")
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outDir, "clip.balanced.gif"), make([]byte, 3<<20), 0644); err != nil {
+		t.Fatal(err)
+	}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := runGifExport(Dependencies{
+		ExecutableDir: `C:\tools`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			t.Error("skipped output must not invoke ffmpeg")
+			return nil
+		},
+		MkdirAll:        os.MkdirAll,
+		PathExists:      func(path string) bool { return true },
+		InputAccessible: accessibleInput,
+		Stdout:          stdout,
+		Stderr:          stderr,
+	}, []string{input}, "balanced", gifFormatList{gif.FormatGIF}, false)
+
+	if exitCode == 0 {
+		t.Fatalf("expected non-zero exit when all skipped, stderr=%s", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "跳过") || !strings.Contains(stdout.String(), "超体积") {
+		t.Fatalf("expected skipped over-budget note in stdout, got %s", stdout.String())
 	}
 }

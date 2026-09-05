@@ -6,14 +6,17 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"videopress/internal/compress"
 	"videopress/internal/engine"
 	"videopress/internal/ffmpeg"
+	"videopress/internal/gif"
 	"videopress/internal/locale"
 	"videopress/internal/notify"
 	"videopress/internal/util"
@@ -124,6 +127,9 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "  --audio %s   %s\n", cyan("copy|compress|mute"), getMsg("音频模式（默认 compress）", "Audio mode (default compress)"))
 	fmt.Fprintln(w, getMsg("  --copy-audio, -a                 直接复制音频流，不重编码", "  --copy-audio, -a                 Copy audio stream directly without re-encoding"))
 	fmt.Fprintf(w, "  --crf %s               %s\n", cyan("<数字>"), getMsg("自定义视频质量 (CRF) 参数覆盖，0 为不覆盖（默认 0）", "Override CRF quality value, 0 for preset default (default 0)"))
+	fmt.Fprintf(w, "  --gif                             %s\n", cyan(getMsg("启用动图导出模式（GIF/APNG/WebP）", "Enable animated export mode (GIF/APNG/WebP)")))
+	fmt.Fprintf(w, "  --tier %s          %s\n", cyan("smooth|balanced|hd"), getMsg("动图档位（默认 balanced）", "Animated tier (default balanced)"))
+	fmt.Fprintf(w, "  --format %s    %s\n", cyan("gif|apng|webp"), getMsg("动图输出格式，可多次指定（默认全部三种）", "Animated output format, repeatable (default all three)"))
 	fmt.Fprintln(w, getMsg("  --install-sendto                 安装 SendTo 右键快捷方式", "  --install-sendto                 Install SendTo context shortcut"))
 	fmt.Fprintln(w, getMsg("  --uninstall-sendto               移除 SendTo 快捷方式", "  --uninstall-sendto               Remove SendTo shortcut"))
 	fmt.Fprintln(w, getMsg("  --install-path                   添加程序目录到用户 Path 环境变量", "  --install-path                   Add app directory to user Path environment variable"))
@@ -134,6 +140,112 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, getMsg("退出码:", "Exit Codes:"))
 	fmt.Fprintf(w, "  0  %s\n", green(getMsg("全部成功", "All succeeded")))
 	fmt.Fprintf(w, "  1  %s\n", red(getMsg("存在失败、全部跳过或非视频文件", "Failed, skipped all, or non-video files")))
+}
+
+// gifFormatList 收集 --format 多次指定的动图格式。
+type gifFormatList []gif.Format
+
+func (l *gifFormatList) String() string {
+	return fmt.Sprint([]gif.Format(*l))
+}
+
+func (l *gifFormatList) Set(v string) error {
+	f := gif.Format(strings.ToLower(v))
+	switch f {
+	case gif.FormatGIF, gif.FormatAPNG, gif.FormatWebP:
+		*l = append(*l, f)
+		return nil
+	default:
+		return fmt.Errorf("未知的动图格式 unknown format: %s (gif|apng|webp)", v)
+	}
+}
+
+// runGifExport 执行 GIF/APNG/WebP 动图导出。
+func runGifExport(deps Dependencies, files []string, tierName string, formats gifFormatList, force bool) int {
+	tier, err := gif.TierByName(tierName)
+	if err != nil {
+		fmt.Fprintln(deps.Stderr, red(err.Error()))
+		return 1
+	}
+
+	// ffmpeg 二进制解析交给引擎（Run 内统一 resolve），此处不预检。
+
+	fmt.Fprintln(deps.Stdout, magenta("========================================"))
+	fmt.Fprintln(deps.Stdout, magenta("         Videopress 动图导出            "))
+	fmt.Fprintln(deps.Stdout, magenta("========================================"))
+	fmt.Fprintf(deps.Stdout, " 档位: %s\n", cyan(tier.Name))
+	fmt.Fprintf(deps.Stdout, " 宽度上限: %s\n", cyan(fmt.Sprintf("%dpx", tier.MaxWidth)))
+	fmt.Fprintf(deps.Stdout, " 体积上限: %s\n", cyan(fmt.Sprintf("%dMB", tier.MaxSizeMB)))
+	fmt.Fprintf(deps.Stdout, " 帧率: %s\n", cyan(fmt.Sprintf("%dfps", tier.FPS)))
+	fmt.Fprintf(deps.Stdout, " 时长上限: %s\n", cyan(tier.MaxDuration))
+	fmt.Fprintln(deps.Stdout, magenta("========================================"))
+	fmt.Fprintln(deps.Stdout)
+
+	engDeps := gif.Dependencies{
+		ExecutableDir: deps.ExecutableDir,
+		ResolveBinary: deps.ResolveBinary,
+		MkdirAll:      deps.MkdirAll,
+		PathExists:    deps.PathExists,
+	}
+	if deps.RunCommand != nil {
+		// 仅测试注入 mock 时走此分支（生产恒为 nil，用引擎默认 ctx 实现）；
+		// mock 同步执行，ctx 仅用于探测/编码流程控制。
+		cliRun := deps.RunCommand
+		engDeps.RunCommand = func(ctx context.Context, name string, args []string) error {
+			return cliRun(name, args)
+		}
+	}
+	eng := gif.New(engDeps)
+
+	req := gif.ExportRequest{
+		Files:   files,
+		Tier:    tier.Name,
+		Formats: formats,
+		Force:   force,
+	}
+	if len(req.Formats) == 0 {
+		req.Formats = gif.DefaultFormats()
+	}
+
+	// Ctrl+C 可中断探测与编码（生产路径引擎默认实现尊重 ctx）。
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	results, err := eng.Run(ctx, req)
+
+	successes := 0
+	skipped := 0
+	failures := 0
+	for _, r := range results {
+		disp := fmt.Sprintf("%s [%s/%s]", filepath.Base(r.OutputPath), r.Tier, r.Format)
+		switch r.Status {
+		case "success":
+			successes++
+			over := ""
+			if r.OverBudget {
+				over = yellow(" (超体积 over budget)")
+			}
+			fmt.Fprintf(deps.Stdout, "%s %s -> %s%s\n", green("成功"), disp, fmt.Sprintf("%.2fMB", float64(r.Size)/(1024*1024)), over)
+		case "skipped":
+			skipped++
+			overSkipped := ""
+			if r.OverBudget {
+				overSkipped = yellow(" (超体积 over budget)")
+			}
+			fmt.Fprintf(deps.Stdout, "%s %s (已存在)%s\n", yellow("跳过"), disp, overSkipped)
+		default:
+			failures++
+			fmt.Fprintf(deps.Stderr, "%s %s: %s\n", red("失败"), disp, red(r.Error))
+		}
+	}
+
+	fmt.Fprintln(deps.Stdout, magenta("=========================================="))
+	fmt.Fprintf(deps.Stdout, "动图导出完成: 成功 %s, 跳过 %s, 失败 %s\n", green(fmt.Sprintf("%d", successes)), yellow(fmt.Sprintf("%d", skipped)), red(fmt.Sprintf("%d", failures)))
+
+	exitCode := 0
+	if failures > 0 || successes == 0 {
+		exitCode = 1
+	}
+	return exitCode
 }
 
 func Execute(args []string, deps Dependencies) int {
@@ -210,6 +322,10 @@ func Execute(args []string, deps Dependencies) int {
 	maxFPS := fs.Int("max-fps", 0, "limit max frames per second")
 	audioMode := fs.String("audio", "", "audio mode (copy|compress|mute)")
 	crf := fs.Int("crf", 0, "override preset CRF quality value")
+	gifMode := fs.Bool("gif", false, "enable animated export mode")
+	gifTier := fs.String("tier", gif.DefaultTier, "animated tier")
+	var gifFormats gifFormatList
+	fs.Var(&gifFormats, "format", "animated output format (gif|apng|webp)")
 	sendToMode := fs.Bool("sendto", false, "enable SendTo prompt on exit")
 	installSendTo := fs.Bool("install-sendto", false, "install SendTo shortcut")
 	uninstallSendTo := fs.Bool("uninstall-sendto", false, "remove SendTo shortcut")
@@ -309,6 +425,13 @@ func Execute(args []string, deps Dependencies) int {
 		return 1
 	}
 
+	// 动图导出模式：GIF/APNG/WebP 三档
+	if *gifMode {
+		return runGifExport(deps, files, *gifTier, gifFormats, *forceMode)
+	}
+	if len(gifFormats) > 0 || *gifTier != gif.DefaultTier {
+		fmt.Fprintln(deps.Stderr, yellow(getMsg("提示：--tier/--format 仅在 --gif 动图模式下生效，本次压缩已忽略", "Note: --tier/--format only apply in --gif animated mode, ignored for compression")))
+	}
 	presetExplicit := false
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "preset" {

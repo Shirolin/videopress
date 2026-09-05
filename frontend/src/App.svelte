@@ -8,7 +8,7 @@
   import WindowControls from './components/WindowControls.svelte';
   import { t, locale } from './i18n.js';
   
-  import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress, SetDebugMode, GetLanguage, SetLanguage } from '../wailsjs/go/gui/App.js';
+  import { StartCompress, OpenFolder, DetectFFmpeg, SelectFolder, DownloadFFmpeg, GetInitialFiles, GetVersion, CancelCompress, CancelGifExport, SetDebugMode, GetLanguage, SetLanguage, StartGifExport, GetGifTiers, GetGifFormats } from '../wailsjs/go/gui/App.js';
   import { EventsOn, EventsOff, WindowToggleMaximise, WindowIsMaximised } from '../wailsjs/runtime/runtime.js';
 
   let isMaximised = $state(false);
@@ -327,7 +327,7 @@
   }
 
   async function triggerCompression() {
-    if (isCompressing || queueItems.length === 0) return;
+    if (isCompressing || isGifExporting || queueItems.length === 0) return;
     
     isCompressing = true;
     
@@ -431,6 +431,84 @@
       }
     } catch (err) {
       console.error("Failed to select output folder:", err);
+    }
+  }
+
+  // ---- 动图导出 (GIF/APNG/WebP) ----
+  let gifTiers = $state<any[]>([]);
+  let gifFormats = $state<string[]>(['gif', 'apng', 'webp']);
+  let gifFormatsSynced = $state(false);
+  let gifTier = $state<string>('balanced');
+  let isGifExporting = $state(false);
+  let gifResults = $state<any[]>([]);
+  let gifError = $state<string>('');
+  let selectedGifTier = $derived((gifTiers as any[]).find((t: any) => t.name === gifTier));
+  let gifSummary = $derived({
+    ok: gifResults.filter((r: any) => r.status === 'success' && !r.overBudget).length,
+    skip: gifResults.filter((r: any) => r.status === 'skipped' && !r.overBudget).length,
+    over: gifResults.filter((r: any) => !!r.overBudget).length,
+    fail: gifResults.filter((r: any) => r.status !== 'success' && r.status !== 'skipped').length
+  });
+
+  $effect(() => {
+    if (gifTiers.length === 0) {
+      GetGifTiers().then((ts: any[]) => {
+        gifTiers = ts;
+        const def = ts.find((t: any) => t.isDefault);
+        gifTier = def ? def.name : (ts[0]?.name || 'balanced');
+      }).catch(console.error);
+    }
+  });
+  $effect(() => {
+    if (!gifFormatsSynced) {
+      gifFormatsSynced = true;
+      GetGifFormats().then((fs: string[]) => {
+        if (fs && fs.length > 0) gifFormats = fs;
+      }).catch(console.error);
+    }
+  });
+
+  function toggleGifFormat(fmt: string) {
+    if (gifFormats.includes(fmt)) {
+      gifFormats = gifFormats.filter((f: string) => f !== fmt);
+    } else {
+      gifFormats = [...gifFormats, fmt];
+    }
+  }
+
+  async function triggerGifExport() {
+    if (isGifExporting || isCompressing || queueItems.length === 0) return;
+    if (gifFormats.length === 0) {
+      gifError = $t('gif.need_format');
+      return;
+    }
+    if (!gifTier) gifTier = 'balanced';
+    isGifExporting = true;
+    gifError = '';
+    gifResults = [];
+    const files = queueItems.map(item => item.path);
+    try {
+      const results = await StartGifExport({
+        Files: files,
+        Tier: gifTier,
+        Formats: gifFormats,
+        OutputDir: customOutputDir,
+        Force: forceMode,
+      });
+      gifResults = results;
+    } catch (err: any) {
+      console.error("GIF export execution error:", err);
+      gifError = err?.message || String(err);
+    } finally {
+      isGifExporting = false;
+    }
+  }
+
+  async function handleCancelGifExport() {
+    try {
+      await CancelGifExport();
+    } catch (err) {
+      console.error("GIF export cancel error:", err);
     }
   }
 </script>
@@ -788,6 +866,7 @@
           onclear={handleClear} 
         />
 
+
         <!-- Action Panel (Fixed size, locked at the bottom) -->
         <div class="action-panel">
           {#if queueItems.some(item => item.status === 'success' || item.status === 'failed' || item.status === 'skipped')}
@@ -796,7 +875,6 @@
               {$t('btn.open_output_folder')}
             </button>
           {/if}
-
           {#if isCompressing}
             <button class="compress-trigger-btn cancel-btn" onclick={handleCancelCompression}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
@@ -805,11 +883,108 @@
           {:else}
             <button 
               class="compress-trigger-btn" 
-              disabled={queueItems.length === 0 || !!ffmpegError}
+              disabled={queueItems.length === 0 || !!ffmpegError || isGifExporting}
               onclick={triggerCompression}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               {$t('btn.start_compress')}
+            </button>
+          {/if}
+        </div>
+        <!-- 动图导出面板（次级功能，位于主压缩按钮之后） -->
+        <div class="gif-export-panel hem-panel">
+          <div class="gif-panel-head">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-icon"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
+            <span class="gif-panel-title">{$t('gif.title')}</span>
+            <span class="help-desc">{$t('gif.subtitle')}</span>
+          </div>
+
+          <div class="gif-grid">
+            <!-- 档位：按钮只放名称，规格下沉为说明行 -->
+            <div class="gif-group">
+              <span class="control-label">{$t('gif.tier')}</span>
+              <div class="segmented-control gif-tier-control">
+                {#each gifTiers as tier (tier.name)}
+                  <button
+                    class="segment-btn {gifTier === tier.name ? 'active' : ''}"
+                    onclick={() => gifTier = tier.name}
+                    disabled={isGifExporting || isCompressing}
+                    title={tier.description}
+                  >
+                    {tier.name === 'smooth' ? $t('gif.tier_smooth') : tier.name === 'balanced' ? $t('gif.tier_balanced') : $t('gif.tier_hd')}
+                  </button>
+                {/each}
+              </div>
+              {#if selectedGifTier}
+                <span class="gif-tier-spec">≤{selectedGifTier.maxSizeMB}MB · {selectedGifTier.maxWidth}px · {selectedGifTier.fps}fps · {selectedGifTier.description}</span>
+              {/if}
+            </div>
+
+            <!-- 格式 -->
+            <div class="gif-group">
+              <span class="control-label">{$t('gif.format')}</span>
+              <div class="gif-format-toggles">
+                {#each ['gif', 'apng', 'webp'] as fmt (fmt)}
+                  <label class="gif-format-chip {gifFormats.includes(fmt) ? 'active' : ''}">
+                    <input
+                      type="checkbox"
+                      checked={gifFormats.includes(fmt)}
+                      onchange={() => toggleGifFormat(fmt)}
+                      disabled={isGifExporting || isCompressing}
+                    />
+                    <span>{fmt.toUpperCase()}</span>
+                  </label>
+                {/each}
+              </div>
+            </div>
+          </div>
+
+          {#if !isGifExporting && gifResults.length === 0 && queueItems.length > 0}
+            <div class="gif-pending">{$t('gif.pending', { n: queueItems.length, m: gifFormats.length })}</div>
+          {/if}
+
+          {#if isGifExporting}
+            <div class="gif-progress" role="progressbar"><div class="gif-progress-bar"></div></div>
+          {/if}
+
+          {#if gifError}
+            <div class="gif-error-msg">⚠️ {gifError}</div>
+          {/if}
+
+          {#if gifResults.length > 0}
+            <div class="gif-summary">{$t('gif.ok')} {gifSummary.ok} · {$t('gif.skipped')} {gifSummary.skip} · ⚠️{$t('gif.over_budget')} {gifSummary.over} · {$t('gif.failed')} {gifSummary.fail}</div>
+            <div class="gif-results-list">
+              {#each gifResults as r (r.outputPath)}
+                <div class="gif-result-row">
+                  <span class="gif-result-name">{r.inputName} → {r.tier}.{r.format}</span>
+                  <span class="gif-result-status {r.status}">
+                    {r.status === 'success' ? $t('gif.ok') : r.status === 'skipped' ? $t('gif.skipped') : $t('gif.failed')}
+                  </span>
+                  {#if r.status === 'success'}
+                    <span class="gif-result-size">{(r.size / 1048576).toFixed(2)}MB{#if r.overBudget} ⚠️{$t('gif.over_budget')}{/if}</span>
+                  {:else if r.overBudget}
+                    <span class="gif-result-size">⚠️{$t('gif.over_budget')}</span>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          {#if isGifExporting}
+            <button
+              class="gif-export-btn cancel-btn"
+              onclick={handleCancelGifExport}
+            >
+              {$t('gif.cancel')}
+            </button>
+          {:else}
+            <button
+              class="gif-export-btn"
+              disabled={queueItems.length === 0 || !!ffmpegError || isCompressing || !gifTier}
+              title={isCompressing ? $t('gif.busy_note') : ''}
+              onclick={triggerGifExport}
+            >
+              ▷ {$t('gif.export_btn')}
             </button>
           {/if}
         </div>
@@ -1638,5 +1813,167 @@
     border-radius: var(--radius);
     font-weight: 600;
     font-family: var(--font-mono);
+  }
+
+  .gif-export-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 1rem 1.1rem;
+    border-top: 2px solid var(--rule);
+  }
+  .gif-panel-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .gif-panel-head .btn-icon {
+    align-self: center;
+    color: var(--tungsten);
+  }
+  .gif-panel-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  .gif-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    align-items: flex-start;
+  }
+  .gif-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 240px;
+  }
+  .gif-tier-control {
+    flex-wrap: wrap;
+  }
+  .gif-tier-spec {
+    font-size: 0.72rem;
+    color: var(--tungsten);
+    font-family: var(--font-mono);
+  }
+  .gif-format-toggles {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .gif-format-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--desk-inset);
+    color: var(--ink-dim);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.75rem;
+    transition: all 0.15s;
+  }
+  .gif-format-chip.active {
+    border-color: var(--tungsten);
+    color: var(--tungsten);
+    background: color-mix(in srgb, var(--tungsten) 12%, transparent);
+  }
+  .gif-format-chip input {
+    accent-color: var(--tungsten);
+  }
+  .gif-pending {
+    font-size: 0.75rem;
+    color: var(--ink-dim);
+  }
+  .gif-progress {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--desk-inset);
+    overflow: hidden;
+  }
+  .gif-progress-bar {
+    height: 100%;
+    width: 40%;
+    border-radius: 2px;
+    background: var(--tungsten);
+    animation: gif-progress-slide 1.2s ease-in-out infinite;
+  }
+  @keyframes gif-progress-slide {
+    0% { margin-left: -40%; }
+    100% { margin-left: 100%; }
+  }
+  .gif-error-msg {
+    color: #e5484d;
+    font-size: 0.8rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid color-mix(in srgb, #e5484d 40%, transparent);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, #e5484d 8%, transparent);
+  }
+  .gif-summary {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ink-dim);
+  }
+  .gif-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .gif-result-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.78rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: var(--radius);
+    background: var(--desk-inset);
+  }
+  .gif-result-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gif-result-status.success { color: #30a46c; }
+  .gif-result-status.skipped { color: var(--tungsten); }
+  .gif-result-status.failed { color: #e5484d; }
+  .gif-result-size {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--tungsten);
+  }
+  /* 次级按钮：描边弱化，与主压缩实心金按钮拉开层级 */
+  .gif-export-btn {
+    width: 100%;
+    height: 40px;
+    border: 1px solid var(--tungsten);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--tungsten);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .gif-export-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--tungsten) 12%, transparent);
+  }
+  .gif-export-btn:disabled {
+    background: var(--desk-inset);
+    border: 1px solid var(--rule);
+    color: var(--ink-faint);
+    cursor: not-allowed;
+  }
+  .gif-export-btn.cancel-btn {
+    border-color: var(--danger, #e5484d);
+    color: var(--danger, #e5484d);
+  }
+  .gif-export-btn.cancel-btn:hover {
+    background: color-mix(in srgb, var(--danger, #e5484d) 12%, transparent);
   }
 </style>

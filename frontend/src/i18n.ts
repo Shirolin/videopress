@@ -202,7 +202,24 @@ export const translations: Record<string, Record<string, string>> = {
     'advanced.crf.preset_override': '分辨率预设 (画质已自定义)',
     'advanced.crf.status.high': '超清/体积大',
     'advanced.crf.status.balanced': '清晰/均衡',
-    'advanced.crf.status.low': '高压缩/体积小'
+    'advanced.crf.status.low': '高压缩/体积小',
+
+    // 动图导出 (GIF/APNG/WebP)
+    'gif.title': '动图导出',
+    'gif.subtitle': '为社媒分享导出小体积动图',
+    'gif.tier': '档位',
+    'gif.tier_smooth': '流畅',
+    'gif.tier_balanced': '均衡',
+    'gif.tier_hd': '高清',
+    'gif.format': '输出格式',
+    'gif.export_btn': '导出动图',
+    'gif.cancel': '取消导出',
+    'gif.need_format': '请至少选择一种输出格式',
+    'gif.ok': '成功',
+    'gif.failed': '失败',
+    'gif.over_budget': '超体积',
+    'gif.pending': '将为 {n} 个文件各导出 {m} 种格式',
+    'gif.busy_note': '压缩任务进行中，完成后可导出动图'
   },
   en: {
     // Navigation
@@ -398,7 +415,25 @@ export const translations: Record<string, Record<string, string>> = {
     'advanced.crf.preset_override': 'Resolution Preset (Quality Overridden)',
     'advanced.crf.status.high': 'Ultra Quality / Large',
     'advanced.crf.status.balanced': 'Balanced / Good',
-    'advanced.crf.status.low': 'High Compress / Small'
+    'advanced.crf.status.low': 'High Compress / Small',
+
+    // Animated export (GIF/APNG/WebP)
+    'gif.title': 'Animated Export',
+    'gif.subtitle': 'Small animated clips for sharing',
+    'gif.tier': 'Tier',
+    'gif.tier_smooth': 'Smooth',
+    'gif.tier_balanced': 'Balanced',
+    'gif.tier_hd': 'HD',
+    'gif.format': 'Formats',
+    'gif.export_btn': 'Export Animated',
+    'gif.cancel': 'Cancel Export',
+    'gif.need_format': 'Select at least one output format',
+    'gif.ok': 'OK',
+    'gif.skipped': 'Skipped',
+    'gif.failed': 'Failed',
+    'gif.over_budget': 'Over budget',
+    'gif.pending': 'Will export {m} formats for each of {n} files',
+    'gif.busy_note': 'Compression running; animated export available when it finishes'
   }
 };
 

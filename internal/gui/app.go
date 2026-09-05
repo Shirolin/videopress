@@ -13,6 +13,7 @@ import (
 	"videopress/internal/engine"
 	"videopress/internal/env"
 	"videopress/internal/ffmpeg"
+	"videopress/internal/gif"
 	"videopress/internal/locale"
 	"videopress/internal/sendto"
 
@@ -26,7 +27,10 @@ type App struct {
 	executablePath string
 	initialFiles   []string
 	mu             sync.Mutex
-	cancelFunc     context.CancelFunc
+	compressCancel context.CancelFunc
+	compressGen    uint64
+	gifCancel      context.CancelFunc
+	gifGen         uint64
 	enableDebug    bool
 	language       string
 }
@@ -120,14 +124,16 @@ func (a *App) StartCompress(req engine.JobRequest) ([]engine.JobReport, error) {
 
 	a.mu.Lock()
 	ctx, cancel := context.WithCancel(context.Background())
-	a.cancelFunc = cancel
+	a.compressGen++
+	compressGen := a.compressGen
+	a.compressCancel = cancel
 	a.mu.Unlock()
 
 	reports, err := eng.Run(ctx, req, onProgress)
 
 	a.mu.Lock()
-	if a.cancelFunc != nil {
-		a.cancelFunc = nil
+	if a.compressGen == compressGen {
+		a.compressCancel = nil
 	}
 	a.mu.Unlock()
 
@@ -141,11 +147,101 @@ func (a *App) StartCompress(req engine.JobRequest) ([]engine.JobReport, error) {
 // CancelCompress cancels the ongoing compression task.
 func (a *App) CancelCompress() {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.cancelFunc != nil {
-		a.cancelFunc()
-		a.cancelFunc = nil
+	cancel := a.compressCancel
+	a.compressCancel = nil
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
+}
+
+// CancelGifExport cancels the ongoing animated export task.
+func (a *App) CancelGifExport() {
+	a.mu.Lock()
+	cancel := a.gifCancel
+	a.gifCancel = nil
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+type GifTierInfo struct {
+	Name        string `json:"name"`
+	MaxWidth    int    `json:"maxWidth"`
+	MaxSizeMB   int    `json:"maxSizeMB"`
+	FPS         int    `json:"fps"`
+	MaxDuration string `json:"maxDuration"`
+	Description string `json:"description"`
+	IsDefault   bool   `json:"isDefault"`
+}
+
+// GetGifTiers returns the list of animated export tiers.
+func (a *App) GetGifTiers() []GifTierInfo {
+	a.mu.Lock()
+	lang := a.language
+	a.mu.Unlock()
+
+	infos := make([]GifTierInfo, 0, 3)
+	for _, t := range gif.AllTiers() {
+		desc := t.Description
+		if lang == "en" {
+			switch t.Name {
+			case "smooth":
+				desc = "Small smooth tier, instant sharing"
+			case "balanced":
+				desc = "Balanced tier (default), size and quality balance"
+			case "hd":
+				desc = "HD tier, keeps more detail"
+			}
+		}
+		infos = append(infos, GifTierInfo{
+			Name:        t.Name,
+			MaxWidth:    t.MaxWidth,
+			MaxSizeMB:   t.MaxSizeMB,
+			FPS:         t.FPS,
+			MaxDuration: t.MaxDuration,
+			Description: desc,
+			IsDefault:   t.Name == gif.DefaultTier,
+		})
+	}
+	return infos
+}
+
+// GetGifFormats returns the supported animated output formats.
+func (a *App) GetGifFormats() []string {
+	out := make([]string, 0, 3)
+	for _, f := range gif.AllFormats() {
+		out = append(out, string(f))
+	}
+	return out
+}
+
+// StartGifExport starts animated (GIF/APNG/WebP) export for the given files.
+func (a *App) StartGifExport(req gif.ExportRequest) ([]gif.ExportResult, error) {
+	deps := gif.DefaultDependencies(a.executableDir)
+	deps.RunCommand = nil
+	eng := gif.New(deps)
+
+	a.mu.Lock()
+	ctx, cancel := context.WithCancel(context.Background())
+	a.gifGen++
+	gifGen := a.gifGen
+	a.gifCancel = cancel
+	a.mu.Unlock()
+
+	results, err := eng.Run(ctx, req)
+
+	a.mu.Lock()
+	if a.gifGen == gifGen {
+		a.gifCancel = nil
+	}
+	a.mu.Unlock()
+
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 // InstallSendTo installs Windows SendTo right click menu binding.

@@ -10,6 +10,10 @@ export function CancelCompress() {
   return window['go']['gui']['App']['CancelCompress']();
 }
 
+export function CancelGifExport() {
+  return window['go']['gui']['App']['CancelGifExport']();
+}
+
 export function ClearDebugLogs() {
   return window['go']['gui']['App']['ClearDebugLogs']();
 }
@@ -28,6 +32,14 @@ export function DownloadFFmpeg() {
 
 export function GetDebugLogs() {
   return window['go']['gui']['App']['GetDebugLogs']();
+}
+
+export function GetGifFormats() {
+  return window['go']['gui']['App']['GetGifFormats']();
+}
+
+export function GetGifTiers() {
+  return window['go']['gui']['App']['GetGifTiers']();
 }
 
 export function GetInitialFiles() {
@@ -96,6 +108,10 @@ export function SetLanguage(arg1) {
 
 export function StartCompress(arg1) {
   return window['go']['gui']['App']['StartCompress'](arg1);
+}
+
+export function StartGifExport(arg1) {
+  return window['go']['gui']['App']['StartGifExport'](arg1);
 }
 
 export function UninstallContextMenu() {

@@ -63,8 +63,85 @@ export namespace engine {
 
 }
 
+export namespace gif {
+	
+	export class ExportRequest {
+	    Files: string[];
+	    Tier: string;
+	    Formats: string[];
+	    OutputDir: string;
+	    Force: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExportRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = source["Files"];
+	        this.Tier = source["Tier"];
+	        this.Formats = source["Formats"];
+	        this.OutputDir = source["OutputDir"];
+	        this.Force = source["Force"];
+	    }
+	}
+	export class ExportResult {
+	    inputName: string;
+	    inputPath: string;
+	    outputPath: string;
+	    format: string;
+	    tier: string;
+	    size: number;
+	    status: string;
+	    error?: string;
+	    overBudget: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExportResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.inputName = source["inputName"];
+	        this.inputPath = source["inputPath"];
+	        this.outputPath = source["outputPath"];
+	        this.format = source["format"];
+	        this.tier = source["tier"];
+	        this.size = source["size"];
+	        this.status = source["status"];
+	        this.error = source["error"];
+	        this.overBudget = source["overBudget"];
+	    }
+	}
+
+}
+
 export namespace gui {
 	
+	export class GifTierInfo {
+	    name: string;
+	    maxWidth: number;
+	    maxSizeMB: number;
+	    fps: number;
+	    maxDuration: string;
+	    description: string;
+	    isDefault: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new GifTierInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.maxWidth = source["maxWidth"];
+	        this.maxSizeMB = source["maxSizeMB"];
+	        this.fps = source["fps"];
+	        this.maxDuration = source["maxDuration"];
+	        this.description = source["description"];
+	        this.isDefault = source["isDefault"];
+	    }
+	}
 	export class PresetInfo {
 	    name: string;
 	    scaleFactor: number;
