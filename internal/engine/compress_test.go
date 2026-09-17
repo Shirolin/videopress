@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"videopress/internal/ffmpeg"
 )
 
 func TestEngineRunSuccess(t *testing.T) {
@@ -132,11 +134,8 @@ func TestEngineRunAppliesCrop(t *testing.T) {
 			runArgs = append(runArgs, args)
 			return nil
 		},
-		GetDuration: func(ffmpegPath string, inputPath string) (time.Duration, error) {
-			return 10 * time.Second, nil
-		},
-		GetDimensions: func(ffmpegPath string, inputPath string) (int, int, error) {
-			return 1600, 900, nil
+		Probe: func(ffmpegPath string, inputPath string) (ffmpeg.VideoInfo, error) {
+			return ffmpeg.VideoInfo{Duration: 10 * time.Second, Width: 1600, Height: 900}, nil
 		},
 		DetectGPUEncoder: func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
 			return "libx264"
@@ -155,6 +154,13 @@ func TestEngineRunAppliesCrop(t *testing.T) {
 		{"exact", &CropSpec{Exact: true, W: 100, H: 100, X: 0, Y: 0}, "crop=100:100:0:0"},
 		{"center 16:9 keep 90%", &CropSpec{RatioW: 16, RatioH: 9, Scale: 0.9}, "crop=1440:810:80:45"},
 	}
+
+	// 精确裁奇数自动落偶（与居中裁策略一致）
+	tests = append(tests, struct {
+		name     string
+		crop     *CropSpec
+		expected string
+	}{"exact odd values fall to even", &CropSpec{Exact: true, W: 801, H: 701, X: 3, Y: 5}, "crop=800:700:2:4"})
 	for _, tt := range tests {
 		runArgs = nil
 		reports, err := eng.Run(context.Background(), JobRequest{
@@ -186,11 +192,8 @@ func TestEngineRunExactCropOutOfBounds(t *testing.T) {
 			t.Errorf("should not invoke ffmpeg when crop is out of bounds")
 			return nil
 		},
-		GetDuration: func(ffmpegPath string, inputPath string) (time.Duration, error) {
-			return 10 * time.Second, nil
-		},
-		GetDimensions: func(ffmpegPath string, inputPath string) (int, int, error) {
-			return 1600, 900, nil
+		Probe: func(ffmpegPath string, inputPath string) (ffmpeg.VideoInfo, error) {
+			return ffmpeg.VideoInfo{Duration: 10 * time.Second, Width: 1600, Height: 900}, nil
 		},
 		DetectGPUEncoder: func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
 			return "libx264"

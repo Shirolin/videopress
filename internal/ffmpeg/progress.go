@@ -49,10 +49,54 @@ func GetDuration(ffmpegPath string, inputPath string) (time.Duration, error) {
 	return ParseDuration(string(output))
 }
 
+// VideoInfo 汇总一次 ffmpeg -i 探测得到的时长与分辨率。
+type VideoInfo struct {
+	Duration time.Duration
+	Width    int
+	Height   int
+}
+
+// Probe 运行 ffmpeg -i 探测视频时长与分辨率（单进程，避免逐项各起一次 ffmpeg）。
+func Probe(ffmpegPath string, inputPath string) (VideoInfo, error) {
+	cmd := exec.Command(ffmpegPath, "-i", inputPath)
+	util.HideConsoleWindow(cmd)
+	output, _ := cmd.CombinedOutput()
+	metadata := string(output)
+	duration, durationErr := ParseDuration(metadata)
+	w, h, dimErr := ParseDimensions(metadata)
+	if durationErr != nil && dimErr != nil {
+		return VideoInfo{}, fmt.Errorf("could not parse video metadata: %w", durationErr)
+	}
+	return VideoInfo{Duration: duration, Width: w, Height: h}, nil
+}
+
 var dimensionsRegex = regexp.MustCompile(`, (\d{2,5})x(\d{2,5})[, ]`)
 
-// ParseDimensions 从 ffmpeg 元数据输出中解析视频分辨率
+// parseDimensionsFromLine 在单行元数据中查找 "…, WxH, …" 尺寸片段。
+func parseDimensionsFromLine(line string) (int, int, bool) {
+	matches := dimensionsRegex.FindStringSubmatch(line)
+	if matches == nil {
+		return 0, 0, false
+	}
+	w, _ := strconv.Atoi(matches[1])
+	h, _ := strconv.Atoi(matches[2])
+	if w <= 0 || h <= 0 {
+		return 0, 0, false
+	}
+	return w, h, true
+}
+
+// ParseDimensions 从 ffmpeg 元数据输出中解析视频分辨率。
+// 优先在普通（非 attached_pic 封面）视频流行内匹配，避免取到封面流的尺寸。
 func ParseDimensions(metadata string) (int, int, error) {
+	for _, line := range strings.Split(metadata, "\n") {
+		if !strings.Contains(line, "Video:") || strings.Contains(line, "attached_pic") {
+			continue
+		}
+		if w, h, ok := parseDimensionsFromLine(line); ok {
+			return w, h, nil
+		}
+	}
 	matches := dimensionsRegex.FindStringSubmatch(metadata)
 	if matches == nil {
 		return 0, 0, fmt.Errorf("could not find dimensions in metadata")
@@ -73,8 +117,8 @@ func GetDimensions(ffmpegPath string, inputPath string) (int, int, error) {
 	return ParseDimensions(string(output))
 }
 
-// even 向下取整到偶数，最小为 2，避免 yuv420p 非偶数尺寸问题
-func even(v int) int {
+// EvenFloor 向下取整到偶数，最小为 2，避免 yuv420p 非偶数尺寸问题（crop/scale 均使用）。
+func EvenFloor(v int) int {
 	if v < 2 {
 		return 2
 	}
@@ -92,13 +136,13 @@ func ComputeCenterCrop(iw, ih, ratioW, ratioH int, scale float64) (int, int, int
 		rectW = float64(iw)
 		rectH = float64(iw) * float64(ratioH) / float64(ratioW)
 	}
-	cw := even(int(rectW*float64(scale) + 0.5))
-	ch := even(int(rectH*float64(scale) + 0.5))
+	cw := EvenFloor(int(rectW*float64(scale) + 0.5))
+	ch := EvenFloor(int(rectH*float64(scale) + 0.5))
 	if cw > iw {
-		cw = even(iw)
+		cw = EvenFloor(iw)
 	}
 	if ch > ih {
-		ch = even(ih)
+		ch = EvenFloor(ih)
 	}
 	x := (iw - cw) / 2
 	y := (ih - ch) / 2

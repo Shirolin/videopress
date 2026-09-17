@@ -82,3 +82,36 @@ func TestRenderProgressBar(t *testing.T) {
 		t.Errorf("expected 50.0%% in progress bar: %q", out)
 	}
 }
+
+func TestParseDimensions(t *testing.T) {
+	videoLine := "Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p, 1600x900, 30 fps"
+	coverLine := "Stream #0:1: Video: mjpeg (Progressive), yuvj444p, 640x360, attached_pic"
+
+	tests := []struct {
+		name         string
+		metadata     string
+		wantW, wantH int
+		wantErr      bool
+	}{
+		{"ordinary single stream", videoLine, 1600, 900, false},
+		{"attached pic first must be skipped", coverLine + "\n" + videoLine, 1600, 900, false},
+		{"cover only", coverLine, 640, 360, false},
+		{"no video stream", "Stream #0:0: Audio: aac, 44100 Hz", 0, 0, true},
+	}
+	for _, tt := range tests {
+		w, h, err := ParseDimensions(tt.metadata)
+		if tt.wantErr {
+			if err == nil {
+				t.Errorf("%s: expected error, got %dx%d", tt.name, w, h)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%s: unexpected error: %v", tt.name, err)
+			continue
+		}
+		if w != tt.wantW || h != tt.wantH {
+			t.Errorf("%s: expected %dx%d, got %dx%d", tt.name, tt.wantW, tt.wantH, w, h)
+		}
+	}
+}

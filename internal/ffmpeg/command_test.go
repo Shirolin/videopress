@@ -150,7 +150,7 @@ func TestBuildArgsWithCrop(t *testing.T) {
 	}
 }
 
-// argsAfterVF 提取 -vf 参数（含后续直到下一个 - 开头选项的字符串化内容）。
+// argsAfterVF 返回 -vf 选项的参数值，找不到时返回空串。
 func argsAfterVF(args []string) string {
 	for i, a := range args {
 		if a == "-vf" && i+1 < len(args) {
@@ -165,11 +165,10 @@ func TestComputeCenterCrop(t *testing.T) {
 		name           string
 		iw, ih, rw, rh int
 		scale          float64
-		want           string
 	}{
-		{"1920x1080 to 16:9 full", 1920, 1080, 16, 9, 1.0, "1920x1080 at 0,0"},
-		{"1600x900 to 16:9 keep 90%", 1600, 900, 16, 9, 0.9, "1440x810"},
-		{"2000x1000 to 16:9 full", 2000, 1000, 16, 9, 1.0, "1778x1000"},
+		{"1920x1080 to 16:9 full", 1920, 1080, 16, 9, 1.0},
+		{"1600x900 to 16:9 keep 90%", 1600, 900, 16, 9, 0.9},
+		{"2000x1000 to 16:9 full", 2000, 1000, 16, 9, 1.0},
 	}
 	for _, tt := range tests {
 		w, h, x, y := ComputeCenterCrop(tt.iw, tt.ih, tt.rw, tt.rh, tt.scale)
@@ -184,6 +183,5 @@ func TestComputeCenterCrop(t *testing.T) {
 		if x != wantX/1 || y != wantY/1 {
 			t.Errorf("%s: offset should be centered, got %d,%d", tt.name, x, y)
 		}
-		_ = tt.want
 	}
 }
