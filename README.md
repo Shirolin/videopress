@@ -69,6 +69,7 @@
   * **CLI 模式**：在终端附带视频文件路径运行时，自动进入控制台模式，实时渲染无抖动的平滑进度条，并在完成后输出直观的压缩率摘要表格。
 * 🚀 **GPU 硬件加速**：自动检测你显卡支持的硬编技术（NVIDIA `h264_nvenc`、Intel `h264_qsv`、AMD `h264_amf`）。检测到后自动开启加速，未检测到时安全 fallback 到 CPU 编码。
 * 🧵 **高效并发**：通过 Worker Pool 机制实现多视频文件并发压缩。CLI 模式下并发数大于 1 时，进度条展示将优雅地降级为整洁的动态状态日志，避免终端闪烁。
+* ✂️ **可选几何裁剪**：压缩前可先裁掉画面多余空边（如 AI 生成视频的安全边）。支持两种模式：精确像素裁剪 `W:H:X:Y`（与 ffmpeg crop 一致），或居中比例裁剪（如 `16:9` 的最大内接矩形，可再按百分比保留画面）；裁剪发生在缩放之前，硬编/音频/CRF 等行为不受影响。默认不裁。
 * 📝 **自动日志归档**：压缩结束后，程序会在对应的输出目录自动创建/追加 `compress_summary.log`，供随时复盘压缩率和处理耗时。
 * 🌐 **环境变量一键绑定**：支持通过 `--install-path` 自动将当前程序目录追加到 Windows 当前用户的 `Path` 环境变量中，同时支持 `--uninstall-path` 安全移除，实现跨终端随处调用。
 * 🌐 **多语言与国际化支持 (i18n)**：
@@ -101,6 +102,9 @@ Videopress 内置了 3 档精心调校的 CRF 质量参数，满足不同场景�
 | `--copy-audio` | `-a` | `false` | 音频流直通：不重新编码音频，保留原音质且加快速度 |
 | `--force` | `-f` | `false` | 强制覆盖同名压缩文件，禁止创建自增副本 |
 | `--skip-existing` | - | `false` | 增量模式：如果输出路径已存在同名压缩文件，则跳过 |
+| `--crop <W:H:X:Y>` | - | 不裁 | 压缩前精确像素裁剪（如 `1600:900:160:90`），与 `--crop-center` 互斥 |
+| `--crop-center <W:H>` | - | - | 压缩前居中裁到该比例的最大矩形（如 `16:9`），与 `--crop` 互斥 |
+| `--crop-scale <数>` | - | `1.0` | 在居中比例框内再保留的画面比例（0.5–1.0，需配合 `--crop-center`） |
 | `--install-sendto` | - | `false` | 安装 SendTo 右键菜单绑定 |
 | `--uninstall-sendto`| - | `false` | 移除 SendTo 快捷方式（兼容清除旧版本） |
 | `--install-path` | - | `false` | 将当前程序目录添加至当前用户的 Path 环境变量中 |
@@ -111,6 +115,12 @@ Videopress 内置了 3 档精心调校的 CRF 质量参数，满足不同场景�
 ```powershell
 # 开启 GPU 加速，用 small 档压缩，并且直接 Copy 音轨（不编码音频）
 videopress.exe --preset small --hw -a C:\videos\movie.mp4
+
+# 压缩前先居中裁到 16:9 并保留 90% 画面（去掉 AI 生成的安全边）
+videopress.exe --crop-center 16:9 --crop-scale 0.9 --hw C:\videos\border.mp4
+
+# 压缩前按像素精确裁剪（W:H:X:Y，与 ffmpeg crop 语义一致）
+videopress.exe --crop 1600:900:160:90 --preset standard C:\videos\delta.mp4
 
 # 开启 3 并发，增量压缩整个文件夹中的视频，如果已经压缩过则直接跳过
 videopress.exe -c 3 --skip-existing C:\videos\a.mp4 C:\videos\b.mp4 C:\videos\c.mp4

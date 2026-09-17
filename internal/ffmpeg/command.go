@@ -7,7 +7,7 @@ import (
 	"videopress/internal/compress"
 )
 
-func BuildArgs(inputPath string, outputPath string, preset compress.Preset, hwEncoder string, copyAudio bool, maxFPS int, audioMode string, crfOverride int) []string {
+func BuildArgs(inputPath string, outputPath string, preset compress.Preset, hwEncoder string, copyAudio bool, maxFPS int, audioMode string, crfOverride int, cropExpr string) []string {
 	var scaleFilter string
 	if preset.MaxDimension > 0 {
 		scaleFilter = fmt.Sprintf(
@@ -23,12 +23,17 @@ func BuildArgs(inputPath string, outputPath string, preset compress.Preset, hwEn
 		)
 	}
 
+	vf := scaleFilter
+	if cropExpr != "" {
+		vf = cropExpr + "," + scaleFilter
+	}
+
 	args := []string{
 		"-hide_banner",
 		"-nostats",
 		"-y",
 		"-i", inputPath,
-		"-vf", scaleFilter,
+		"-vf", vf,
 	}
 
 	if maxFPS > 0 {

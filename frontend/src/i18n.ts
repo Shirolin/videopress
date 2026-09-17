@@ -204,6 +204,20 @@ export const translations: Record<string, Record<string, string>> = {
     'advanced.crf.status.balanced': '清晰/均衡',
     'advanced.crf.status.low': '高压缩/体积小',
 
+    // 几何裁剪
+    'advanced.crop.title': '几何裁剪',
+    'advanced.crop.desc': '压缩前先裁掉画面多余空边（如 AI 生成视频的安全边）。默认不裁。',
+    'advanced.crop.mode': '裁剪方式',
+    'advanced.crop.mode_off': '不裁剪',
+    'advanced.crop.mode_exact': '精确像素 (W:H:X:Y)',
+    'advanced.crop.mode_center': '居中比例 (W:H)',
+    'advanced.crop.exact': '精确裁剪',
+    'advanced.crop.center': '居中裁剪',
+    'advanced.crop.scale': '保留比例',
+    'advanced.crop.scale_desc': '在居中比例框内再保留的画面比例。',
+    'advanced.crop.size_label': '宽:高',
+    'advanced.crop.offset_label': 'X:Y 偏移',
+
     // 动图导出 (GIF/APNG/WebP)
     'gif.title': '动图导出',
     'gif.subtitle': '为社媒分享导出小体积动图',
@@ -416,6 +430,20 @@ export const translations: Record<string, Record<string, string>> = {
     'advanced.crf.status.high': 'Ultra Quality / Large',
     'advanced.crf.status.balanced': 'Balanced / Good',
     'advanced.crf.status.low': 'High Compress / Small',
+
+    // Geometry crop
+    'advanced.crop.title': 'Geometry Crop',
+    'advanced.crop.desc': 'Trim excess padding before compression (e.g. safe edges of AI-generated video). Off by default.',
+    'advanced.crop.mode': 'Crop Mode',
+    'advanced.crop.mode_off': 'Off',
+    'advanced.crop.mode_exact': 'Exact Pixels (W:H:X:Y)',
+    'advanced.crop.mode_center': 'Centered Ratio (W:H)',
+    'advanced.crop.exact': 'Exact Crop',
+    'advanced.crop.center': 'Center Crop',
+    'advanced.crop.scale': 'Keep Scale',
+    'advanced.crop.scale_desc': 'Fraction of the centered ratio frame to keep.',
+    'advanced.crop.size_label': 'W:H',
+    'advanced.crop.offset_label': 'X:Y Offset',
 
     // Animated export (GIF/APNG/WebP)
     'gif.title': 'Animated Export',

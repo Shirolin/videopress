@@ -22,6 +22,7 @@ type Dependencies struct {
 	ResolveBinary    func(dir string) (string, error)
 	RunCommand       func(name string, args []string) error
 	GetDuration      func(ffmpegPath string, inputPath string) (time.Duration, error)
+	GetDimensions    func(ffmpegPath string, inputPath string) (int, int, error)
 	DetectGPUEncoder func(ffmpegPath string, codec string, runCmd func(string, []string) error) string
 	MkdirAll         func(path string, perm os.FileMode) error
 	PathExists       func(path string) bool
@@ -42,7 +43,8 @@ func DefaultDependencies(execDir string) Dependencies {
 			util.HideConsoleWindow(cmd)
 			return cmd.Run()
 		},
-		GetDuration: ffmpeg.GetDuration,
+		GetDuration:   ffmpeg.GetDuration,
+		GetDimensions: ffmpeg.GetDimensions,
 		DetectGPUEncoder: func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
 			return ffmpeg.DetectGPUEncoder(ffmpegPath, codec, runCmd)
 		},
@@ -87,6 +89,9 @@ func NewCompressEngine(deps Dependencies) *CompressEngine {
 	}
 	if deps.GetDuration == nil {
 		deps.GetDuration = ffmpeg.GetDuration
+	}
+	if deps.GetDimensions == nil {
+		deps.GetDimensions = ffmpeg.GetDimensions
 	}
 	if deps.DetectGPUEncoder == nil {
 		deps.DetectGPUEncoder = func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
@@ -290,7 +295,32 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 
 				startTime := time.Now()
 				duration, _ := e.deps.GetDuration(ffmpegPath, task.input)
-				args := ffmpeg.BuildArgs(task.input, task.output, preset, hwEncoder, req.CopyAudio, req.MaxFPS, req.AudioMode, req.CRF)
+				cropExpr := ""
+				if req.Crop != nil {
+					var cerr error
+					cropExpr, cerr = e.resolveCropExpr(req.Crop, ffmpegPath, task.input)
+					if cerr != nil {
+						mu.Lock()
+						allReports = append(allReports, JobReport{
+							InputName:  filepath.Base(task.input),
+							InputPath:  task.input,
+							Status:     "failed",
+							SourceSize: util.GetFileSize(task.input),
+							ErrMessage: cerr.Error(),
+						})
+						mu.Unlock()
+						if onProgress != nil {
+							onProgress(ProgressEvent{
+								File:  filepath.Base(task.input),
+								Path:  task.input,
+								Done:  true,
+								Error: cerr.Error(),
+							})
+						}
+						continue
+					}
+				}
+				args := ffmpeg.BuildArgs(task.input, task.output, preset, hwEncoder, req.CopyAudio, req.MaxFPS, req.AudioMode, req.CRF, cropExpr)
 
 				err := e.runCommandWithProgress(ctx, ffmpegPath, args, duration, task.input, filepath.Base(task.input), onProgress)
 				elapsed := time.Since(startTime)
@@ -344,6 +374,31 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 	wg.Wait()
 
 	return allReports, nil
+}
+
+// resolveCropExpr 根据裁剪配置生成 crop 滤镜表达式（空串表示不裁剪）。
+// 精确裁剪时校验越界，居中比例裁剪时探测输入分辨率并计算内接矩形。
+func (e *CompressEngine) resolveCropExpr(crop *CropSpec, ffmpegPath string, inputPath string) (string, error) {
+	if crop.Exact {
+		if crop.W <= 0 || crop.H <= 0 {
+			return "", fmt.Errorf("裁剪宽高必须为正数: %d:%d", crop.W, crop.H)
+		}
+		iw, ih, err := e.deps.GetDimensions(ffmpegPath, inputPath)
+		if err != nil {
+			return "", fmt.Errorf("探测视频分辨率失败: %v", err)
+		}
+		if crop.X < 0 || crop.Y < 0 || crop.X+crop.W > iw || crop.Y+crop.H > ih {
+			return "", fmt.Errorf("裁剪区域越界: crop=%d:%d:%d:%d 超出画面 %dx%d", crop.W, crop.H, crop.X, crop.Y, iw, ih)
+		}
+		return fmt.Sprintf("crop=%d:%d:%d:%d", crop.W, crop.H, crop.X, crop.Y), nil
+	}
+
+	iw, ih, err := e.deps.GetDimensions(ffmpegPath, inputPath)
+	if err != nil {
+		return "", fmt.Errorf("探测视频分辨率失败: %v", err)
+	}
+	w, h, x, y := ffmpeg.ComputeCenterCrop(iw, ih, crop.RatioW, crop.RatioH, crop.Scale)
+	return fmt.Sprintf("crop=%d:%d:%d:%d", w, h, x, y), nil
 }
 
 func (e *CompressEngine) runCommandWithProgress(ctx context.Context, ffmpegPath string, args []string, duration time.Duration, inputPath string, prefix string, onProgress func(ProgressEvent)) error {

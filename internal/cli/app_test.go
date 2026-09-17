@@ -691,3 +691,59 @@ func TestGifExportSkippedPrintsOverBudgetNote(t *testing.T) {
 		t.Fatalf("expected skipped over-budget note in stdout, got %s", stdout.String())
 	}
 }
+
+func TestExecuteCropFlagsMutuallyExclusive(t *testing.T) {
+	stderr := &bytes.Buffer{}
+	exitCode := Execute([]string{"--crop", "100:100:0:0", "--crop-center", "16:9", `C:\videos\clip.mov`}, Dependencies{
+		ExecutableDir:  `C:\tools`,
+		ExecutablePath: `C:\tools\videopress.exe`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			t.Errorf("should not invoke ffmpeg when crop modes conflict")
+			return nil
+		},
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: accessibleInput,
+		Stdout:          &bytes.Buffer{},
+		Stderr:          stderr,
+	})
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1 for conflicting crop flags, got %d", exitCode)
+	}
+}
+
+func TestExecuteCropBadFormat(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"exact crop missing offset", []string{"--crop", "100:100", `C:\videos\clip.mov`}},
+		{"exact crop non numeric", []string{"--crop", "a:b:c:d", `C:\videos\clip.mov`}},
+		{"center ratio single value", []string{"--crop-center", "16", `C:\videos\clip.mov`}},
+		{"crop-scale without center", []string{"--crop-scale", "0.9", `C:\videos\clip.mov`}},
+		{"crop-scale out of range", []string{"--crop-center", "16:9", "--crop-scale", "1.5", `C:\videos\clip.mov`}},
+	}
+	for _, tt := range tests {
+		stderr := &bytes.Buffer{}
+		exitCode := Execute(tt.args, Dependencies{
+			ExecutableDir:  `C:\tools`,
+			ExecutablePath: `C:\tools\videopress.exe`,
+			ResolveBinary: func(dir string) (string, error) {
+				return `C:\ffmpeg\bin\ffmpeg.exe`, nil
+			},
+			RunCommand: func(name string, args []string) error {
+				t.Errorf("should not invoke ffmpeg for bad crop format: %s", tt.name)
+				return nil
+			},
+			PathExists:      func(path string) bool { return false },
+			InputAccessible: accessibleInput,
+			Stdout:          &bytes.Buffer{},
+			Stderr:          stderr,
+		})
+		if exitCode != 1 {
+			t.Errorf("%s: expected exit code 1, got %d", tt.name, exitCode)
+		}
+	}
+}

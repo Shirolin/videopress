@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -127,6 +128,9 @@ func printUsage(w io.Writer) {
 	fmt.Fprintf(w, "  --audio %s   %s\n", cyan("copy|compress|mute"), getMsg("音频模式（默认 compress）", "Audio mode (default compress)"))
 	fmt.Fprintln(w, getMsg("  --copy-audio, -a                 直接复制音频流，不重编码", "  --copy-audio, -a                 Copy audio stream directly without re-encoding"))
 	fmt.Fprintf(w, "  --crf %s               %s\n", cyan("<数字>"), getMsg("自定义视频质量 (CRF) 参数覆盖，0 为不覆盖（默认 0）", "Override CRF quality value, 0 for preset default (default 0)"))
+	fmt.Fprintf(w, "  --crop %s           %s\n", cyan("W:H:X:Y"), getMsg("压缩前精确像素裁剪（与 --crop-center 互斥，默认不裁）", "Exact pixel crop before compression (mutually exclusive with --crop-center, off by default)"))
+	fmt.Fprintf(w, "  --crop-center %s       %s\n", cyan("W:H"), getMsg("压缩前居中裁到该比例的最大矩形（如 16:9）", "Center-crop to the largest rectangle of this ratio (e.g. 16:9)"))
+	fmt.Fprintf(w, "  --crop-scale %s      %s\n", cyan("<0.5-1.0>"), getMsg("在居中比例框内再保留的比例，需配合 --crop-center（默认 1.0）", "Keep scale inside the center crop, requires --crop-center (default 1.0)"))
 	fmt.Fprintf(w, "  --gif                             %s\n", cyan(getMsg("启用动图导出模式（GIF/APNG/WebP）", "Enable animated export mode (GIF/APNG/WebP)")))
 	fmt.Fprintf(w, "  --tier %s          %s\n", cyan("smooth|balanced|hd"), getMsg("动图档位（默认 balanced）", "Animated tier (default balanced)"))
 	fmt.Fprintf(w, "  --format %s    %s\n", cyan("gif|apng|webp"), getMsg("动图输出格式，可多次指定（默认全部三种）", "Animated output format, repeatable (default all three)"))
@@ -310,6 +314,9 @@ func Execute(args []string, deps Dependencies) int {
 	fs.SetOutput(deps.Stderr)
 
 	presetName := fs.String("preset", "standard", "compression preset")
+	cropExact := fs.String("crop", "", "exact crop W:H:X:Y")
+	cropCenter := fs.String("crop-center", "", "center crop to ratio W:H")
+	cropScale := fs.Float64("crop-scale", 1.0, "keep scale inside center crop (0.5..1.0)")
 	concurrency := fs.Int("concurrency", 1, "number of concurrent compressions")
 	fs.IntVar(concurrency, "c", 1, "number of concurrent compressions (shorthand)")
 	hwAccel := fs.Bool("hw", false, "enable GPU hardware acceleration")
@@ -337,6 +344,38 @@ func Execute(args []string, deps Dependencies) int {
 		fmt.Fprintf(deps.Stderr, "%s %v\n\n", red(getMsg("未知选项:", "Unknown option:")), err)
 		printUsage(deps.Stderr)
 		return 1
+	}
+
+	// 几何裁剪参数解析与互斥校验（校验失败直接退出，不调用压片）
+	var cropSpec *engine.CropSpec
+	if *cropExact != "" && *cropCenter != "" {
+		fmt.Fprintln(deps.Stderr, red(getMsg("裁剪模式冲突：--crop 与 --crop-center 不能同时使用", "Conflicting crop modes: --crop and --crop-center are mutually exclusive")))
+		return 1
+	}
+	if cropScaleFlagGiven(fs) && *cropCenter == "" {
+		fmt.Fprintln(deps.Stderr, red(getMsg("裁剪参数无效：--crop-scale 仅在 --crop-center 模式下生效", "Invalid crop options: --crop-scale only applies with --crop-center")))
+		return 1
+	}
+	if *cropExact != "" {
+		spec, err := parseExactCrop(*cropExact)
+		if err != nil {
+			fmt.Fprintln(deps.Stderr, red(err.Error()))
+			return 1
+		}
+		cropSpec = spec
+	}
+	if *cropCenter != "" {
+		if *cropScale < 0.5 || *cropScale > 1.0 {
+			fmt.Fprintln(deps.Stderr, red(getMsg("裁剪参数无效：--crop-scale 必须在 0.5 到 1.0 之间", "Invalid crop option: --crop-scale must be between 0.5 and 1.0")))
+			return 1
+		}
+		spec, err := parseCenterCrop(*cropCenter)
+		if err != nil {
+			fmt.Fprintln(deps.Stderr, red(err.Error()))
+			return 1
+		}
+		spec.Scale = *cropScale
+		cropSpec = spec
 	}
 	if *showVersion {
 		fmt.Fprintln(deps.Stdout, Version)
@@ -528,6 +567,18 @@ func Execute(args []string, deps Dependencies) int {
 	} else {
 		fmt.Fprintf(deps.Stdout, " 硬件加速: %s\n", gray("已禁用"))
 	}
+
+	if cropSpec != nil {
+		var cropDesc string
+		if cropSpec.Exact {
+			cropDesc = fmt.Sprintf("精确 %d:%d:%d:%d", cropSpec.W, cropSpec.H, cropSpec.X, cropSpec.Y)
+		} else {
+			cropDesc = fmt.Sprintf("居中 %d:%d（保留 %.0f%%）", cropSpec.RatioW, cropSpec.RatioH, cropSpec.Scale*100)
+		}
+		fmt.Fprintf(deps.Stdout, " 几何裁剪: %s\n", cyan(cropDesc))
+	} else {
+		fmt.Fprintf(deps.Stdout, " 几何裁剪: %s\n", gray("未启用"))
+	}
 	fmt.Fprintln(deps.Stdout, magenta("========================================"))
 	fmt.Fprintln(deps.Stdout)
 
@@ -645,6 +696,7 @@ func Execute(args []string, deps Dependencies) int {
 			MaxFPS:       *maxFPS,
 			AudioMode:    *audioMode,
 			CRF:          *crf,
+			Crop:         cropSpec,
 		}, onProgress)
 
 		if err != nil {
@@ -765,6 +817,48 @@ func Execute(args []string, deps Dependencies) int {
 		_ = deps.SendToNotify(deps.ExecutablePath, sendToResultTitle(successes, failures), sendToResultBody(successes, failures))
 	}
 	return exitCode
+}
+
+// cropScaleFlagGiven 判断 --crop-scale 是否被显式指定。
+func cropScaleFlagGiven(fs *flag.FlagSet) bool {
+	given := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "crop-scale" {
+			given = true
+		}
+	})
+	return given
+}
+
+// parseExactCrop 解析 --crop W:H:X:Y 精确像素裁剪（与 ffmpeg crop 一致）。
+func parseExactCrop(s string) (*engine.CropSpec, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 4 {
+		return nil, fmt.Errorf("裁剪格式无效: %s（应为 W:H:X:Y，例如 1600:900:160:90）", s)
+	}
+	nums := make([]int, 4)
+	for i, p := range parts {
+		n, err := strconv.Atoi(strings.TrimSpace(p))
+		if err != nil || n < 0 {
+			return nil, fmt.Errorf("裁剪格式无效: %s（W:H:X:Y 必须为非负整数）", s)
+		}
+		nums[i] = n
+	}
+	return &engine.CropSpec{Exact: true, W: nums[0], H: nums[1], X: nums[2], Y: nums[3]}, nil
+}
+
+// parseCenterCrop 解析 --crop-center W:H 居中比例裁剪。
+func parseCenterCrop(s string) (*engine.CropSpec, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("居中裁剪比例格式无效: %s（应为 W:H，例如 16:9）", s)
+	}
+	rw, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+	rh, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err1 != nil || err2 != nil || rw <= 0 || rh <= 0 {
+		return nil, fmt.Errorf("居中裁剪比例格式无效: %s（W:H 必须为正整数）", s)
+	}
+	return &engine.CropSpec{RatioW: rw, RatioH: rh, Scale: 1.0}, nil
 }
 
 func getDisplayWidth(s string) int {

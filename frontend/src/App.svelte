@@ -45,6 +45,36 @@
   let crfEnabled = $state<boolean>(localStorage.getItem('videopress_crf_enabled') === 'true');
   let crfValue = $state<number>(parseInt(localStorage.getItem('videopress_crf_value') || '0', 10));
 
+  // Geometry crop settings
+  let cropMode = $state<string>(localStorage.getItem('videopress_crop_mode') || 'off');
+  let cropW = $state<number>(parseInt(localStorage.getItem('videopress_crop_w') || '0', 10));
+  let cropH = $state<number>(parseInt(localStorage.getItem('videopress_crop_h') || '0', 10));
+  let cropX = $state<number>(parseInt(localStorage.getItem('videopress_crop_x') || '0', 10));
+  let cropY = $state<number>(parseInt(localStorage.getItem('videopress_crop_y') || '0', 10));
+  let cropCenterW = $state<number>(parseInt(localStorage.getItem('videopress_crop_center_w') || '16', 10));
+  let cropCenterH = $state<number>(parseInt(localStorage.getItem('videopress_crop_center_h') || '9', 10));
+  let cropScale = $state<number>(parseFloat(localStorage.getItem('videopress_crop_scale') || '1.0'));
+
+  // 由裁剪设置组装引擎所需的 CropSpec（off 或参数非法时返回 null）
+  let cropSpec = $derived.by(() => {
+    if (cropMode === 'exact') {
+      if (cropW > 0 && cropH > 0) {
+        const x = Number.isFinite(cropX) && cropX > 0 ? Math.floor(cropX) : 0;
+        const y = Number.isFinite(cropY) && cropY > 0 ? Math.floor(cropY) : 0;
+        return { Exact: true, W: Math.floor(cropW), H: Math.floor(cropH), X: x, Y: y, RatioW: 0, RatioH: 0, Scale: 1 };
+      }
+      return null;
+    }
+    if (cropMode === 'center') {
+      if (cropCenterW > 0 && cropCenterH > 0) {
+        const cs = Math.min(1, Math.max(0.5, Number.isFinite(cropScale) ? cropScale : 1));
+        return { Exact: false, W: 0, H: 0, X: 0, Y: 0, RatioW: Math.floor(cropCenterW), RatioH: Math.floor(cropCenterH), Scale: cs };
+      }
+      return null;
+    }
+    return null;
+  });
+
   let defaultCrf = $derived(videoCodec === 'h265' ? 29 : (videoCodec === 'av1' ? 32 : 27));
   let minCrf = $derived(videoCodec === 'h265' ? 18 : (videoCodec === 'av1' ? 20 : 15));
   let maxCrf = $derived(videoCodec === 'h265' ? 38 : (videoCodec === 'av1' ? 45 : 35));
@@ -116,6 +146,14 @@
     if (showAdvanced !== undefined) localStorage.setItem('videopress_show_advanced', showAdvanced.toString());
     if (crfEnabled !== undefined) localStorage.setItem('videopress_crf_enabled', crfEnabled.toString());
     if (crfValue !== undefined) localStorage.setItem('videopress_crf_value', crfValue.toString());
+    if (cropMode !== undefined) localStorage.setItem('videopress_crop_mode', cropMode);
+    if (cropW !== undefined) localStorage.setItem('videopress_crop_w', cropW.toString());
+    if (cropH !== undefined) localStorage.setItem('videopress_crop_h', cropH.toString());
+    if (cropX !== undefined) localStorage.setItem('videopress_crop_x', cropX.toString());
+    if (cropY !== undefined) localStorage.setItem('videopress_crop_y', cropY.toString());
+    if (cropCenterW !== undefined) localStorage.setItem('videopress_crop_center_w', cropCenterW.toString());
+    if (cropCenterH !== undefined) localStorage.setItem('videopress_crop_center_h', cropCenterH.toString());
+    if (cropScale !== undefined) localStorage.setItem('videopress_crop_scale', cropScale.toString());
   });
 
   // 同步语言设置至 Go 后端，仅在实际语言变化时调用，避免每次启动重复热写注册表
@@ -356,7 +394,8 @@
         VideoCodec: videoCodec,
         MaxFPS: maxFPS,
         AudioMode: audioMode,
-        CRF: crfEnabled ? crfValue : 0
+        CRF: crfEnabled ? crfValue : 0,
+        Crop: cropSpec
       });
 
       // Update queue items with target results
@@ -851,6 +890,59 @@
                 </div>
                 <span class="help-desc crf-help">{crfDescText}</span>
               </div>
+            {/if}
+          </div>
+
+          <!-- 几何裁剪 settings section -->
+          <div class="crf-settings-section crop-settings-section">
+            <div class="crf-header">
+              <span class="control-label">{$t('advanced.crop.title')}</span>
+              <div class="crop-mode-picker">
+                <CustomSelect
+                  options={[
+                    { value: 'off', label: $t('advanced.crop.mode_off') },
+                    { value: 'exact', label: $t('advanced.crop.mode_exact') },
+                    { value: 'center', label: $t('advanced.crop.mode_center') }
+                  ]}
+                  value={cropMode}
+                  onchange={(v) => cropMode = v}
+                  disabled={isCompressing}
+                />
+              </div>
+            </div>
+            <span class="help-desc crf-crop-desc">{$t('advanced.crop.desc')}</span>
+
+            {#if cropMode !== 'off'}
+              {#if cropMode === 'exact'}
+                <div class="crop-fields">
+                  <label class="crop-field">
+                    <span class="crop-field-label">{$t('advanced.crop.size_label')}</span>
+                    <input type="number" min={2} bind:value={cropW} disabled={isCompressing} class="crop-number-input" placeholder="1920" />
+                    <span class="crop-sep">:</span>
+                    <input type="number" min={2} bind:value={cropH} disabled={isCompressing} class="crop-number-input" placeholder="1080" />
+                  </label>
+                  <label class="crop-field">
+                    <span class="crop-field-label">{$t('advanced.crop.offset_label')}</span>
+                    <input type="number" min={0} bind:value={cropX} disabled={isCompressing} class="crop-number-input" placeholder="0" />
+                    <span class="crop-sep">:</span>
+                    <input type="number" min={0} bind:value={cropY} disabled={isCompressing} class="crop-number-input" placeholder="0" />
+                  </label>
+                </div>
+              {:else}
+                <div class="crop-fields">
+                  <label class="crop-field">
+                    <span class="crop-field-label">{$t('advanced.crop.center')}</span>
+                    <input type="number" min={1} bind:value={cropCenterW} disabled={isCompressing} class="crop-number-input" placeholder="16" />
+                    <span class="crop-sep">:</span>
+                    <input type="number" min={1} bind:value={cropCenterH} disabled={isCompressing} class="crop-number-input" placeholder="9" />
+                  </label>
+                  <div class="crop-field crop-scale-field">
+                    <span class="crop-field-label">{$t('advanced.crop.scale')} ({Math.round(cropScale * 100)}%)</span>
+                    <input type="range" min={0.5} max={1} step={0.05} bind:value={cropScale} disabled={isCompressing} class="crf-slider" />
+                    <span class="help-desc">{$t('advanced.crop.scale_desc')}</span>
+                  </div>
+                </div>
+              {/if}
             {/if}
           </div>
         </div>
@@ -1650,6 +1742,51 @@
     font-weight: 600;
     display: inline-block;
     vertical-align: middle;
+  }
+
+  .crop-settings-section {
+    padding-bottom: 0.4rem;
+  }
+
+  .crop-mode-picker {
+    width: 240px;
+  }
+
+  .crop-fields {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .crop-field {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .crop-field-label {
+    font-size: 0.8rem;
+    opacity: 0.75;
+  }
+
+  .crop-number-input {
+    width: 72px;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--bg-elev, #1a1a1a);
+    color: inherit;
+    font-size: 0.85rem;
+  }
+
+  .crop-sep {
+    opacity: 0.6;
+  }
+
+  .crop-scale-field {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .crf-settings-section {
