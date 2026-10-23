@@ -29,9 +29,9 @@ func (a *App) workspaceView(c *ui.Context) {
 			ui.Column(c).Gap(u * 3).Children(func() {
 				a.statsBar(c)
 				a.quickControls(c)
-				a.advancedPanel(c)
 				a.dropZone(c)
 				a.queueList(c)
+				a.advancedPanel(c)
 				a.gifPanel(c)
 			})
 		})
@@ -310,7 +310,7 @@ func (a *App) cropField(c *ui.Context) {
 	}
 
 	ui.Column(c).Gap(u * 2).Children(func() {
-		ui.Row(c).Gap(u * 3).AlignItems(ui.Center).Children(func() {
+		ui.Column(c).Gap(u).Children(func() {
 			a.sectionLabel(c, "advanced.crop.title")
 			value := a.prefs.CropMode
 			if input.Select(c, &value, options, input.SelectOptions{Label: a.t("advanced.crop.mode"), Disabled: a.isCompressing}).Changed() {
@@ -511,36 +511,59 @@ func resultStat(c *ui.Context, label, value string, color ui.Color) {
 	})
 }
 
-// actionPanel holds the start/cancel buttons.
+// actionPanel holds the batch summary and the start/cancel buttons.
 func (a *App) actionPanel(c *ui.Context) {
 	u := core.Density(c).Unit()
-	ui.Row(c).Gap(u * 3).AlignItems(ui.Center).Children(func() {
-		hasResult := false
-		for _, it := range a.queue {
-			switch it.Status {
-			case "success", "skipped":
-				hasResult = true
+	k := core.Tokens(c)
+	ui.Column(c).Gap(u * 2).Children(func() {
+		ui.Box(c).FillWidth().Height(theme.BorderWidth).Shrink(0).Background(k.Border)
+		ui.Row(c).Gap(u * 3).AlignItems(ui.Center).Children(func() {
+			if len(a.queue) > 0 {
+				ui.Text(c, a.tf("action.summary", map[string]string{
+					"num":    strconv.Itoa(len(a.queue)),
+					"preset": a.presetLabel(),
+				})).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
+			} else {
+				ui.Text(c, a.t("dropzone.desc")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 			}
-		}
-		if hasResult && input.Button(c, a.t("btn.open_output_folder"), input.ButtonOptions{
-			Variant: input.Secondary, Icon: ic("folder"),
-		}).Clicked() {
-			a.openResultFolder()
-		}
-		ui.Spacer(c)
-		if a.isCompressing {
-			if input.Button(c, a.t("btn.cancel_compress"), input.ButtonOptions{Variant: input.Danger, Icon: ic("square")}).Clicked() {
-				a.cancelCompress()
+			hasResult := false
+			for _, it := range a.queue {
+				switch it.Status {
+				case "success", "skipped":
+					hasResult = true
+				}
 			}
-			return
-		}
-		disabled := len(a.queue) == 0 || a.isGifExporting || a.ffmpegError != ""
-		if input.Button(c, a.t("btn.start_compress"), input.ButtonOptions{
-			Variant: input.Primary, Icon: ic("play"), Disabled: disabled,
-		}).Clicked() && !disabled {
-			a.startCompress()
-		}
+			if hasResult && input.Button(c, a.t("btn.open_output_folder"), input.ButtonOptions{
+				Variant: input.Secondary, Icon: ic("folder"),
+			}).Clicked() {
+				a.openResultFolder()
+			}
+			ui.Spacer(c)
+			if a.isCompressing {
+				if input.Button(c, a.t("btn.cancel_compress"), input.ButtonOptions{Variant: input.Danger, Icon: ic("square")}).Clicked() {
+					a.cancelCompress()
+				}
+				return
+			}
+			disabled := len(a.queue) == 0 || a.isGifExporting || a.ffmpegError != ""
+			if input.Button(c, a.t("btn.start_compress"), input.ButtonOptions{
+				Variant: input.Primary, Icon: ic("play"), Disabled: disabled,
+			}).Clicked() && !disabled {
+				a.startCompress()
+			}
+		})
 	})
+}
+
+// presetLabel is the display name of the current preset.
+func (a *App) presetLabel() string {
+	switch a.prefs.Preset {
+	case "small":
+		return a.t("preset.small")
+	case "quality":
+		return a.t("preset.quality")
+	}
+	return a.t("preset.standard")
 }
 
 // gifPanel exports the queue as animated clips.

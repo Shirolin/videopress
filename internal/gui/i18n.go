@@ -33,6 +33,8 @@ var copyTable = map[string][2]string{
 	"preset.standard": {"标准", "Standard"},
 	"preset.quality":  {"高画质", "High Quality"},
 
+	"action.summary": {"已选 {num} 个 · {preset}", "{num} selected · {preset}"},
+
 	"btn.change":             {"更改", "Change"},
 	"btn.reset":              {"重置", "Reset"},
 	"btn.reset_path_title":   {"恢复默认路径", "Reset output path"},

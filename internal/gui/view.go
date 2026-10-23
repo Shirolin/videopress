@@ -76,10 +76,6 @@ func (a *App) titleBar(c *ui.Context) {
 			if selected != a.page && !a.isCompressing {
 				a.page = selected
 			}
-			if v := a.Version(); v != "" {
-				ui.Text(c, "v"+v).FontSize(core.FontSize(c, theme.CaptionSize)).
-					TextColor(core.Tokens(c).TextMuted).Padding(0, 8)
-			}
 		},
 	})
 }
