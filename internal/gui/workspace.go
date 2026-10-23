@@ -35,7 +35,9 @@ func (a *App) workspaceView(c *ui.Context) {
 				a.gifPanel(c)
 			})
 		})
-		sc.Grow(1).Shrink(1).MinHeight(0)
+		// Leave the overlay scrollbar its own gutter so it does not draw
+		// across the cards' right edges.
+		sc.Grow(1).Shrink(1).MinHeight(0).Padding(0, u*3, 0, 0)
 		a.actionPanel(c)
 	})
 }
