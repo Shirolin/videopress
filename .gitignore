@@ -1,5 +1,5 @@
 # --- Build artifacts ---
-/build/bin/
+/dist/
 /bin/
 *.exe
 *.exe~
@@ -14,12 +14,6 @@ coverage.out
 *.coverprofile
 .gopath/
 
-# --- Frontend ---
-frontend/node_modules/
-frontend/dist/
-frontend/package.json.md5
-**/.vite-temp/
-
 # --- Local FFmpeg (do not commit binaries) ---
 /ffmpeg
 /ffmpeg.exe
@@ -31,12 +25,6 @@ compressed/
 compress_summary.log
 *.log
 
-# --- Package manager logs ---
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
 # --- Environment ---
 .env
 .env*.local
@@ -44,8 +32,6 @@ pnpm-debug.log*
 # --- IDE ---
 .idea/
 .vscode/
-!frontend/.vscode/
-!frontend/.vscode/**
 *.suo
 *.ntvs*
 *.user
@@ -62,3 +48,6 @@ $RECYCLE.BIN/
 # --- Local AI / agent tool caches ---
 .agents/
 .codex/
+
+# --- Local scratch ---
+/.tmp/

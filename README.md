@@ -2,9 +2,9 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Windows-0078d7?style=flat-square&logo=windows" alt="Platform">
-  <img src="https://img.shields.io/badge/Language-Go%201.26+-00add8?style=flat-square&logo=go" alt="Language">
+  <img src="https://img.shields.io/badge/Language-Go%201.27.3-00add8?style=flat-square&logo=go" alt="Language">
   <img src="https://img.shields.io/badge/FFmpeg-Required-green?style=flat-square&logo=ffmpeg" alt="FFmpeg">
-  <img src="https://img.shields.io/badge/Framework-Wails%20v2-red?style=flat-square" alt="Wails">
+  <img src="https://img.shields.io/badge/Framework-MyGO%20%2B%20MujicaUI-red?style=flat-square" alt="MyGO">
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License">
 </p>
 
@@ -65,7 +65,7 @@
 ## ✨ 核心特性
 
 * 🖥 **双入口无缝切换**：
-  * **GUI 模式**：双击程序或不带参数运行时，展示基于 Wails + Svelte 的暖色压片台图形界面。支持文件拖拽、压缩队列管理、全局设置配置及 GPU 加速检测切换。
+  * **GUI 模式**：双击程序或不带参数运行时，展示基于 MyGO + MujicaUI 的原生图形界面。支持文件拖拽、压缩队列管理、全局设置配置及 GPU 加速检测切换。
   * **CLI 模式**：在终端附带视频文件路径运行时，自动进入控制台模式，实时渲染无抖动的平滑进度条，并在完成后输出直观的压缩率摘要表格。
 * 🚀 **GPU 硬件加速**：自动检测你显卡支持的硬编技术（NVIDIA `h264_nvenc`、Intel `h264_qsv`、AMD `h264_amf`）。检测到后自动开启加速，未检测到时安全 fallback 到 CPU 编码。
 * 🧵 **高效并发**：通过 Worker Pool 机制实现多视频文件并发压缩。CLI 模式下并发数大于 1 时，进度条展示将优雅地降级为整洁的动态状态日志，避免终端闪烁。
@@ -74,7 +74,7 @@
 * 🌐 **环境变量一键绑定**：支持通过 `--install-path` 自动将当前程序目录追加到 Windows 当前用户的 `Path` 环境变量中，同时支持 `--uninstall-path` 安全移除，实现跨终端随处调用。
 * 🌐 **多语言与国际化支持 (i18n)**：
   * **界面与命令行全覆盖**：程序在 GUI（配置面板、弹窗、核心设置）与 CLI（终端用法、参数帮助、进度提示）中完全实现中/英文国际化。
-  * **系统级 UI 语言自适应**：Go 后端会在启动时通过 Windows `GetUserDefaultUILanguage` API 检测系统 UI 语言并自动加载中文或英文。
+  * **系统级 UI 语言自适应**：默认跟随系统显示语言加载中文或英文，可在设置页随时切换，重启后保持。
   * **右键菜单名称热重载**：在配置面板中切换语言时，如果已安装右键快捷菜单，程序会自动在注册表中覆盖修改 `MUIVerb`，实现右键菜单名称的热切换（中文：“使用 Videopress 压缩” / 英文：“Compress with Videopress”）。
   * **自定义语言选择**：配置面板提供“界面语言”下拉菜单，便于用户灵活手动指定首选语言。
 
@@ -133,16 +133,16 @@ videopress.exe --install-path
 
 ## 📦 自行构建
 
-若需从源码构建，请确保本地已安装 Go 1.26+、Node.js，以及 [Wails CLI](https://wails.io/zh-Hans/docs/gettingstarted/installation)。
+若需从源码构建，只需 Go 1.27.3；界面是纯 Go 自绘（[MyGO](https://github.com/egoist/mygo) + [MujicaUI](https://github.com/ELY-Open-Source/MujicaUI)），不需要 Node 或 C 编译器。
 
-项目使用 [`scripts/make.ps1`](scripts/make.ps1) 统一构建顺序（`frontend/dist` 必须在 Go 编译前生成，见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)）：
+构建入口为 [`scripts/make.ps1`](scripts/make.ps1)：
 
 ```powershell
-# 运行测试（推荐入口，自动构建前端）
+# 运行测试
 pwsh -File scripts/make.ps1 test
 
-# 开发热重载
-wails dev
+# 开发窗口（热重载）
+pwsh -File scripts/make.ps1 dev
 
 # 发布完整版 GUI+CLI
 pwsh -File scripts/make.ps1 build
@@ -150,4 +150,4 @@ pwsh -File scripts/make.ps1 build
 
 已安装 `make` 时可用 `make test` / `make build` / `make ci`，逻辑相同。
 
-编译产物输出在 `build/bin/videopress.exe`。视觉规范见 [`docs/DESIGN.md`](docs/DESIGN.md)。
+编译产物输出在 `dist/windows-amd64/`（`Videopress.exe` 与安装器）。构建细节见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，视觉规范见 [`docs/DESIGN.md`](docs/DESIGN.md)。

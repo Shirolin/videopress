@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"videopress/internal/cli"
-	"videopress/internal/desktop"
 	"videopress/internal/env"
 	"videopress/internal/gui"
 	"videopress/internal/sendto"
@@ -72,7 +71,7 @@ func Run(version string, args []string) int {
 	}
 
 	guiApp := gui.New(execDir, executablePath, initialFiles)
-	if err := desktop.Run(guiApp); err != nil {
+	if err := gui.Run(guiApp); err != nil {
 		fmt.Fprintln(os.Stderr, "GUI 启动错误:", err)
 		return 1
 	}

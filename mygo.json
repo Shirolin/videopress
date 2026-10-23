@@ -1,0 +1,8 @@
+{
+  "name": "Videopress",
+  "identifier": "com.shirolin.videopress",
+  "version": "0.1.0",
+  "copyright": "Copyright © 2026 Shirolin. All rights reserved.",
+  "icon": "resources/icon.png",
+  "out": "dist"
+}

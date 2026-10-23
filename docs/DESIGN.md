@@ -1,88 +1,47 @@
-# Videopress 视觉设计契约 — 压片台
+# Videopress 视觉契约
 
-## 目的
+## 权威来源
 
-Videopress 是 Windows 桌面视频压缩工具。界面隐喻为**暖色暗金属压片台**：文件在此排队、压制、出片。不是 SaaS 毛玻璃仪表盘，也不是切割垫工作台。
+配色、字号、间距、圆角、动效时长全部来自 MujicaUI：
 
-## 基调
+- `core.Tokens(c)` —— 背景、表面、文字、边框、强调色、功能色（成功/警告/危险）
+- `core.Density(c)` —— `Unit()` 与 `ControlHeight()`
+- `theme` —— `SerifFont`、`H1Size`/`H2Size`/`H3Size`/`BodySize`/`CaptionSize`、`CardRadius`、`ControlRadius`、`BorderWidth`、`StateDuration`
 
-- 不透明金属面板，密实控件条，密集队列
-- 单一品牌强调色：**钨丝暖金**（tungsten）
-- 功能色仅用于状态：完成（ok）、取消/破坏（danger）
-- 中文可读：Noto Sans SC / Noto Serif SC
+本仓库不定义颜色常量、不自建色板、不写内联 hex。需要颜色时从 `core.Tokens` 取，需要间距时乘 `core.Density(c).Unit()`。
 
-## 色彩令牌
+跟随系统明暗（`core.Settings{Mode: core.System}`），默认风为酒红/象牙/衬线。
 
-```css
---desk            #161410    /* 暖暗金属底，窗口背景 */
---desk-hem          #100e0b    /* 标题栏 / 面板 */
---desk-inset        #1c1914    /* 凹槽、输入框 */
---rule              #2c2820    /* 发丝线 */
---rule-strong       #3c382e
---ink               #e8e4d8    /* 暖米白正文 */
---ink-dim           #8a8578
---ink-faint         #5e5a50
---tungsten          #c4a574    /* 唯一品牌强调：主 CTA、进度、字标勾、焦点 */
---tungsten-hover    #d2b484
---tungsten-press    #a88855
---tungsten-ink      #161410    /* 钨色按钮上的文字（深色，非白） */
---ok                #7a9a6a    /* 任务完成等功能成功 */
---danger            #8a3a32    /* 取消 / 破坏性悬停 */
---radius            5px        /* 最大 6px */
-```
+## 组件
 
-禁止：`#08080a` 冷黑底、紫/品红渐变、多品牌强调色、钨色按钮白字。
+用 MujicaUI 的现成组件，不要自绘替代品：
 
-## 字体
-
-| 用途 | 字体 |
+| 位置 | 组件 |
 |------|------|
-| 字标「Videopress」+ 静「压片」 | Noto Serif SC 600 |
-| UI 正文与控件 | IBM Plex Sans + Noto Sans SC |
-| 规格 / CRF / 码率 | IBM Plex Mono |
+| 标题栏 | `layout.TitleBar` |
+| 页面滚动 | `layout.ScrollArea` |
+| 顶栏导航、预设、档位、并发数 | `navigation.SegmentedControl` |
+| 按钮 | `input.Button` / `input.IconButton` |
+| 开关、勾选、数值、滑块、下拉 | `input.Switch` / `Checkbox` / `NumberInput` / `Slider` / `Select` |
+| 卡片、折叠、列表 | `data.Card` / `data.Collapsible` |
+| 进度、状态、空态、toast | `feedback.Progress` / `ShowToast` / `Toaster` |
+| 配置页骨架 | `account.SettingsLayout` / `SettingsSection` / `SettingsRow` |
+| 图标 | `icons` 包，缺失名字用 `ic()` 兜底 |
 
-禁止作为 `font-family` 出现：Inter、Roboto、Arial、system-ui、Geist、Outfit、Satoshi、Nunito。
-
-## 圆角
-
-默认 `--radius`（5px）。局部最大 6px。禁止 `rounded-2xl` 类默认大圆角。
-
-## 面板
-
-`.hem-panel`：不透明 `--desk-hem` 背景，`1px solid var(--rule)` 边框，`border-radius: var(--radius)`。无 `backdrop-filter`、无光晕、无渐变边框。
-
-## 标题栏
-
-- 无边框窗口，顶栏 `--desk-hem` 全宽贴顶，底边 `--rule` 分隔
-- 品牌、导航、窗口按钮为 `no-drag`；中间空白区可拖拽移动窗口
-- 窗口按钮（最小化 / 最大化 / 关闭）为功能性控件，关闭 hover 使用 `--danger`
-- 双击空白拖拽区切换最大化
-
-## 签名动效（唯一）
-
-队列项变为完成时：行 `translateY(1px)` 按压感 + 钨色进度条填满，`180–220ms cubic-bezier(0.16, 1, 0.3, 1)`。空态拖放区落定 `8px`。其余交互保持安静。`prefers-reduced-motion: reduce` 时跳过。
-
-## 保留（产品性格）
-
-- 拖放区 + 文件队列 + 预设/并发/硬解/复制音频/强制/跳过
-- 高级编码/CRF/FPS + 设置 + i18n + GPU 检测
-- 队列有项时拖放区紧凑化 + 统计条
-- 控件条密度
-- 真实拖放（已实现则保留文案）
-- 取消红、完成绿（使用 `--danger` / `--ok` 去饱和）
-
-## 禁止（装饰性 slop）
-
-- 毛玻璃 `backdrop-filter` 于 chrome 面板
-- `body::before/::after` 紫/品红光球
-- 紫品红渐变 CTA / 进度条
-- `.neon-hover` 紫色光晕
-- Sparkles / Rocket / PartyPopper 类图标
-- 英文大写 tracking 装饰
-- 营销话术：高颜值 / 高速 / 智能 / 专业级 / 闪电 / 极速
-- 白字钨色按钮
-- 额外装饰微交互
+MujicaUI 的组件只随包发布约 90 个 Lucide 图标，`icons.Must` 对未收录的名字会 panic；取图标一律走 [`internal/gui/view.go`](../internal/gui/view.go) 的 `ic()`。
 
 ## 文案
 
-界面文案陈述功能，不推销。i18n 键名与语义不变；仅调整过于营销的中英字串。
+- 界面文案陈述功能，不推销。
+- 中英文都从 [`internal/gui/i18n.go`](../internal/gui/i18n.go) 的 `copyTable` 取，不要写死在视图里。
+- 短标签可直接用库名/格式名（`H.265 (HEVC)`、`GIF`），不翻译。
+
+## 禁止（装饰性 slop）
+
+- 自建色板或内联 hex
+- 毛玻璃、光晕、渐变边框、渐变 CTA
+- 紫/品红装饰光球
+- Sparkles / Rocket / PartyPopper 类图标
+- 英文大写 tracking 装饰
+- 营销话术：高颜值 / 高速 / 智能 / 专业级 / 闪电 / 极速
+- 额外装饰微交互；动效只用于状态变化本身

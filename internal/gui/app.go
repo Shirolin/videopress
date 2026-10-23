@@ -6,146 +6,313 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"sync"
-	"time"
+
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 
 	"videopress/internal/cli"
 	"videopress/internal/engine"
 	"videopress/internal/env"
 	"videopress/internal/ffmpeg"
 	"videopress/internal/gif"
-	"videopress/internal/locale"
 	"videopress/internal/sendto"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"videopress/internal/util"
 )
 
-// App handles Wails GUI bindings.
+// QueueItem is one row of the file queue.
+type QueueItem struct {
+	Path       string
+	Name       string
+	Size       int64
+	TargetSize int64
+	Percent    float64
+	Status     string // waiting | compressing | success | failed | skipped
+	Duration   int64  // milliseconds
+	Error      string
+	Warning    bool
+}
+
+// App holds the GUI state and the services the view calls.
 type App struct {
-	ctx            context.Context
 	executableDir  string
 	executablePath string
-	initialFiles   []string
+	win            *mygo.Window
+
 	mu             sync.Mutex
 	compressCancel context.CancelFunc
 	compressGen    uint64
 	gifCancel      context.CancelFunc
 	gifGen         uint64
-	enableDebug    bool
-	language       string
+
+	// View state, touched on the main thread only.
+	page            int
+	queue           []QueueItem
+	pageScroll      *ui.ScrollState
+	settingsScroll  *ui.ScrollState
+	settingsPage    string
+	showAdvanced    bool
+	isCompressing   bool
+	isGifExporting  bool
+	ffmpegError     string
+	ffmpegPath      string
+	gpuEncoder      string
+	downloading     bool
+	downloadPercent float64
+	downloadError   string
+	gifTier         string
+	gifFormats      map[string]bool
+	gifResults      []gif.ExportResult
+	gifError        string
+	integration     map[string]bool
+	integrationBusy bool
+	gifBusy         bool
+	lastOutputDir   string
+	toast           string
+	toastKind       toastKind
+
+	// locale is the language MyGO resolved at startup, kept so the view
+	// need not ask the app (that call waits for the main thread).
+	locale string
+
+	// Preferences, persisted to settings.json.
+	prefs prefs
 }
 
 // New creates a GUI application instance.
 func New(execDir, execPath string, initialFiles []string) *App {
-	return &App{
+	p := loadPrefs()
+	a := &App{
 		executableDir:  execDir,
 		executablePath: execPath,
-		initialFiles:   initialFiles,
-		language:       locale.System(),
+		pageScroll:     &ui.ScrollState{},
+		settingsScroll: &ui.ScrollState{},
+		settingsPage:   "general",
+		gifTier:        gif.DefaultTier,
+		locale:         p.Language,
+		gifFormats:     map[string]bool{"gif": true, "apng": true, "webp": true},
+		integration:    map[string]bool{},
+		prefs:          p,
+	}
+	a.addFiles(initialFiles)
+	return a
+}
+
+// Attach stores the window the view belongs to.
+func (a *App) Attach(win *mygo.Window) { a.win = win }
+
+// update runs fn on the main thread and repaints.
+func (a *App) update(fn func()) {
+	if a.win == nil {
+		fn()
+		return
+	}
+	a.win.Update(fn)
+}
+
+// Version returns the application version.
+func (a *App) Version() string { return cli.Version }
+
+// lang reports the active UI language, "zh" or "en".
+func (a *App) lang() string {
+	if a.locale == "zh-Hans" {
+		return "zh"
+	}
+	return "en"
+}
+
+// ---- queue ----
+
+// addFiles appends the video files that are not queued yet.
+func (a *App) addFiles(paths []string) {
+	seen := make(map[string]bool, len(a.queue))
+	for _, it := range a.queue {
+		seen[filepath.Clean(it.Path)] = true
+	}
+	for _, p := range paths {
+		if !util.IsVideoFile(p) {
+			continue
+		}
+		key := filepath.Clean(p)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		name := filepath.Base(p)
+		warn := containsCompressed(name)
+		item := QueueItem{Path: p, Name: name, Status: "waiting", Warning: warn}
+		if warn {
+			item.Error = "该视频可能已经被压缩过，二次压缩会损害画质。"
+		}
+		a.queue = append(a.queue, item)
 	}
 }
 
-// Startup is called when the Wails app starts.
-func (a *App) Startup(ctx context.Context) {
-	a.ctx = ctx
+func containsCompressed(name string) bool {
+	for i := 0; i+11 <= len(name); i++ {
+		if name[i:i+11] == ".compressed" {
+			return true
+		}
+	}
+	return false
 }
 
-// GetInitialFiles returns the initial file paths passed during application launch.
-func (a *App) GetInitialFiles() []string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	files := a.initialFiles
-	a.initialFiles = nil
-	return files
+// removeQueue removes the item at index.
+func (a *App) removeQueue(index int) {
+	if index < 0 || index >= len(a.queue) {
+		return
+	}
+	a.queue = append(a.queue[:index], a.queue[index+1:]...)
 }
 
-// GetVersion returns the application version.
-func (a *App) GetVersion() string {
-	return cli.Version
+// clearQueue empties the queue.
+func (a *App) clearQueue() {
+	if a.isCompressing {
+		return
+	}
+	a.queue = nil
 }
 
-// PresetInfo represents preset metadata returned to frontend.
-type PresetInfo struct {
-	Name         string  `json:"name"`
-	ScaleFactor  float64 `json:"scaleFactor"`
-	MaxDimension int     `json:"maxDimension"`
-	Description  string  `json:"description"`
+// applyProgress updates the queue row that matches an engine event.
+func (a *App) applyProgress(ev engine.ProgressEvent) {
+	for i := range a.queue {
+		item := &a.queue[i]
+		match := false
+		if ev.Path != "" {
+			match = filepath.Clean(item.Path) == filepath.Clean(ev.Path)
+		}
+		if !match {
+			match = item.Name == ev.File
+		}
+		if !match {
+			continue
+		}
+		item.Percent = ev.Percent
+		switch {
+		case ev.Error != "":
+			item.Status = "failed"
+			item.Error = ev.Error
+		case ev.Done:
+			item.Status = "success"
+		default:
+			item.Status = "compressing"
+		}
+		return
+	}
 }
 
-// GetPresets returns the list of compression presets.
-func (a *App) GetPresets() []PresetInfo {
-	a.mu.Lock()
-	lang := a.language
-	a.mu.Unlock()
+// ---- compression ----
 
-	descSmall := "小文件规格，适合社交媒体快速分享"
-	descStandard := "标准规格，画质与体积的完美平衡"
-	descQuality := "高画质规格，保留极致视频细节"
-
-	if lang == "en" {
-		descSmall = "Small file spec, perfect for social media sharing"
-		descStandard = "Standard spec, ideal balance of quality and size"
-		descQuality = "High quality spec, preserves maximum video details"
+// startCompress runs the queue through the engine.
+func (a *App) startCompress() {
+	if a.isCompressing || a.isGifExporting || len(a.queue) == 0 {
+		return
+	}
+	files := make([]string, len(a.queue))
+	for i, it := range a.queue {
+		files[i] = it.Path
+		a.queue[i].Percent = 0
+		a.queue[i].Status = "waiting"
+		a.queue[i].TargetSize = 0
+		a.queue[i].Duration = 0
+		if a.queue[i].Warning {
+			a.queue[i].Error = "该视频可能已经被压缩过，二次压缩会损害画质。"
+		} else {
+			a.queue[i].Error = ""
+		}
 	}
 
-	return []PresetInfo{
-		{Name: "small", ScaleFactor: 0.33, MaxDimension: 480, Description: descSmall},
-		{Name: "standard", ScaleFactor: 0.50, MaxDimension: 720, Description: descStandard},
-		{Name: "quality", ScaleFactor: 1.00, MaxDimension: 0, Description: descQuality},
+	req := engine.JobRequest{
+		Files:        files,
+		Preset:       a.prefs.Preset,
+		HWAccel:      a.prefs.HWAccel,
+		CopyAudio:    a.prefs.CopyAudio,
+		ForceMode:    a.prefs.ForceMode,
+		SkipExisting: a.prefs.SkipExisting,
+		Concurrency:  a.prefs.Concurrency,
+		OutputDir:    a.prefs.OutputDir,
+		VideoCodec:   a.prefs.VideoCodec,
+		MaxFPS:       a.prefs.MaxFPS,
+		AudioMode:    a.prefs.AudioMode,
+		CRF:          a.prefs.crf(),
+		Crop:         a.prefs.cropSpec(),
 	}
+
+	a.isCompressing = true
+	a.toast = ""
+	go a.runCompress(req)
 }
 
-// DetectFFmpeg checks if FFmpeg is available and returns its path.
-func (a *App) DetectFFmpeg() (string, error) {
-	deps := engine.DefaultDependencies(a.executableDir)
-	return deps.ResolveBinary(a.executableDir)
-}
-
-// DetectGPUEncoder auto-detects GPU hardware acceleration support.
-func (a *App) DetectGPUEncoder() (string, error) {
-	ffmpegPath, err := a.DetectFFmpeg()
-	if err != nil {
-		return "libx264", err
-	}
-	deps := engine.DefaultDependencies(a.executableDir)
-	encoder := deps.DetectGPUEncoder(ffmpegPath, "h264", deps.RunCommand)
-	return encoder, nil
-}
-
-// StartCompress starts the compression process for the given files.
-func (a *App) StartCompress(req engine.JobRequest) ([]engine.JobReport, error) {
+func (a *App) runCompress(req engine.JobRequest) {
 	deps := engine.DefaultDependencies(a.executableDir)
 	deps.RunCommand = nil
 	eng := engine.NewCompressEngine(deps)
 
-	onProgress := func(ev engine.ProgressEvent) {
-		runtime.EventsEmit(a.ctx, "progress", ev)
-	}
+	ctx, cancel := context.WithCancel(context.Background())
 
 	a.mu.Lock()
-	ctx, cancel := context.WithCancel(context.Background())
 	a.compressGen++
-	compressGen := a.compressGen
+	gen := a.compressGen
 	a.compressCancel = cancel
 	a.mu.Unlock()
 
-	reports, err := eng.Run(ctx, req, onProgress)
+	reports, err := eng.Run(ctx, req, func(ev engine.ProgressEvent) {
+		a.update(func() { a.applyProgress(ev) })
+	})
 
 	a.mu.Lock()
-	if a.compressGen == compressGen {
+	if a.compressGen == gen {
 		a.compressCancel = nil
 	}
 	a.mu.Unlock()
 
-	if err != nil {
-		return nil, err
-	}
-
-	return reports, nil
+	a.update(func() {
+		a.isCompressing = false
+		if err != nil {
+			a.setToast(err.Error(), toastError)
+			return
+		}
+		a.applyReports(reports)
+	})
 }
 
-// CancelCompress cancels the ongoing compression task.
-func (a *App) CancelCompress() {
+// applyReports copies the engine results onto the queue rows.
+func (a *App) applyReports(reports []engine.JobReport) {
+	for _, r := range reports {
+		for i := range a.queue {
+			item := &a.queue[i]
+			match := item.Name == r.InputName
+			if r.InputPath != "" {
+				match = filepath.Clean(item.Path) == filepath.Clean(r.InputPath)
+			}
+			if !match {
+				continue
+			}
+			item.Size = r.SourceSize
+			item.TargetSize = r.TargetSize
+			item.Duration = r.Duration.Milliseconds()
+			item.Error = r.ErrMessage
+			switch r.Status {
+			case "skipped":
+				item.Status = "skipped"
+				item.Percent = 100
+			case "failed":
+				item.Status = "failed"
+			default:
+				item.Status = "success"
+				item.Percent = 100
+			}
+			if r.Status == "success" && r.OutputDir != "" {
+				a.lastOutputDir = r.OutputDir
+			}
+			break
+		}
+	}
+}
+
+// cancelCompress stops the running batch.
+func (a *App) cancelCompress() {
 	a.mu.Lock()
 	cancel := a.compressCancel
 	a.compressCancel = nil
@@ -155,8 +322,75 @@ func (a *App) CancelCompress() {
 	}
 }
 
-// CancelGifExport cancels the ongoing animated export task.
-func (a *App) CancelGifExport() {
+// ---- animated export ----
+
+// startGifExport exports the queue as animated clips.
+func (a *App) startGifExport() {
+	if a.isGifExporting || a.isCompressing || len(a.queue) == 0 {
+		return
+	}
+	var formats []gif.Format
+	for _, f := range gif.AllFormats() {
+		if a.gifFormats[string(f)] {
+			formats = append(formats, f)
+		}
+	}
+	if len(formats) == 0 {
+		a.gifError = a.t("gif.need_format")
+		return
+	}
+	files := make([]string, len(a.queue))
+	for i, it := range a.queue {
+		files[i] = it.Path
+	}
+	req := gif.ExportRequest{
+		Files:     files,
+		Tier:      a.gifTier,
+		Formats:   formats,
+		OutputDir: a.prefs.OutputDir,
+		Force:     a.prefs.ForceMode,
+	}
+	a.isGifExporting = true
+	a.gifBusy = true
+	a.gifError = ""
+	a.gifResults = nil
+	go a.runGifExport(req)
+}
+
+func (a *App) runGifExport(req gif.ExportRequest) {
+	deps := gif.DefaultDependencies(a.executableDir)
+	deps.RunCommand = nil
+	eng := gif.New(deps)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	a.mu.Lock()
+	a.gifGen++
+	gen := a.gifGen
+	a.gifCancel = cancel
+	a.mu.Unlock()
+
+	results, err := eng.Run(ctx, req)
+
+	a.mu.Lock()
+	if a.gifGen == gen {
+		a.gifCancel = nil
+	}
+	a.mu.Unlock()
+
+	a.update(func() {
+		a.isGifExporting = false
+		a.gifBusy = false
+		if err != nil {
+			a.gifError = err.Error()
+			return
+		}
+		a.gifResults = results
+	})
+}
+
+// cancelGifExport stops the running export.
+func (a *App) cancelGifExport() {
 	a.mu.Lock()
 	cancel := a.gifCancel
 	a.gifCancel = nil
@@ -166,330 +400,301 @@ func (a *App) CancelGifExport() {
 	}
 }
 
-type GifTierInfo struct {
-	Name        string `json:"name"`
-	MaxWidth    int    `json:"maxWidth"`
-	MaxSizeMB   int    `json:"maxSizeMB"`
-	FPS         int    `json:"fps"`
-	MaxDuration string `json:"maxDuration"`
-	Description string `json:"description"`
-	IsDefault   bool   `json:"isDefault"`
-}
+// ---- FFmpeg ----
 
-// GetGifTiers returns the list of animated export tiers.
-func (a *App) GetGifTiers() []GifTierInfo {
-	a.mu.Lock()
-	lang := a.language
-	a.mu.Unlock()
-
-	infos := make([]GifTierInfo, 0, 3)
-	for _, t := range gif.AllTiers() {
-		desc := t.Description
-		if lang == "en" {
-			switch t.Name {
-			case "smooth":
-				desc = "Small smooth tier, instant sharing"
-			case "balanced":
-				desc = "Balanced tier (default), size and quality balance"
-			case "hd":
-				desc = "HD tier, keeps more detail"
-			}
-		}
-		infos = append(infos, GifTierInfo{
-			Name:        t.Name,
-			MaxWidth:    t.MaxWidth,
-			MaxSizeMB:   t.MaxSizeMB,
-			FPS:         t.FPS,
-			MaxDuration: t.MaxDuration,
-			Description: desc,
-			IsDefault:   t.Name == gif.DefaultTier,
-		})
+// detectFFmpeg refreshes the FFmpeg path, the setup screen follows it.
+func (a *App) detectFFmpeg() {
+	path, err := engine.DefaultDependencies(a.executableDir).ResolveBinary(a.executableDir)
+	if err != nil {
+		a.ffmpegPath = ""
+		a.ffmpegError = a.t("app.ffmpeg_not_found")
+		return
 	}
-	return infos
+	a.ffmpegPath = path
+	a.ffmpegError = ""
 }
 
-// GetGifFormats returns the supported animated output formats.
-func (a *App) GetGifFormats() []string {
-	out := make([]string, 0, 3)
-	for _, f := range gif.AllFormats() {
-		out = append(out, string(f))
+// detectGPU probes the graphics encoder in the background.
+func (a *App) detectGPU() {
+	go func() {
+		deps := engine.DefaultDependencies(a.executableDir)
+		path, err := deps.ResolveBinary(a.executableDir)
+		if err != nil {
+			return
+		}
+		enc := deps.DetectGPUEncoder(path, a.prefs.VideoCodec, deps.RunCommand)
+		a.update(func() {
+			a.gpuEncoder = enc
+			if enc != "libx264" && !a.prefs.HWAccelSet {
+				a.prefs.HWAccel = true
+				a.prefs.HWAccelSet = true
+				a.savePrefs()
+			}
+		})
+	}()
+}
+
+// downloadFFmpeg fetches and installs FFmpeg next to the executable.
+func (a *App) downloadFFmpeg() {
+	if a.downloading {
+		return
+	}
+	a.downloading = true
+	a.downloadPercent = 0
+	a.downloadError = ""
+	go func() {
+		err := ffmpeg.DownloadFFmpeg(a.executableDir, func(percent float64) {
+			a.update(func() { a.downloadPercent = percent })
+		})
+		a.update(func() {
+			a.downloading = false
+			if err != nil {
+				a.downloadError = err.Error()
+				return
+			}
+			a.detectFFmpeg()
+		})
+	}()
+}
+
+// setDebug toggles the engine's debug log.
+func (a *App) setDebug(on bool) {
+	a.prefs.EnableDebugLog = on
+	ffmpeg.EnableDebugLog = on
+	a.savePrefs()
+}
+
+// debugLogPath is the diagnostics log file.
+func debugLogPath() (string, error) {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "videopress_debug.log"), nil
+}
+
+// openDebugLog opens the debug log in the default editor.
+func (a *App) openDebugLog() {
+	logFile, err := debugLogPath()
+	if err != nil {
+		a.setToast(a.tf("toast.log_open_failed", map[string]string{"err": err.Error()}), toastError)
+		return
+	}
+	if err := os.WriteFile(logFile, nil, 0o644); err != nil {
+		_ = err
+	}
+	if err := exec.Command("cmd", "/c", "start", "", logFile).Start(); err != nil {
+		a.setToast(a.tf("toast.log_open_failed", map[string]string{"err": err.Error()}), toastError)
+		return
+	}
+	a.setToast(a.t("toast.log_opened"), toastSuccess)
+}
+
+// clearDebugLog wipes the log and the GPU cache.
+func (a *App) clearDebugLog() {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		a.setToast(a.tf("toast.log_clear_failed", map[string]string{"err": err.Error()}), toastError)
+		return
+	}
+	_ = os.Remove(filepath.Join(dir, "videopress_debug.log"))
+	_ = os.Remove(filepath.Join(dir, "videopress_gpu.cache"))
+	ffmpeg.ResetGPUEncoderCache()
+	a.detectGPU()
+	a.setToast(a.t("toast.log_cleared"), toastSuccess)
+}
+
+// ---- system integration ----
+
+// refreshIntegration rereads the Windows integration state.
+func (a *App) refreshIntegration() {
+	go func() {
+		status := map[string]bool{
+			"sendto":      sendto.IsSendToInstalled(),
+			"desktop":     sendto.IsDesktopInstalled(),
+			"startmenu":   sendto.IsStartMenuInstalled(),
+			"contextmenu": sendto.IsContextMenuInstalled(),
+		}
+		onPath, _ := env.IsPathConfigured(a.executableDir)
+		status["path"] = onPath
+		a.update(func() {
+			a.integration = status
+			a.integrationBusy = false
+		})
+	}()
+}
+
+// toggleIntegration installs or uninstalls one integration.
+func (a *App) toggleIntegration(kind string) {
+	if a.integrationBusy {
+		return
+	}
+	a.integrationBusy = true
+	install := !a.integration[kind]
+	go func() {
+		err := a.applyIntegration(kind, install)
+		a.update(func() {
+			if err != nil {
+				a.integrationBusy = false
+				a.setToast(a.tf("toast.action_failed", map[string]string{"err": err.Error()}), toastError)
+				return
+			}
+			a.integrationBusy = false
+			a.setToast(a.t("toast."+kind+"_"+verb(install)), toastSuccess)
+			a.refreshIntegration()
+		})
+	}()
+}
+
+func verb(install bool) string {
+	if install {
+		return "added"
+	}
+	return "removed"
+}
+
+func (a *App) applyIntegration(kind string, install bool) error {
+	switch kind {
+	case "sendto":
+		if install {
+			_, err := sendto.Install(a.executablePath)
+			return err
+		}
+		return sendto.Uninstall()
+	case "desktop":
+		if install {
+			return sendto.InstallDesktop(a.executablePath)
+		}
+		return sendto.UninstallDesktop()
+	case "startmenu":
+		if install {
+			return sendto.InstallStartMenu(a.executablePath)
+		}
+		return sendto.UninstallStartMenu()
+	case "contextmenu":
+		if install {
+			return sendto.RegisterContextMenu(a.executablePath, a.lang())
+		}
+		return sendto.UnregisterContextMenu()
+	case "path":
+		if install {
+			_, err := env.AddToPath(a.executableDir)
+			return err
+		}
+		_, err := env.RemoveFromPath(a.executableDir)
+		return err
+	}
+	return fmt.Errorf("未知的系统集成 unknown integration: %s", kind)
+}
+
+// ---- dialogs ----
+
+// pickFiles asks for video files and queues them.
+func (a *App) pickFiles() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Parent:   a.win,
+			Title:    a.t("dropzone.title"),
+			Multiple: true,
+			Filters:  []mygo.FileFilter{{Name: a.t("dropzone.formats"), Extensions: videoExtensions}},
+		})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		a.update(func() { a.addFiles(paths) })
+	}()
+}
+
+// pickOutputDir asks for the output folder.
+func (a *App) pickOutputDir() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Directory: true, Title: a.t("controls.output")})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		a.update(func() {
+			a.prefs.OutputDir = paths[0]
+			a.savePrefs()
+		})
+	}()
+}
+
+// openFolder reveals a directory in Explorer.
+func (a *App) openFolder(path string) {
+	if path == "" {
+		return
+	}
+	_ = exec.Command("explorer.exe", filepath.Clean(path)).Start()
+}
+
+// openResultFolder opens the folder of the finished batch.
+func (a *App) openResultFolder() {
+	if a.prefs.OutputDir != "" {
+		a.openFolder(a.prefs.OutputDir)
+		return
+	}
+	if a.lastOutputDir != "" {
+		a.openFolder(a.lastOutputDir)
+		return
+	}
+	for _, it := range a.queue {
+		if it.Status == "success" {
+			a.openFolder(filepath.Join(filepath.Dir(it.Path), "compressed"))
+			return
+		}
+	}
+}
+
+var videoExtensions = []string{"mp4", "mov", "mkv", "avi", "m4v", "wmv", "webm", "ts", "flv", "mpg", "mpeg", "3gp"}
+
+// ---- stats ----
+
+// stats sums the finished rows for the summary bar.
+func (a *App) stats() (total, done, saved, original int64) {
+	total = int64(len(a.queue))
+	for _, it := range a.queue {
+		if it.Status != "success" {
+			continue
+		}
+		done++
+		original += it.Size
+		if it.Size > it.TargetSize {
+			saved += it.Size - it.TargetSize
+		}
+	}
+	return total, done, saved, original
+}
+
+// concurrencyOptions lists plausible worker counts for this machine.
+func concurrencyOptions(cores int) []int {
+	out := []int{1}
+	for _, n := range []int{2, 4, 8} {
+		if cores >= n {
+			out = append(out, n)
+		}
+	}
+	if cores > 8 {
+		out = append(out, cores)
 	}
 	return out
 }
 
-// StartGifExport starts animated (GIF/APNG/WebP) export for the given files.
-func (a *App) StartGifExport(req gif.ExportRequest) ([]gif.ExportResult, error) {
-	deps := gif.DefaultDependencies(a.executableDir)
-	deps.RunCommand = nil
-	eng := gif.New(deps)
-
-	a.mu.Lock()
-	ctx, cancel := context.WithCancel(context.Background())
-	a.gifGen++
-	gifGen := a.gifGen
-	a.gifCancel = cancel
-	a.mu.Unlock()
-
-	results, err := eng.Run(ctx, req)
-
-	a.mu.Lock()
-	if a.gifGen == gifGen {
-		a.gifCancel = nil
+// sizeText formats a byte count for the queue rows.
+func sizeText(bytes int64) string {
+	if bytes <= 0 {
+		return "-"
 	}
-	a.mu.Unlock()
-
-	if err != nil {
-		return nil, err
+	mb := float64(bytes) / (1024 * 1024)
+	if mb < 1024 {
+		return strconv.FormatFloat(mb, 'f', 1, 64) + " MB"
 	}
-	return results, nil
+	return strconv.FormatFloat(mb/1024, 'f', 2, 64) + " GB"
 }
 
-// InstallSendTo installs Windows SendTo right click menu binding.
-func (a *App) InstallSendTo() (string, error) {
-	return sendto.Install(a.executablePath)
-}
-
-// UninstallSendTo removes Windows SendTo right click menu binding.
-func (a *App) UninstallSendTo() error {
-	return sendto.Uninstall()
-}
-
-// AddToPath adds executable directory to user Path env.
-func (a *App) AddToPath() (bool, error) {
-	return env.AddToPath(a.executableDir)
-}
-
-// RemoveFromPath removes executable directory from user Path env.
-func (a *App) RemoveFromPath() (bool, error) {
-	return env.RemoveFromPath(a.executableDir)
-}
-
-// SelectFiles opens a file dialog and returns selected video paths.
-func (a *App) SelectFiles() ([]string, error) {
-	a.mu.Lock()
-	lang := a.language
-	a.mu.Unlock()
-
-	title := "选择视频文件"
-	filterName := "视频文件 (*.mp4; *.mov; *.mkv; *.avi; *.webm)"
-	if lang == "en" {
-		title = "Select Video Files"
-		filterName = "Video Files (*.mp4; *.mov; *.mkv; *.avi; *.webm)"
+// ratioText is the share of the source the batch saved.
+func ratioText(saved, original int64) string {
+	if original <= 0 {
+		return "0.0%"
 	}
-
-	options := runtime.OpenDialogOptions{
-		Title: title,
-		Filters: []runtime.FileFilter{
-			{
-				DisplayName: filterName,
-				Pattern:     "*.mp4;*.mov;*.mkv;*.avi;*.webm;*.m4v;*.wmv;*.ts;*.flv;*.mpg;*.mpeg;*.3gp",
-			},
-		},
-	}
-	return runtime.OpenMultipleFilesDialog(a.ctx, options)
-}
-
-// SelectFolder opens a directory dialog and returns the selected folder path.
-func (a *App) SelectFolder() (string, error) {
-	a.mu.Lock()
-	lang := a.language
-	a.mu.Unlock()
-
-	title := "选择压缩后视频的保存目录"
-	if lang == "en" {
-		title = "Select Save Directory for Compressed Videos"
-	}
-
-	options := runtime.OpenDialogOptions{
-		Title: title,
-	}
-	return runtime.OpenDirectoryDialog(a.ctx, options)
-}
-
-// OpenFolder opens the target directory in explorer.
-func (a *App) OpenFolder(path string) error {
-	cmd := exec.Command("explorer.exe", filepath.Clean(path))
-	return cmd.Run()
-}
-
-// DownloadFFmpeg triggers the download and extraction of the ffmpeg binary.
-func (a *App) DownloadFFmpeg() error {
-	onProgress := func(percent float64) {
-		runtime.EventsEmit(a.ctx, "download-progress", percent)
-	}
-
-	err := ffmpeg.DownloadFFmpeg(a.executableDir, onProgress)
-	if err != nil {
-		runtime.EventsEmit(a.ctx, "download-progress", -1.0)
-		return err
-	}
-
-	runtime.EventsEmit(a.ctx, "download-progress", 100.0)
-	return nil
-}
-
-// InstallDesktopShortcut creates a desktop shortcut pointing to the application executable.
-func (a *App) InstallDesktopShortcut() error {
-	return sendto.InstallDesktop(a.executablePath)
-}
-
-// UninstallDesktopShortcut removes the application shortcut from the user's desktop.
-func (a *App) UninstallDesktopShortcut() error {
-	return sendto.UninstallDesktop()
-}
-
-// InstallStartMenuShortcut creates a shortcut directory in the Start Menu for the application.
-func (a *App) InstallStartMenuShortcut() error {
-	return sendto.InstallStartMenu(a.executablePath)
-}
-
-// UninstallStartMenuShortcut removes the application shortcut directory from the Start Menu.
-func (a *App) UninstallStartMenuShortcut() error {
-	return sendto.UninstallStartMenu()
-}
-
-// InstallContextMenu registers the context menu entry for all files.
-func (a *App) InstallContextMenu() error {
-	a.mu.Lock()
-	lang := a.language
-	a.mu.Unlock()
-	return sendto.RegisterContextMenu(a.executablePath, lang)
-}
-
-// UninstallContextMenu removes the context menu entry from the system registry.
-func (a *App) UninstallContextMenu() error {
-	return sendto.UnregisterContextMenu()
-}
-
-// GetIntegrationStatus queries the current installation status of desktop integrations.
-func (a *App) GetIntegrationStatus() (map[string]bool, error) {
-	start := time.Now()
-	status := make(map[string]bool)
-
-	t := time.Now()
-	status["sendto"] = sendto.IsSendToInstalled()
-	sendToTime := time.Since(t)
-
-	t = time.Now()
-	status["desktop"] = sendto.IsDesktopInstalled()
-	desktopTime := time.Since(t)
-
-	t = time.Now()
-	status["startmenu"] = sendto.IsStartMenuInstalled()
-	startMenuTime := time.Since(t)
-
-	t = time.Now()
-	status["contextmenu"] = sendto.IsContextMenuInstalled()
-	contextMenuTime := time.Since(t)
-
-	t = time.Now()
-	isPath, _ := env.IsPathConfigured(a.executableDir)
-	status["path"] = isPath
-	pathTime := time.Since(t)
-
-	totalTime := time.Since(start)
-
-	a.mu.Lock()
-	debugEnabled := a.enableDebug
-	a.mu.Unlock()
-
-	if debugEnabled {
-		logMsg := fmt.Sprintf("[%s] 配置项载入耗时统计 (总耗时: %v):\n"+
-			"- SendTo 右键发送菜单检测: %v\n"+
-			"- 桌面快捷方式检测: %v\n"+
-			"- 开始菜单快捷方式检测: %v\n"+
-			"- 右键注册表项菜单检测: %v\n"+
-			"- 环境变量 Path 检测: %v\n\n",
-			time.Now().Format("2006-01-02 15:04:05"),
-			totalTime,
-			sendToTime,
-			desktopTime,
-			startMenuTime,
-			contextMenuTime,
-			pathTime,
-		)
-
-		cacheDir, err := os.UserCacheDir()
-		if err == nil {
-			logFile := filepath.Join(cacheDir, "videopress_debug.log")
-			f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-			if err == nil {
-				_, _ = f.WriteString(logMsg)
-				_ = f.Close()
-			}
-		}
-	}
-
-	return status, nil
-}
-
-// SetDebugMode sets whether debug logging is enabled.
-func (a *App) SetDebugMode(enable bool) {
-	a.mu.Lock()
-	a.enableDebug = enable
-	a.mu.Unlock()
-	ffmpeg.EnableDebugLog = enable
-}
-
-// GetDebugLogs returns the contents of the debug log.
-func (a *App) GetDebugLogs() (string, error) {
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return "", err
-	}
-	logFile := filepath.Join(cacheDir, "videopress_debug.log")
-	data, err := os.ReadFile(logFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "当前暂无调试日志记录", nil
-		}
-		return "", err
-	}
-	return string(data), nil
-}
-
-// ClearDebugLogs clears all debug logs.
-func (a *App) ClearDebugLogs() error {
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return err
-	}
-	logFile := filepath.Join(cacheDir, "videopress_debug.log")
-	_ = os.Remove(logFile)
-	gpuCache := filepath.Join(cacheDir, "videopress_gpu.cache")
-	_ = os.Remove(gpuCache)
-	ffmpeg.ResetGPUEncoderCache()
-	return nil
-}
-
-// OpenDebugLogFile opens the debug log file in default text editor.
-func (a *App) OpenDebugLogFile() error {
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return err
-	}
-	logFile := filepath.Join(cacheDir, "videopress_debug.log")
-	if _, err := os.Stat(logFile); os.IsNotExist(err) {
-		_ = os.WriteFile(logFile, []byte(""), 0o644)
-	}
-	cmd := exec.Command("cmd", "/c", "start", "", logFile)
-	return cmd.Run()
-}
-
-// SetLanguage sets the UI language and updates hot-reloadable integrations.
-func (a *App) SetLanguage(lang string) {
-	a.mu.Lock()
-	a.language = lang
-	a.mu.Unlock()
-
-	if sendto.IsContextMenuInstalled() {
-		_ = sendto.RegisterContextMenu(a.executablePath, lang)
-	}
-}
-
-// GetLanguage returns the active UI language.
-func (a *App) GetLanguage() string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.language
+	return strconv.FormatFloat(float64(saved)/float64(original)*100, 'f', 1, 64) + "%"
 }
