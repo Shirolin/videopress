@@ -86,15 +86,11 @@ func (a *App) generalSettings(c *ui.Context) {
 			account.SettingsRowOptions{Description: a.t("settings.concurrency_desc")},
 			func() ui.Element {
 				values := concurrencyOptions(cores)
-				var labels []string
-				for _, n := range values {
-					switch {
-					case n == 1:
-						labels = append(labels, a.t("settings.concurrency_1"))
-					case n == cores:
-						labels = append(labels, a.tf("settings.concurrency_all", map[string]string{"num": strconv.Itoa(n)}))
-					default:
-						labels = append(labels, a.tf("settings.concurrency_n", map[string]string{"num": strconv.Itoa(n)}))
+				labels := make([]string, len(values))
+				for i, n := range values {
+					labels[i] = strconv.Itoa(n)
+					if n == cores && cores > 8 {
+						labels[i] = a.tf("settings.concurrency_all", map[string]string{"num": labels[i]})
 					}
 				}
 				current := 0
@@ -255,7 +251,9 @@ func (a *App) debugSettings(c *ui.Context) {
 
 		account.SettingsRow(c, a.t("settings.debug.manage"), account.SettingsRowOptions{Description: a.t("settings.debug.file_desc")},
 			func() ui.Element {
-				return ui.Row(c).Gap(core.Density(c).Unit() * 2).Children(func() {
+				// Stacked: side by side the pair leaves the description too
+				// little width when the window is narrow.
+				return ui.Column(c).Gap(core.Density(c).Unit()).Children(func() {
 					if input.Button(c, a.t("btn.open_log"), input.ButtonOptions{Variant: input.Secondary, Icon: ic("file-text")}).Clicked() {
 						a.openDebugLog()
 					}
