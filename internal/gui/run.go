@@ -36,7 +36,10 @@ func Run(app *App) error {
 			MinHeight:     600,
 			StateKey:      "main",
 			TitleBarStyle: mygo.TitleBarHidden,
-			Content:       ui.View(app.View),
+			// The window shows before its first frame paints; without this it
+			// flashes white. These are MujicaUI's own page colors.
+			BackgroundColor: "light-dark(#F2EBDD, #191618)",
+			Content:         ui.View(app.View),
 		})
 		app.Attach(win)
 	})
