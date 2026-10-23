@@ -301,14 +301,11 @@ func (a *App) crfField(c *ui.Context) {
 // cropField picks the crop mode and its parameters.
 func (a *App) cropField(c *ui.Context) {
 	u := core.Density(c).Unit()
-	k := core.Tokens(c)
-	modes := []string{"off", "exact", "center"}
 	options := []input.SelectOption[string]{
 		{Value: "off", Label: a.t("advanced.crop.mode_off")},
 		{Value: "exact", Label: a.t("advanced.crop.mode_exact")},
 		{Value: "center", Label: a.t("advanced.crop.mode_center")},
 	}
-	_ = modes
 
 	ui.Column(c).Gap(u * 2).Children(func() {
 		ui.Row(c).Gap(u * 3).AlignItems(ui.Center).Children(func() {
@@ -319,7 +316,7 @@ func (a *App) cropField(c *ui.Context) {
 				a.savePrefs()
 			}
 		})
-		ui.Text(c, a.t("advanced.crop.desc")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
+		ui.Text(c, a.t("advanced.crop.desc")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(core.Tokens(c).TextMuted)
 
 		switch a.prefs.CropMode {
 		case "exact":
@@ -481,8 +478,11 @@ func (a *App) queueRow(c *ui.Context, index int) {
 		}
 
 		if item.Error != "" {
-			ui.Text(c, item.Error).FontSize(core.FontSize(c, theme.CaptionSize)).
-				TextColor(pickColor(item.Warning && item.Status == "waiting", k.Warning, k.Danger))
+			tone := k.Danger
+			if item.Warning && item.Status == "waiting" {
+				tone = k.Warning
+			}
+			ui.Text(c, item.Error).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(tone)
 		}
 
 		if item.Status == "success" || item.Status == "skipped" || item.Status == "failed" {
@@ -700,13 +700,6 @@ func (a *App) setupView(c *ui.Context) {
 // ---- helpers shared by the panels ----
 
 func clamp01(v float64) float64 { return min(1, max(0, v)) }
-
-func pickColor(cond bool, yes, no ui.Color) ui.Color {
-	if cond {
-		return yes
-	}
-	return no
-}
 
 // defaultCRF is the recommended quality for a codec.
 func defaultCRF(codec string) int {

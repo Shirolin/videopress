@@ -198,7 +198,7 @@ func (a *App) integrationSettings(c *ui.Context) {
 						state = a.t("status.checking")
 					}
 					return ui.Row(c).Gap(core.Density(c).Unit() * 2).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, state).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(kMuted(c))
+						ui.Text(c, state).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(core.Tokens(c).TextMuted)
 						if input.Button(c, label, input.ButtonOptions{
 							Variant: variant, Disabled: a.integrationBusy, Loading: a.integrationBusy,
 						}).Clicked() && !a.integrationBusy {
@@ -272,7 +272,7 @@ func (a *App) debugSettings(c *ui.Context) {
 			if a.ffmpegPath != "" {
 				state = a.t("status.up_to_date")
 			}
-			return ui.Text(c, state).TextColor(kMuted(c)).FontSize(core.FontSize(c, theme.CaptionSize))
+			return ui.Text(c, state).TextColor(core.Tokens(c).TextMuted).FontSize(core.FontSize(c, theme.CaptionSize))
 		})
 		account.SettingsRow(c, a.t("settings.version"), account.SettingsRowOptions{Description: "MyGO + MujicaUI"}, func() ui.Element {
 			v := a.Version()
@@ -293,8 +293,6 @@ func navigationSegments(c *ui.Context, selected *int, labels []string, label str
 	}
 	navigation.SegmentedControl(c, selected, segs, navigation.SegmentedControlOptions{Label: label})
 }
-
-func kMuted(c *ui.Context) ui.Color { return core.Tokens(c).TextMuted }
 
 // sendtoLang maps a locale tag to the language the context menu is written in.
 func sendtoLang(tag string) string {

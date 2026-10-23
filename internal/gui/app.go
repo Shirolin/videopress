@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/egoist/mygo"
@@ -149,14 +150,7 @@ func (a *App) addFiles(paths []string) {
 	}
 }
 
-func containsCompressed(name string) bool {
-	for i := 0; i+11 <= len(name); i++ {
-		if name[i:i+11] == ".compressed" {
-			return true
-		}
-	}
-	return false
-}
+func containsCompressed(name string) bool { return strings.Contains(name, ".compressed") }
 
 // removeQueue removes the item at index.
 func (a *App) removeQueue(index int) {
@@ -480,9 +474,7 @@ func (a *App) openDebugLog() {
 		a.setToast(a.tf("toast.log_open_failed", map[string]string{"err": err.Error()}), toastError)
 		return
 	}
-	if err := os.WriteFile(logFile, nil, 0o644); err != nil {
-		_ = err
-	}
+	_ = os.WriteFile(logFile, nil, 0o644)
 	if err := exec.Command("cmd", "/c", "start", "", logFile).Start(); err != nil {
 		a.setToast(a.tf("toast.log_open_failed", map[string]string{"err": err.Error()}), toastError)
 		return
