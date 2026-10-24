@@ -91,19 +91,19 @@ func (a *App) quickControls(c *ui.Context) {
 		ui.Row(c).Gap(u * 5).AlignItems(ui.End).Children(func() {
 			ui.Column(c).Gap(u).Children(func() {
 				a.sectionLabel(c, "controls.preset")
-				values := []string{"small", "standard", "quality"}
+				values, labels := a.presetOptions()
 				selected := 1
 				for i, v := range values {
 					if v == a.prefs.Preset {
 						selected = i
 					}
 				}
+				segments := make([]navigation.Segment, len(labels))
+				for i, l := range labels {
+					segments[i] = navigation.Segment{Label: l}
+				}
 				before := selected
-				navigation.SegmentedControl(c, &selected, []navigation.Segment{
-					{Label: a.t("preset.small")},
-					{Label: a.t("preset.standard")},
-					{Label: a.t("preset.quality")},
-				}, navigation.SegmentedControlOptions{Label: a.t("controls.preset"), Disabled: a.isCompressing})
+				navigation.SegmentedControl(c, &selected, segments, navigation.SegmentedControlOptions{Label: a.t("controls.preset"), Disabled: a.isCompressing})
 				if selected != before && !a.isCompressing {
 					a.prefs.Preset = values[selected]
 					a.savePrefs()
@@ -516,7 +516,7 @@ func (a *App) actionPanel(c *ui.Context) {
 	u := core.Density(c).Unit()
 	k := core.Tokens(c)
 	ui.Column(c).Gap(u * 2).Children(func() {
-		ui.Box(c).FillWidth().Height(theme.BorderWidth).Shrink(0).Background(k.Border)
+		layout.Divider(c, layout.DividerOptions{})
 		ui.Row(c).Gap(u * 3).AlignItems(ui.Center).Children(func() {
 			if len(a.queue) > 0 {
 				ui.Text(c, a.tf("action.summary", map[string]string{
@@ -524,7 +524,7 @@ func (a *App) actionPanel(c *ui.Context) {
 					"preset": a.presetLabel(),
 				})).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 			} else {
-				ui.Text(c, a.t("dropzone.desc")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
+				ui.Text(c, a.t("action.empty")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 			}
 			hasResult := false
 			for _, it := range a.queue {
@@ -557,11 +557,11 @@ func (a *App) actionPanel(c *ui.Context) {
 
 // presetLabel is the display name of the current preset.
 func (a *App) presetLabel() string {
-	switch a.prefs.Preset {
-	case "small":
-		return a.t("preset.small")
-	case "quality":
-		return a.t("preset.quality")
+	ids, labels := a.presetOptions()
+	for i, id := range ids {
+		if id == a.prefs.Preset {
+			return labels[i]
+		}
 	}
 	return a.t("preset.standard")
 }

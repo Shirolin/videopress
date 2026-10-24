@@ -57,7 +57,7 @@ func (a *App) settingsView(c *ui.Context) {
 
 // generalSettings holds the preset, performance and behaviour rows.
 func (a *App) generalSettings(c *ui.Context) {
-	presets := []string{"small", "standard", "quality"}
+	presets, presetLabels := a.presetOptions()
 	current := len(presets) - 1
 	for i, p := range presets {
 		if p == a.prefs.Preset {
@@ -69,9 +69,7 @@ func (a *App) generalSettings(c *ui.Context) {
 			account.SettingsRowOptions{Description: a.t("settings.preset_desc")},
 			func() ui.Element {
 				sel := current
-				navigationSegments(c, &sel, []string{
-					a.t("preset.small"), a.t("preset.standard"), a.t("preset.quality"),
-				}, a.t("controls.preset"))
+				navigationSegments(c, &sel, presetLabels, a.t("controls.preset"))
 				if sel != current && !a.isCompressing {
 					a.prefs.Preset = presets[sel]
 					a.savePrefs()
@@ -89,7 +87,7 @@ func (a *App) generalSettings(c *ui.Context) {
 				labels := make([]string, len(values))
 				for i, n := range values {
 					labels[i] = strconv.Itoa(n)
-					if n == cores && cores > 8 {
+					if n == cores {
 						labels[i] = a.tf("settings.concurrency_all", map[string]string{"num": labels[i]})
 					}
 				}

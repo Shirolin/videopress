@@ -671,6 +671,16 @@ func concurrencyOptions(cores int) []int {
 	return out
 }
 
+// presetOptions returns the preset ids and their display labels, in order.
+func (a *App) presetOptions() (ids, labels []string) {
+	ids = []string{"small", "standard", "quality"}
+	labels = make([]string, len(ids))
+	for i, id := range ids {
+		labels[i] = a.t("preset." + id)
+	}
+	return ids, labels
+}
+
 // sizeText formats a byte count for the queue rows.
 func sizeText(bytes int64) string {
 	if bytes <= 0 {

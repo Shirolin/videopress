@@ -34,6 +34,7 @@ var copyTable = map[string][2]string{
 	"preset.quality":  {"高画质", "High Quality"},
 
 	"action.summary": {"已选 {num} 个 · {preset}", "{num} selected · {preset}"},
+	"action.empty":   {"选择文件后可开始压缩", "Choose files to start compression"},
 
 	"btn.change":             {"更改", "Change"},
 	"btn.reset":              {"重置", "Reset"},
