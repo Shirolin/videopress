@@ -69,7 +69,6 @@ type Dependencies struct {
 	ExecutablePath   string
 	ResolveBinary    func(dir string) (string, error)
 	RunCommand       func(name string, args []string) error
-	GetDuration      func(ffmpegPath string, inputPath string) (time.Duration, error)
 	DetectGPUEncoder func(ffmpegPath string, codec string, runCmd func(string, []string) error) string
 	MkdirAll         func(path string, perm os.FileMode) error
 	PathExists       func(path string) bool
@@ -269,9 +268,6 @@ func Execute(args []string, deps Dependencies) int {
 		}
 	}
 	hasCustomRunCommand := deps.RunCommand != nil
-	if deps.GetDuration == nil {
-		deps.GetDuration = ffmpeg.GetDuration
-	}
 	if deps.DetectGPUEncoder == nil {
 		deps.DetectGPUEncoder = func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
 			return ffmpeg.DetectGPUEncoder(ffmpegPath, codec, runCmd)
@@ -591,6 +587,13 @@ func Execute(args []string, deps Dependencies) int {
 	successes := 0
 	var allReports []JobReport
 
+	// 同批次内已分配的输出路径：不同目录下的同名输入会落到同一个输出文件，
+	// 只查磁盘会漏掉它们之间的冲突。
+	reserved := make(map[string]bool, len(files))
+	pathTaken := func(path string) bool {
+		return reserved[filepath.Clean(path)] || deps.PathExists(path)
+	}
+
 	for _, input := range files {
 		if !util.IsVideoFile(input) {
 			fmt.Fprintf(deps.Stdout, "跳过非视频文件: %s\n", gray(input))
@@ -620,7 +623,7 @@ func Execute(args []string, deps Dependencies) int {
 			continue
 		}
 
-		output, err := compress.BuildOutputPath(input, preset.Name, deps.PathExists, *forceMode, "")
+		output, err := compress.BuildOutputPath(input, preset.Name, pathTaken, *forceMode, "")
 		if err != nil {
 			fmt.Fprintf(deps.Stderr, "%s 生成输出路径失败 %s: %v\n", red("错误:"), input, err)
 			mu.Lock()
@@ -629,6 +632,7 @@ func Execute(args []string, deps Dependencies) int {
 			continue
 		}
 
+		reserved[filepath.Clean(output)] = true
 		outputMap[input] = output
 		engineFiles = append(engineFiles, input)
 	}
@@ -638,7 +642,6 @@ func Execute(args []string, deps Dependencies) int {
 			ExecutableDir:    deps.ExecutableDir,
 			ResolveBinary:    deps.ResolveBinary,
 			RunCommand:       nil, // 生产路径传 nil 解锁引擎进度分析流水线；测试通过注入 mock 保留
-			GetDuration:      deps.GetDuration,
 			DetectGPUEncoder: deps.DetectGPUEncoder,
 			MkdirAll:         deps.MkdirAll,
 			PathExists:       deps.PathExists,

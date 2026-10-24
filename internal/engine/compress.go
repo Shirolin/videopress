@@ -21,8 +21,6 @@ type Dependencies struct {
 	ExecutableDir    string
 	ResolveBinary    func(dir string) (string, error)
 	RunCommand       func(name string, args []string) error
-	GetDuration      func(ffmpegPath string, inputPath string) (time.Duration, error)
-	GetDimensions    func(ffmpegPath string, inputPath string) (int, int, error)
 	Probe            func(ffmpegPath string, inputPath string) (ffmpeg.VideoInfo, error)
 	DetectGPUEncoder func(ffmpegPath string, codec string, runCmd func(string, []string) error) string
 	MkdirAll         func(path string, perm os.FileMode) error
@@ -44,8 +42,6 @@ func DefaultDependencies(execDir string) Dependencies {
 			util.HideConsoleWindow(cmd)
 			return cmd.Run()
 		},
-		GetDuration:   ffmpeg.GetDuration,
-		GetDimensions: ffmpeg.GetDimensions,
 		Probe:         ffmpeg.Probe,
 		DetectGPUEncoder: func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
 			return ffmpeg.DetectGPUEncoder(ffmpegPath, codec, runCmd)
@@ -88,12 +84,6 @@ func NewCompressEngine(deps Dependencies) *CompressEngine {
 				return exec.LookPath(name)
 			})
 		}
-	}
-	if deps.GetDuration == nil {
-		deps.GetDuration = ffmpeg.GetDuration
-	}
-	if deps.GetDimensions == nil {
-		deps.GetDimensions = ffmpeg.GetDimensions
 	}
 	if deps.Probe == nil {
 		deps.Probe = ffmpeg.Probe
@@ -166,6 +156,13 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 	var mu sync.Mutex
 	var allReports []JobReport
 
+	// 同批次内已分配的输出路径：不同目录下的同名输入会落到同一个输出文件，
+	// 只查磁盘会漏掉并发任务之间的冲突。
+	reserved := make(map[string]bool, len(req.Files))
+	pathTaken := func(path string) bool {
+		return reserved[filepath.Clean(path)] || e.deps.PathExists(path)
+	}
+
 	var validTasks []Task
 	for _, input := range req.Files {
 		if !util.IsVideoFile(input) {
@@ -216,7 +213,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 			continue
 		}
 
-		output, err := compress.BuildOutputPath(input, preset.Name, e.deps.PathExists, req.ForceMode, req.OutputDir)
+		output, err := compress.BuildOutputPath(input, preset.Name, pathTaken, req.ForceMode, req.OutputDir)
 		if err != nil {
 			mu.Lock()
 			allReports = append(allReports, JobReport{
@@ -259,6 +256,7 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 			continue
 		}
 
+		reserved[filepath.Clean(output)] = true
 		validTasks = append(validTasks, Task{input: input, output: output})
 	}
 
@@ -300,13 +298,11 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 
 				startTime := time.Now()
 				cropExpr := ""
-				var duration time.Duration
+				// 单次探测同时取时长与分辨率：时长用于进度，分辨率仅裁剪需要。
+				// 探测失败不阻断压缩，只是拿不到进度百分比。
+				info, perr := e.deps.Probe(ffmpegPath, task.input)
+				duration := info.Duration
 				if req.Crop != nil {
-					// 裁剪开启时单次探测同时取时长与分辨率，避免逐项各起一个 ffmpeg 进程
-					var info ffmpeg.VideoInfo
-					var perr error
-					info, perr = e.deps.Probe(ffmpegPath, task.input)
-					duration = info.Duration
 					var cerr error
 					cropExpr, cerr = e.resolveCropExpr(req.Crop, info.Width, info.Height, perr)
 					if cerr != nil {
@@ -334,6 +330,11 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 
 				err := e.runCommandWithProgress(ctx, ffmpegPath, args, duration, task.input, filepath.Base(task.input), onProgress)
 				elapsed := time.Since(startTime)
+				if err != nil {
+					// 失败或取消时 ffmpeg 已写出半截文件：不删的话
+					// --skip-existing 下次会把它当成有效产物跳过。
+					_ = os.Remove(task.output)
+				}
 
 				mu.Lock()
 				if err != nil {

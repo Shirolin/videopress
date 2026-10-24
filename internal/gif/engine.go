@@ -134,6 +134,9 @@ func (e *Engine) Run(ctx context.Context, req ExportRequest) ([]ExportResult, er
 	budget := int64(tier.MaxSizeMB) * 1024 * 1024
 
 	ffmpegPath, err := e.deps.ResolveBinary(e.deps.ExecutableDir)
+	if err != nil {
+		return nil, err
+	}
 
 	var results []ExportResult
 	for _, input := range req.Files {

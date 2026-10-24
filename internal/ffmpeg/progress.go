@@ -41,14 +41,6 @@ func ParseDuration(metadata string) (time.Duration, error) {
 	return total, nil
 }
 
-// GetDuration 运行 ffmpeg -i 探测视频时长
-func GetDuration(ffmpegPath string, inputPath string) (time.Duration, error) {
-	cmd := exec.Command(ffmpegPath, "-i", inputPath)
-	util.HideConsoleWindow(cmd)
-	output, _ := cmd.CombinedOutput()
-	return ParseDuration(string(output))
-}
-
 // VideoInfo 汇总一次 ffmpeg -i 探测得到的时长与分辨率。
 type VideoInfo struct {
 	Duration time.Duration
@@ -107,14 +99,6 @@ func ParseDimensions(metadata string) (int, int, error) {
 		return 0, 0, fmt.Errorf("invalid dimensions in metadata: %dx%d", w, h)
 	}
 	return w, h, nil
-}
-
-// GetDimensions 运行 ffmpeg -i 探测视频分辨率
-func GetDimensions(ffmpegPath string, inputPath string) (int, int, error) {
-	cmd := exec.Command(ffmpegPath, "-i", inputPath)
-	util.HideConsoleWindow(cmd)
-	output, _ := cmd.CombinedOutput()
-	return ParseDimensions(string(output))
 }
 
 // EvenFloor 向下取整到偶数，最小为 2，避免 yuv420p 非偶数尺寸问题（crop/scale 均使用）。

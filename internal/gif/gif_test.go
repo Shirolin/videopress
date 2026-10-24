@@ -2,6 +2,7 @@ package gif
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -276,5 +277,24 @@ func TestSkippedMarksOverBudget(t *testing.T) {
 	}
 	if !results[0].OverBudget {
 		t.Error("3MiB skipped output should be marked OverBudget")
+	}
+}
+func TestRunReportsMissingFFmpeg(t *testing.T) {
+	eng := New(Dependencies{
+		ResolveBinary: func(dir string) (string, error) {
+			return "", os.ErrNotExist
+		},
+		RunCommand: func(ctx context.Context, name string, args []string) error {
+			t.Error("must not invoke ffmpeg when the binary is missing")
+			return nil
+		},
+	})
+	_, err := eng.Run(context.Background(), ExportRequest{
+		Files:   []string{"clip.mp4"},
+		Tier:    "balanced",
+		Formats: []Format{FormatGIF},
+	})
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected the resolve error to surface, got %v", err)
 	}
 }
