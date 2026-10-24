@@ -479,12 +479,8 @@ func (a *App) queueRow(c *ui.Context, index int) {
 			feedback.Progress(c, clamp01(bar), feedback.ProgressOptions{Shape: feedback.ProgressLinear, Label: item.Name})
 		}
 
-		if item.Error != "" {
-			tone := k.Danger
-			if item.Warning && item.Status == "waiting" {
-				tone = k.Warning
-			}
-			ui.Text(c, item.Error).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(tone)
+		if msg, tone := queueNote(item, a, k); msg != "" {
+			ui.Text(c, msg).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(tone)
 		}
 
 		if item.Status == "success" || item.Status == "skipped" || item.Status == "failed" {
@@ -784,6 +780,19 @@ func crfDesc(codec string, a *App) string {
 		return a.t("advanced.crf.desc.av1")
 	}
 	return a.t("advanced.crf.desc.h264")
+}
+
+// queueNote is the note under a queue row and its tone. A waiting row that
+// already looks compressed carries the warning instead of an engine error;
+// its text comes from the copy table so it follows the current language.
+func queueNote(item *QueueItem, a *App, k theme.Tokens) (string, ui.Color) {
+	if item.Status == "waiting" {
+		if item.Warning {
+			return a.t("queue.warn_recompressed"), k.Warning
+		}
+		return "", k.TextMuted
+	}
+	return item.Error, k.Danger
 }
 
 // queueStatus picks the word, the tone and the glyph of a queue row.

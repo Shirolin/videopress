@@ -65,6 +65,27 @@ func TestWorkspaceFlow(t *testing.T) {
 	}
 }
 
+// TestRecompressedWarningFollowsLanguage: the warning under a row that looks
+// already compressed is looked up per frame, so switching language rewrites it.
+func TestRecompressedWarningFollowsLanguage(t *testing.T) {
+	a := newTestApp(`D:\clips\demo.compressed.mp4`)
+	if !a.queue[0].Warning || a.queue[0].Error != "" {
+		t.Fatalf("expected a warning row with no stored error, got %+v", a.queue[0])
+	}
+
+	a.locale = "en"
+	tester := ui.NewTester(a.View, 900, 820)
+	if !tester.HasText("This video may already be compressed; compressing again will hurt quality.") {
+		t.Fatalf("English warning missing; texts = %v", tester.Texts())
+	}
+
+	a.locale = "zh-Hans"
+	tester.Frame()
+	if !tester.HasText("该视频可能已经被压缩过，二次压缩会损害画质。") {
+		t.Fatalf("Chinese warning missing; texts = %v", tester.Texts())
+	}
+}
+
 // TestSettingsPageRenders guards the settings layout against a panic or an
 // empty page.
 func TestSettingsPageRenders(t *testing.T) {

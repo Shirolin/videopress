@@ -141,11 +141,8 @@ func (a *App) addFiles(paths []string) {
 		}
 		seen[key] = true
 		name := filepath.Base(p)
-		warn := containsCompressed(name)
-		item := QueueItem{Path: p, Name: name, Status: "waiting", Warning: warn}
-		if warn {
-			item.Error = "该视频可能已经被压缩过，二次压缩会损害画质。"
-		}
+		// 警告文案在渲染时按当前语言查表，切换语言后旧行也跟着变。
+		item := QueueItem{Path: p, Name: name, Status: "waiting", Warning: containsCompressed(name)}
 		a.queue = append(a.queue, item)
 	}
 }
@@ -210,11 +207,7 @@ func (a *App) startCompress() {
 		a.queue[i].Status = "waiting"
 		a.queue[i].TargetSize = 0
 		a.queue[i].Duration = 0
-		if a.queue[i].Warning {
-			a.queue[i].Error = "该视频可能已经被压缩过，二次压缩会损害画质。"
-		} else {
-			a.queue[i].Error = ""
-		}
+		a.queue[i].Error = ""
 	}
 
 	req := engine.JobRequest{

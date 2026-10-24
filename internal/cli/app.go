@@ -141,8 +141,8 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, getMsg("  -h, --help                       显示此帮助", "  -h, --help                       Show this help"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, getMsg("退出码:", "Exit Codes:"))
-	fmt.Fprintf(w, "  0  %s\n", green(getMsg("全部成功", "All succeeded")))
-	fmt.Fprintf(w, "  1  %s\n", red(getMsg("存在失败、全部跳过或非视频文件", "Failed, skipped all, or non-video files")))
+	fmt.Fprintf(w, "  0  %s\n", green(getMsg("全部成功或全部跳过", "All succeeded or skipped")))
+	fmt.Fprintf(w, "  1  %s\n", red(getMsg("存在失败，或没有可处理的视频文件", "Failed, or no processable video files")))
 }
 
 // gifFormatList 收集 --format 多次指定的动图格式。
