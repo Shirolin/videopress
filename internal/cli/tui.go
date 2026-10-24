@@ -17,9 +17,9 @@ func showInteractiveMenu(w io.Writer) string {
 	_ = enableVirtualTerminal()
 
 	options := []menuOption{
-		{name: "small", description: "小档案 (33% 比例 - 480px 限制)"},
-		{name: "standard", description: "中等   (50% 比例 - 720px 限制) [默认]"},
-		{name: "quality", description: "大档案 (100% 比例 - 无限制)"},
+		{name: "small", description: msg("menu.small")},
+		{name: "standard", description: msg("menu.standard")},
+		{name: "quality", description: msg("menu.quality")},
 	}
 
 	selectedIndex := 1 // 默认选中中等
@@ -57,7 +57,7 @@ func showInteractiveMenu(w io.Writer) string {
 				countdown--
 				if countdown <= 0 {
 					close(doneChan)
-					fmt.Fprint(w, "\n\n已自动确认默认选项：中等\n\n")
+					fmt.Fprintf(w, "\n\n%s\n\n", msg("menu.auto_confirmed"))
 					return "standard"
 				}
 				drawMenu(w, options, selectedIndex, countdown, userInteracted, false)
@@ -81,7 +81,7 @@ func showInteractiveMenu(w io.Writer) string {
 				}
 			} else if key == 13 || key == 10 { // 回车键
 				close(doneChan)
-				fmt.Fprintf(w, "\n\n已选择并确认：%s\n\n", options[selectedIndex].description)
+				fmt.Fprintf(w, "\n\n%s\n\n", msg("menu.confirmed", options[selectedIndex].description))
 				return options[selectedIndex].name
 			} else if key == 49 { // 按键 '1'
 				selectedIndex = 0
@@ -102,7 +102,7 @@ func drawMenu(w io.Writer, options []menuOption, selectedIndex int, countdown in
 		fmt.Fprint(w, "\033[7A")
 	}
 
-	fmt.Fprintln(w, "请选择压缩规格：")
+	fmt.Fprintln(w, msg("menu.title"))
 	for i, opt := range options {
 		if i == selectedIndex {
 			fmt.Fprintf(w, " %s\n", green(fmt.Sprintf("> %s", opt.description)))
@@ -111,12 +111,12 @@ func drawMenu(w io.Writer, options []menuOption, selectedIndex int, countdown in
 		}
 	}
 	fmt.Fprintln(w)
-	fmt.Fprintf(w, "【提示】使用上下方向键 %s 切换，%s 确认。按任意键停止倒计时。\n", cyan("↑↓"), cyan("回车"))
+	fmt.Fprintln(w, msg("menu.hint", cyan(msg("menu.updown")), cyan(msg("menu.enter"))))
 
 	if !userInteracted {
-		fmt.Fprintf(w, "倒计时: %s 秒...   \r", yellow(fmt.Sprintf("%d", countdown)))
+		fmt.Fprintf(w, msg("menu.countdown"), yellow(fmt.Sprintf("%d", countdown)))
 	} else {
-		fmt.Fprintf(w, "%s               \r", green("已启用手动选择。"))
+		fmt.Fprintf(w, "%s               \r", green(msg("menu.manual")))
 	}
 }
 

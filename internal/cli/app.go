@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -103,46 +104,47 @@ func sendToNotify(executablePath string, title, body string) error {
 
 func sendToResultTitle(successes, failures int) string {
 	if failures > 0 {
-		return getMsg("压缩完成，存在失败", "Compression finished with failures")
+		return msg("notify.done_failures")
 	}
-	return getMsg("压缩完成", "Compression complete")
+	return msg("notify.done")
 }
 
 func sendToResultBody(successes, failures int) string {
-	return fmt.Sprintf(getMsg("成功 %d 个，失败 %d 个", "Succeeded: %d, Failed: %d"), successes, failures)
+	return msg("notify.result_body", successes, failures)
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, magenta(getMsg("========================================", "========================================")))
-	fmt.Fprintln(w, magenta(getMsg("用法: videopress.exe [选项] <视频文件...>", "Usage: videopress.exe [Options] <video files...>")))
-	fmt.Fprintln(w, magenta(getMsg("========================================", "========================================")))
-	fmt.Fprintln(w, getMsg("选项:", "Options:"))
-	fmt.Fprintf(w, "  --preset %s  %s\n", cyan("small|standard|quality"), getMsg("压缩规格（默认 standard，大小写不敏感）", "Compression preset (default standard, case-insensitive)"))
-	fmt.Fprintf(w, "  --concurrency, -c %s         %s\n", cyan("<数字>"), getMsg("最大并发压缩任务数（默认 1）", "Max concurrent compression tasks (default 1)"))
-	fmt.Fprintf(w, "  --hw                             %s\n", cyan(getMsg("尝试使用 GPU 硬件加速编码", "Try to use GPU hardware acceleration")))
-	fmt.Fprintln(w, getMsg("  --force, -f                      强制覆盖已存在的输出文件", "  --force, -f                      Force overwrite existing output files"))
-	fmt.Fprintln(w, getMsg("  --skip-existing                  如果输出文件已存在则跳过", "  --skip-existing                  Skip compression if output file exists"))
-	fmt.Fprintf(w, "  --codec %s         %s\n", cyan("h264|h265|av1"), getMsg("视频编码格式（默认 h264）", "Video encoding codec (default h264)"))
-	fmt.Fprintf(w, "  --max-fps %s           %s\n", cyan("<数字>"), getMsg("限制最大帧率，0 为不限制（默认 0）", "Limit maximum frames per second, 0 for unlimited (default 0)"))
-	fmt.Fprintf(w, "  --audio %s   %s\n", cyan("copy|compress|mute"), getMsg("音频模式（默认 compress）", "Audio mode (default compress)"))
-	fmt.Fprintln(w, getMsg("  --copy-audio, -a                 直接复制音频流，不重编码", "  --copy-audio, -a                 Copy audio stream directly without re-encoding"))
-	fmt.Fprintf(w, "  --crf %s               %s\n", cyan("<数字>"), getMsg("自定义视频质量 (CRF) 参数覆盖，0 为不覆盖（默认 0）", "Override CRF quality value, 0 for preset default (default 0)"))
-	fmt.Fprintf(w, "  --crop %s           %s\n", cyan("W:H:X:Y"), getMsg("压缩前精确像素裁剪（与 --crop-center 互斥，默认不裁）", "Exact pixel crop before compression (mutually exclusive with --crop-center, off by default)"))
-	fmt.Fprintf(w, "  --crop-center %s       %s\n", cyan("W:H"), getMsg("压缩前居中裁到该比例的最大矩形（如 16:9）", "Center-crop to the largest rectangle of this ratio (e.g. 16:9)"))
-	fmt.Fprintf(w, "  --crop-scale %s      %s\n", cyan("<0.5-1.0>"), getMsg("在居中比例框内再保留的比例，需配合 --crop-center（默认 1.0）", "Keep scale inside the center crop, requires --crop-center (default 1.0)"))
-	fmt.Fprintf(w, "  --gif                             %s\n", cyan(getMsg("启用动图导出模式（GIF/APNG/WebP）", "Enable animated export mode (GIF/APNG/WebP)")))
-	fmt.Fprintf(w, "  --tier %s          %s\n", cyan("smooth|balanced|hd"), getMsg("动图档位（默认 balanced）", "Animated tier (default balanced)"))
-	fmt.Fprintf(w, "  --format %s    %s\n", cyan("gif|apng|webp"), getMsg("动图输出格式，可多次指定（默认全部三种）", "Animated output format, repeatable (default all three)"))
-	fmt.Fprintln(w, getMsg("  --install-sendto                 安装 SendTo 右键快捷方式", "  --install-sendto                 Install SendTo context shortcut"))
-	fmt.Fprintln(w, getMsg("  --uninstall-sendto               移除 SendTo 快捷方式", "  --uninstall-sendto               Remove SendTo shortcut"))
-	fmt.Fprintln(w, getMsg("  --install-path                   添加程序目录到用户 Path 环境变量", "  --install-path                   Add app directory to user Path environment variable"))
-	fmt.Fprintln(w, getMsg("  --uninstall-path                 从用户 Path 环境变量移除程序目录", "  --uninstall-path                 Remove app directory from user Path environment variable"))
-	fmt.Fprintln(w, getMsg("  --version                        显示版本号", "  --version                        Show version"))
-	fmt.Fprintln(w, getMsg("  -h, --help                       显示此帮助", "  -h, --help                       Show this help"))
+	rule := magenta("========================================")
+	fmt.Fprintln(w, rule)
+	fmt.Fprintln(w, magenta(msg("usage.title")))
+	fmt.Fprintln(w, rule)
+	fmt.Fprintln(w, msg("usage.options"))
+	fmt.Fprintf(w, "  --preset %s  %s\n", cyan("small|standard|quality"), msg("usage.preset"))
+	fmt.Fprintf(w, "  --concurrency, -c %s         %s\n", cyan(msg("usage.number")), msg("usage.concurrency"))
+	fmt.Fprintf(w, "  --hw                             %s\n", cyan(msg("usage.hw")))
+	fmt.Fprintln(w, "  --force, -f                      "+msg("usage.force"))
+	fmt.Fprintln(w, "  --skip-existing                  "+msg("usage.skip_existing"))
+	fmt.Fprintf(w, "  --codec %s         %s\n", cyan("h264|h265|av1"), msg("usage.codec"))
+	fmt.Fprintf(w, "  --max-fps %s           %s\n", cyan(msg("usage.number")), msg("usage.max_fps"))
+	fmt.Fprintf(w, "  --audio %s   %s\n", cyan("copy|compress|mute"), msg("usage.audio"))
+	fmt.Fprintln(w, "  --copy-audio, -a                 "+msg("usage.copy_audio"))
+	fmt.Fprintf(w, "  --crf %s               %s\n", cyan(msg("usage.number")), msg("usage.crf"))
+	fmt.Fprintf(w, "  --crop %s           %s\n", cyan("W:H:X:Y"), msg("usage.crop"))
+	fmt.Fprintf(w, "  --crop-center %s       %s\n", cyan("W:H"), msg("usage.crop_center"))
+	fmt.Fprintf(w, "  --crop-scale %s      %s\n", cyan("<0.5-1.0>"), msg("usage.crop_scale"))
+	fmt.Fprintf(w, "  --gif                             %s\n", cyan(msg("usage.gif")))
+	fmt.Fprintf(w, "  --tier %s          %s\n", cyan("smooth|balanced|hd"), msg("usage.tier"))
+	fmt.Fprintf(w, "  --format %s    %s\n", cyan("gif|apng|webp"), msg("usage.format"))
+	fmt.Fprintln(w, "  --install-sendto                 "+msg("usage.install_sendto"))
+	fmt.Fprintln(w, "  --uninstall-sendto               "+msg("usage.uninstall_sendto"))
+	fmt.Fprintln(w, "  --install-path                   "+msg("usage.install_path"))
+	fmt.Fprintln(w, "  --uninstall-path                 "+msg("usage.uninstall_path"))
+	fmt.Fprintln(w, "  --version                        "+msg("usage.version"))
+	fmt.Fprintln(w, "  -h, --help                       "+msg("usage.help"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, getMsg("退出码:", "Exit Codes:"))
-	fmt.Fprintf(w, "  0  %s\n", green(getMsg("全部成功或全部跳过", "All succeeded or skipped")))
-	fmt.Fprintf(w, "  1  %s\n", red(getMsg("存在失败，或没有可处理的视频文件", "Failed, or no processable video files")))
+	fmt.Fprintln(w, msg("usage.exit_codes"))
+	fmt.Fprintf(w, "  0  %s\n", green(msg("usage.exit_0")))
+	fmt.Fprintf(w, "  1  %s\n", red(msg("usage.exit_1")))
 }
 
 // gifFormatList 收集 --format 多次指定的动图格式。
@@ -159,7 +161,7 @@ func (l *gifFormatList) Set(v string) error {
 		*l = append(*l, f)
 		return nil
 	default:
-		return fmt.Errorf("未知的动图格式 unknown format: %s (gif|apng|webp)", v)
+		return fmt.Errorf(msg("err.gif_format"), v)
 	}
 }
 
@@ -173,15 +175,16 @@ func runGifExport(deps Dependencies, files []string, tierName string, formats gi
 
 	// ffmpeg 二进制解析交给引擎（Run 内统一 resolve），此处不预检。
 
-	fmt.Fprintln(deps.Stdout, magenta("========================================"))
-	fmt.Fprintln(deps.Stdout, magenta("         Videopress 动图导出            "))
-	fmt.Fprintln(deps.Stdout, magenta("========================================"))
-	fmt.Fprintf(deps.Stdout, " 档位: %s\n", cyan(tier.Name))
-	fmt.Fprintf(deps.Stdout, " 宽度上限: %s\n", cyan(fmt.Sprintf("%dpx", tier.MaxWidth)))
-	fmt.Fprintf(deps.Stdout, " 体积上限: %s\n", cyan(fmt.Sprintf("%dMB", tier.MaxSizeMB)))
-	fmt.Fprintf(deps.Stdout, " 帧率: %s\n", cyan(fmt.Sprintf("%dfps", tier.FPS)))
-	fmt.Fprintf(deps.Stdout, " 时长上限: %s\n", cyan(tier.MaxDuration))
-	fmt.Fprintln(deps.Stdout, magenta("========================================"))
+	rule := magenta("========================================")
+	fmt.Fprintln(deps.Stdout, rule)
+	fmt.Fprintln(deps.Stdout, magenta(msg("gif.title")))
+	fmt.Fprintln(deps.Stdout, rule)
+	fmt.Fprintf(deps.Stdout, msg("gif.tier"), cyan(tier.Name))
+	fmt.Fprintf(deps.Stdout, msg("gif.max_width"), cyan(fmt.Sprintf("%dpx", tier.MaxWidth)))
+	fmt.Fprintf(deps.Stdout, msg("gif.max_size"), cyan(fmt.Sprintf("%dMB", tier.MaxSizeMB)))
+	fmt.Fprintf(deps.Stdout, msg("gif.fps"), cyan(fmt.Sprintf("%dfps", tier.FPS)))
+	fmt.Fprintf(deps.Stdout, msg("gif.max_duration"), cyan(tier.MaxDuration))
+	fmt.Fprintln(deps.Stdout, rule)
 	fmt.Fprintln(deps.Stdout)
 
 	engDeps := gif.Dependencies{
@@ -225,24 +228,24 @@ func runGifExport(deps Dependencies, files []string, tierName string, formats gi
 			successes++
 			over := ""
 			if r.OverBudget {
-				over = yellow(" (超体积 over budget)")
+				over = yellow(msg("gif.over_budget"))
 			}
-			fmt.Fprintf(deps.Stdout, "%s %s -> %s%s\n", green("成功"), disp, fmt.Sprintf("%.2fMB", float64(r.Size)/(1024*1024)), over)
+			fmt.Fprintf(deps.Stdout, "%s %s -> %s%s\n", green(msg("gif.success")), disp, fmt.Sprintf("%.2fMB", float64(r.Size)/(1024*1024)), over)
 		case "skipped":
 			skipped++
 			overSkipped := ""
 			if r.OverBudget {
-				overSkipped = yellow(" (超体积 over budget)")
+				overSkipped = yellow(msg("gif.over_budget"))
 			}
-			fmt.Fprintf(deps.Stdout, "%s %s (已存在)%s\n", yellow("跳过"), disp, overSkipped)
+			fmt.Fprintf(deps.Stdout, "%s %s %s%s\n", yellow(msg("gif.skipped")), disp, msg("gif.exists"), overSkipped)
 		default:
 			failures++
-			fmt.Fprintf(deps.Stderr, "%s %s: %s\n", red("失败"), disp, red(r.Error))
+			fmt.Fprintf(deps.Stderr, "%s %s: %s\n", red(msg("gif.failed")), disp, red(r.Error))
 		}
 	}
 
 	fmt.Fprintln(deps.Stdout, magenta("=========================================="))
-	fmt.Fprintf(deps.Stdout, "动图导出完成: 成功 %s, 跳过 %s, 失败 %s\n", green(fmt.Sprintf("%d", successes)), yellow(fmt.Sprintf("%d", skipped)), red(fmt.Sprintf("%d", failures)))
+	fmt.Fprintf(deps.Stdout, msg("gif.summary"), green(fmt.Sprintf("%d", successes)), yellow(fmt.Sprintf("%d", skipped)), red(fmt.Sprintf("%d", failures)))
 
 	exitCode := 0
 	if failures > 0 || successes == 0 {
@@ -287,12 +290,12 @@ func Execute(args []string, deps Dependencies) int {
 	}
 	if deps.AddToPath == nil {
 		deps.AddToPath = func(dir string) (bool, error) {
-			return false, fmt.Errorf("未配置 AddToPath")
+			return false, errors.New(msg("err.add_to_path_missing"))
 		}
 	}
 	if deps.RemoveFromPath == nil {
 		deps.RemoveFromPath = func(dir string) (bool, error) {
-			return false, fmt.Errorf("未配置 RemoveFromPath")
+			return false, errors.New(msg("err.remove_path_missing"))
 		}
 	}
 	if deps.SendToNotify == nil {
@@ -337,7 +340,7 @@ func Execute(args []string, deps Dependencies) int {
 	showVersion := fs.Bool("version", false, "show version")
 
 	if err := fs.Parse(args); err != nil {
-		fmt.Fprintf(deps.Stderr, "%s %v\n\n", red(getMsg("未知选项:", "Unknown option:")), err)
+		fmt.Fprintf(deps.Stderr, "%s %v\n\n", red(msg("err.unknown_option")), err)
 		printUsage(deps.Stderr)
 		return 1
 	}
@@ -345,11 +348,11 @@ func Execute(args []string, deps Dependencies) int {
 	// 几何裁剪参数解析与互斥校验（校验失败直接退出，不调用压片）
 	var cropSpec *engine.CropSpec
 	if *cropExact != "" && *cropCenter != "" {
-		fmt.Fprintln(deps.Stderr, red(getMsg("裁剪模式冲突：--crop 与 --crop-center 不能同时使用", "Conflicting crop modes: --crop and --crop-center are mutually exclusive")))
+		fmt.Fprintln(deps.Stderr, red(msg("err.crop_conflict")))
 		return 1
 	}
 	if cropScaleFlagGiven(fs) && *cropCenter == "" {
-		fmt.Fprintln(deps.Stderr, red(getMsg("裁剪参数无效：--crop-scale 仅在 --crop-center 模式下生效", "Invalid crop options: --crop-scale only applies with --crop-center")))
+		fmt.Fprintln(deps.Stderr, red(msg("err.crop_scale_alone")))
 		return 1
 	}
 	if *cropExact != "" {
@@ -362,7 +365,7 @@ func Execute(args []string, deps Dependencies) int {
 	}
 	if *cropCenter != "" {
 		if *cropScale < 0.5 || *cropScale > 1.0 {
-			fmt.Fprintln(deps.Stderr, red(getMsg("裁剪参数无效：--crop-scale 必须在 0.5 到 1.0 之间", "Invalid crop option: --crop-scale must be between 0.5 and 1.0")))
+			fmt.Fprintln(deps.Stderr, red(msg("err.crop_scale_range")))
 			return 1
 		}
 		spec, err := parseCenterCrop(*cropCenter)
@@ -379,7 +382,7 @@ func Execute(args []string, deps Dependencies) int {
 	}
 	if *installSendTo {
 		if deps.InstallSendTo == nil {
-			fmt.Fprintln(deps.Stderr, red(getMsg("当前构建未启用 SendTo 安装", "SendTo installation is not enabled in the current build")))
+			fmt.Fprintln(deps.Stderr, red(msg("err.sendto_install_off")))
 			return 1
 		}
 		path, err := deps.InstallSendTo(deps.ExecutablePath)
@@ -387,31 +390,31 @@ func Execute(args []string, deps Dependencies) int {
 			fmt.Fprintln(deps.Stderr, red(err.Error()))
 			return 1
 		}
-		fmt.Fprintf(deps.Stdout, "%s %s\n", green(getMsg("【成功】已安装 SendTo 快捷方式:", "[Success] Installed SendTo shortcut:")), green(path))
-		fmt.Fprintln(deps.Stdout, getMsg("\n提示：现在您可以在资源管理器中右键任意视频，选择「发送到 > 快速压缩视频」进行一键压缩！", "\nTip: You can now right-click any video in Explorer and choose \"Send to > 快速压缩视频\" to compress instantly!"))
-		fmt.Fprintln(deps.Stdout, getMsg("\n处理完成。按回车键退出...", "\nDone. Press Enter to exit..."))
+		fmt.Fprintf(deps.Stdout, "%s %s\n", green(msg("install.sendto_ok")), green(path))
+		fmt.Fprintln(deps.Stdout, msg("install.sendto_tip"))
+		fmt.Fprintln(deps.Stdout, msg("install.done"))
 		var b [1]byte
 		deps.Stdin.Read(b[:])
 		return 0
 	}
 	if *uninstallSendTo {
 		if deps.UninstallSendTo == nil {
-			fmt.Fprintln(deps.Stderr, red(getMsg("当前构建未启用 SendTo 卸载", "SendTo uninstallation is not enabled in the current build")))
+			fmt.Fprintln(deps.Stderr, red(msg("err.sendto_uninstall_off")))
 			return 1
 		}
 		if err := deps.UninstallSendTo(); err != nil {
 			fmt.Fprintln(deps.Stderr, red(err.Error()))
 			return 1
 		}
-		fmt.Fprintln(deps.Stdout, green(getMsg("【成功】已成功移除 SendTo 右键快捷方式。", "[Success] Successfully removed SendTo context shortcut.")))
-		fmt.Fprintln(deps.Stdout, getMsg("\n处理完成。按回车键退出...", "\nDone. Press Enter to exit..."))
+		fmt.Fprintln(deps.Stdout, green(msg("install.sendto_removed")))
+		fmt.Fprintln(deps.Stdout, msg("install.done"))
 		var b [1]byte
 		deps.Stdin.Read(b[:])
 		return 0
 	}
 	if *installPath {
 		if deps.AddToPath == nil {
-			fmt.Fprintln(deps.Stderr, red(getMsg("当前构建未启用环境变量配置", "Path configuration is not enabled in the current build")))
+			fmt.Fprintln(deps.Stderr, red(msg("err.path_config_off")))
 			return 1
 		}
 		added, err := deps.AddToPath(deps.ExecutableDir)
@@ -420,19 +423,19 @@ func Execute(args []string, deps Dependencies) int {
 			return 1
 		}
 		if added {
-			fmt.Fprintf(deps.Stdout, "%s %s\n", green(getMsg("【成功】已将目录添加至当前用户的 Path 环境变量:", "[Success] Added directory to current user's Path environment variable:")), green(deps.ExecutableDir))
-			fmt.Fprintln(deps.Stdout, getMsg("\n提示：现在您可以在新打开的终端（CMD/PowerShell）中，直接通过 `videopress` 命令运行本软件！", "\nTip: You can now run the app by simply typing `videopress` in a newly opened terminal!"))
+			fmt.Fprintf(deps.Stdout, "%s %s\n", green(msg("install.path_ok")), green(deps.ExecutableDir))
+			fmt.Fprintln(deps.Stdout, msg("install.path_tip"))
 		} else {
-			fmt.Fprintf(deps.Stdout, "%s %s\n", yellow(getMsg("【提示】环境变量 Path 中已存在该目录:", "[Tip] Directory already exists in Path environment variable:")), deps.ExecutableDir)
+			fmt.Fprintf(deps.Stdout, "%s %s\n", yellow(msg("install.path_exists")), deps.ExecutableDir)
 		}
-		fmt.Fprintln(deps.Stdout, getMsg("\n处理完成。按回车键退出...", "\nDone. Press Enter to exit..."))
+		fmt.Fprintln(deps.Stdout, msg("install.done"))
 		var b [1]byte
 		deps.Stdin.Read(b[:])
 		return 0
 	}
 	if *uninstallPath {
 		if deps.RemoveFromPath == nil {
-			fmt.Fprintln(deps.Stderr, red(getMsg("当前构建未启用环境变量配置", "Path configuration is not enabled in the current build")))
+			fmt.Fprintln(deps.Stderr, red(msg("err.path_config_off")))
 			return 1
 		}
 		removed, err := deps.RemoveFromPath(deps.ExecutableDir)
@@ -441,11 +444,11 @@ func Execute(args []string, deps Dependencies) int {
 			return 1
 		}
 		if removed {
-			fmt.Fprintf(deps.Stdout, "%s %s\n", green(getMsg("【成功】已成功从 Path 环境变量中移除该目录:", "[Success] Successfully removed directory from Path environment variable:")), green(deps.ExecutableDir))
+			fmt.Fprintf(deps.Stdout, "%s %s\n", green(msg("install.path_removed")), green(deps.ExecutableDir))
 		} else {
-			fmt.Fprintf(deps.Stdout, "%s %s\n", yellow(getMsg("【提示】环境变量 Path 中未找到该目录:", "[Tip] Directory not found in Path environment variable:")), deps.ExecutableDir)
+			fmt.Fprintf(deps.Stdout, "%s %s\n", yellow(msg("install.path_missing")), deps.ExecutableDir)
 		}
-		fmt.Fprintln(deps.Stdout, getMsg("\n处理完成。按回车键退出...", "\nDone. Press Enter to exit..."))
+		fmt.Fprintln(deps.Stdout, msg("install.done"))
 		var b [1]byte
 		deps.Stdin.Read(b[:])
 		return 0
@@ -455,7 +458,7 @@ func Execute(args []string, deps Dependencies) int {
 	if len(files) == 0 {
 		printUsage(deps.Stderr)
 		if *sendToMode {
-			_ = deps.SendToNotify(deps.ExecutablePath, getMsg("压缩失败", "Compression failed"), getMsg("未指定视频文件", "No video files specified"))
+			_ = deps.SendToNotify(deps.ExecutablePath, msg("notify.failed"), msg("notify.no_files"))
 		}
 		return 1
 	}
@@ -465,7 +468,7 @@ func Execute(args []string, deps Dependencies) int {
 		return runGifExport(deps, files, *gifTier, gifFormats, *forceMode)
 	}
 	if len(gifFormats) > 0 || *gifTier != gif.DefaultTier {
-		fmt.Fprintln(deps.Stderr, yellow(getMsg("提示：--tier/--format 仅在 --gif 动图模式下生效，本次压缩已忽略", "Note: --tier/--format only apply in --gif animated mode, ignored for compression")))
+		fmt.Fprintln(deps.Stderr, yellow(msg("err.tier_format_ignored")))
 	}
 	presetExplicit := false
 	fs.Visit(func(f *flag.Flag) {
@@ -482,7 +485,7 @@ func Execute(args []string, deps Dependencies) int {
 	if err != nil {
 		fmt.Fprintln(deps.Stderr, red(err.Error()))
 		if *sendToMode {
-			_ = deps.SendToNotify(deps.ExecutablePath, getMsg("压缩失败", "Compression failed"), getMsg("预设无效", "Invalid preset"))
+			_ = deps.SendToNotify(deps.ExecutablePath, msg("notify.failed"), msg("notify.invalid_preset"))
 		}
 		return 1
 	}
@@ -491,19 +494,19 @@ func Execute(args []string, deps Dependencies) int {
 	if err != nil {
 		fmt.Fprintln(deps.Stderr, red(err.Error()))
 		if *sendToMode {
-			_ = deps.SendToNotify(deps.ExecutablePath, getMsg("压缩失败", "Compression failed"), getMsg("未找到 FFmpeg，请安装后重试", "FFmpeg not found, please install and retry"))
+			_ = deps.SendToNotify(deps.ExecutablePath, msg("notify.failed"), msg("notify.no_ffmpeg"))
 		}
 		return 1
 	}
 
 	hwEncoder := "libx264"
 	if *hwAccel {
-		fmt.Fprintln(deps.Stdout, "正在检测可用 GPU 编码器...")
+		fmt.Fprintln(deps.Stdout, msg("gpu.detecting"))
 		hwEncoder = deps.DetectGPUEncoder(ffmpegPath, *codecName, nil)
 		if hwEncoder != "libx264" && hwEncoder != "libx265" && hwEncoder != "libsvtav1" {
-			fmt.Fprintf(deps.Stdout, "检测到 GPU 编码器: %s，将启用硬件加速\n", green(hwEncoder))
+			fmt.Fprintln(deps.Stdout, msg("gpu.detected", green(hwEncoder)))
 		} else {
-			fmt.Fprintln(deps.Stdout, "未检测到可用 GPU 编码器，将使用 CPU 软编")
+			fmt.Fprintln(deps.Stdout, msg("gpu.none"))
 		}
 	}
 
@@ -516,66 +519,67 @@ func Execute(args []string, deps Dependencies) int {
 	}
 
 	// 打印任务配置摘要卡片
-	fmt.Fprintln(deps.Stdout, magenta("========================================"))
-	fmt.Fprintln(deps.Stdout, magenta("         Videopress 视频压缩工具        "))
-	fmt.Fprintln(deps.Stdout, magenta("========================================"))
+	rule := magenta("========================================")
+	fmt.Fprintln(deps.Stdout, rule)
+	fmt.Fprintln(deps.Stdout, magenta(msg("run.title")))
+	fmt.Fprintln(deps.Stdout, rule)
 	var maxDimStr string
 	if preset.MaxDimension > 0 {
 		maxDimStr = fmt.Sprintf("%dpx", preset.MaxDimension)
 	} else {
-		maxDimStr = "无限制"
+		maxDimStr = msg("run.unlimited")
 	}
-	fmt.Fprintf(deps.Stdout, " 预设规格: %s\n", cyan(preset.Name))
-	fmt.Fprintf(deps.Stdout, " 缩放比例: %s\n", cyan(fmt.Sprintf("%.0f%%", preset.ScaleFactor*100)))
-	fmt.Fprintf(deps.Stdout, " 最大分辨率限制: %s\n", cyan(maxDimStr))
-	fmt.Fprintf(deps.Stdout, " 并发限制: %s\n", cyan(fmt.Sprintf("%d", limit)))
+	fmt.Fprintf(deps.Stdout, msg("run.preset"), cyan(preset.Name))
+	fmt.Fprintf(deps.Stdout, msg("run.scale"), cyan(fmt.Sprintf("%.0f%%", preset.ScaleFactor*100)))
+	fmt.Fprintf(deps.Stdout, msg("run.max_dim"), cyan(maxDimStr))
+	fmt.Fprintf(deps.Stdout, msg("run.concurrency"), cyan(fmt.Sprintf("%d", limit)))
 
 	codecPrint := *codecName
 	if codecPrint == "" {
-		codecPrint = "h264 (自动)"
+		codecPrint = msg("run.codec_auto")
 	}
-	fmt.Fprintf(deps.Stdout, " 编码格式: %s\n", cyan(codecPrint))
+	fmt.Fprintf(deps.Stdout, msg("run.codec"), cyan(codecPrint))
 
 	if *crf > 0 {
-		fmt.Fprintf(deps.Stdout, " 自定义质量 (CRF): %s\n", cyan(fmt.Sprintf("%d (已覆盖预设)", *crf)))
+		fmt.Fprintf(deps.Stdout, msg("run.crf"), cyan(msg("run.crf_overridden", *crf)))
 	} else {
-		fmt.Fprintf(deps.Stdout, " 自定义质量 (CRF): %s\n", gray("未启用"))
+		fmt.Fprintf(deps.Stdout, msg("run.crf"), gray(msg("run.crf_off")))
 	}
 
 	if *maxFPS > 0 {
-		fmt.Fprintf(deps.Stdout, " 帧率限制: %s\n", cyan(fmt.Sprintf("%dfps", *maxFPS)))
+		fmt.Fprintf(deps.Stdout, msg("run.fps"), cyan(fmt.Sprintf("%dfps", *maxFPS)))
 	} else {
-		fmt.Fprintf(deps.Stdout, " 帧率限制: %s\n", cyan("无限制"))
+		fmt.Fprintf(deps.Stdout, msg("run.fps"), cyan(msg("run.unlimited")))
 	}
 
 	var audioModePrint string
 	if *audioMode != "" {
 		audioModePrint = *audioMode
 	} else if *copyAudio {
-		audioModePrint = "copy (直通)"
+		audioModePrint = msg("run.audio_copy")
 	} else {
-		audioModePrint = "compress (智能压缩)"
+		audioModePrint = msg("run.audio_compress")
 	}
-	fmt.Fprintf(deps.Stdout, " 音频模式: %s\n", cyan(audioModePrint))
+	fmt.Fprintf(deps.Stdout, msg("run.audio"), cyan(audioModePrint))
 
 	if *hwAccel {
-		fmt.Fprintf(deps.Stdout, " 硬件加速: %s\n", green(hwEncoder))
+		fmt.Fprintf(deps.Stdout, msg("run.hw"), green(hwEncoder))
 	} else {
-		fmt.Fprintf(deps.Stdout, " 硬件加速: %s\n", gray("已禁用"))
+		fmt.Fprintf(deps.Stdout, msg("run.hw"), gray(msg("run.hw_disabled")))
 	}
 
 	if cropSpec != nil {
 		var cropDesc string
 		if cropSpec.Exact {
-			cropDesc = fmt.Sprintf("精确 %d:%d:%d:%d", cropSpec.W, cropSpec.H, cropSpec.X, cropSpec.Y)
+			cropDesc = msg("run.crop_exact", cropSpec.W, cropSpec.H, cropSpec.X, cropSpec.Y)
 		} else {
-			cropDesc = fmt.Sprintf("居中 %d:%d（保留 %.0f%%）", cropSpec.RatioW, cropSpec.RatioH, cropSpec.Scale*100)
+			cropDesc = msg("run.crop_center", cropSpec.RatioW, cropSpec.RatioH, cropSpec.Scale*100)
 		}
-		fmt.Fprintf(deps.Stdout, " 几何裁剪: %s\n", cyan(cropDesc))
+		fmt.Fprintf(deps.Stdout, msg("run.crop"), cyan(cropDesc))
 	} else {
-		fmt.Fprintf(deps.Stdout, " 几何裁剪: %s\n", gray("未启用"))
+		fmt.Fprintf(deps.Stdout, msg("run.crop"), gray(msg("run.crop_off")))
 	}
-	fmt.Fprintln(deps.Stdout, magenta("========================================"))
+	fmt.Fprintln(deps.Stdout, rule)
 	fmt.Fprintln(deps.Stdout)
 
 	// 建立输入到输出的映射，用于单任务模式下打印完成信息
@@ -596,12 +600,12 @@ func Execute(args []string, deps Dependencies) int {
 
 	for _, input := range files {
 		if !util.IsVideoFile(input) {
-			fmt.Fprintf(deps.Stdout, "跳过非视频文件: %s\n", gray(input))
+			fmt.Fprintf(deps.Stdout, msg("file.skip_non_video"), gray(input))
 			continue
 		}
 
 		if !deps.InputAccessible(input) {
-			fmt.Fprintf(deps.Stderr, "%s 输入文件不存在或不可读: %s\n", red("警告:"), input)
+			fmt.Fprintf(deps.Stderr, "%s %s", red(msg("file.unreadable")), msg("file.unreadable_detail", input))
 			mu.Lock()
 			failures++
 			mu.Unlock()
@@ -610,7 +614,7 @@ func Execute(args []string, deps Dependencies) int {
 
 		defaultOutput, err := compress.BuildOutputPath(input, preset.Name, nil, true, "")
 		if err == nil && *skipExisting && !*forceMode && deps.PathExists(defaultOutput) {
-			fmt.Fprintf(deps.Stdout, "跳过已存在的文件: %s\n", yellow(defaultOutput))
+			fmt.Fprintf(deps.Stdout, msg("file.skip_existing"), yellow(defaultOutput))
 			mu.Lock()
 			successes++
 			allReports = append(allReports, JobReport{
@@ -625,7 +629,7 @@ func Execute(args []string, deps Dependencies) int {
 
 		output, err := compress.BuildOutputPath(input, preset.Name, pathTaken, *forceMode, "")
 		if err != nil {
-			fmt.Fprintf(deps.Stderr, "%s 生成输出路径失败 %s: %v\n", red("错误:"), input, err)
+			fmt.Fprintf(deps.Stderr, "%s %s", red(msg("file.output_path_failed")), msg("file.output_path_detail", input, err))
 			mu.Lock()
 			failures++
 			mu.Unlock()
@@ -663,24 +667,24 @@ func Execute(args []string, deps Dependencies) int {
 				if !simpleProgress {
 					fmt.Fprintln(deps.Stdout)
 				}
-				fmt.Fprintf(deps.Stderr, "\n%s %s: %s\n", red("压缩失败:"), ev.File, red(ev.Error))
+				fmt.Fprintf(deps.Stderr, "\n%s %s: %s\n", red(msg("progress.failed")), ev.File, red(ev.Error))
 				return
 			}
 
 			if ev.Done {
 				if simpleProgress {
-					fmt.Fprintf(deps.Stdout, "[%s] 压缩完成\n", ev.File)
+					fmt.Fprintf(deps.Stdout, msg("progress.done"), ev.File)
 				} else {
 					fmt.Fprintln(deps.Stdout)
 					outPath := outputMap[ev.Path]
-					fmt.Fprintf(deps.Stdout, "压缩完成: %s -> %s\n", ev.Path, outPath)
+					fmt.Fprintf(deps.Stdout, msg("progress.done_path"), ev.Path, outPath)
 				}
 				return
 			}
 
 			if simpleProgress {
 				if ev.Percent == 0 {
-					fmt.Fprintf(deps.Stdout, "[%s] 开始压缩...\n", ev.File)
+					fmt.Fprintf(deps.Stdout, msg("progress.start"), ev.File)
 				}
 			} else {
 				ffmpeg.RenderProgressBar(deps.Stdout, ev.Percent, ev.File)
@@ -703,7 +707,7 @@ func Execute(args []string, deps Dependencies) int {
 		}, onProgress)
 
 		if err != nil {
-			fmt.Fprintf(deps.Stderr, "%s 引擎运行失败: %v\n", red("错误:"), err)
+			fmt.Fprintf(deps.Stderr, "%s %s\n", red(msg("file.output_path_failed")), msg("err.engine_failed", err))
 			return 1
 		}
 
@@ -726,9 +730,9 @@ func Execute(args []string, deps Dependencies) int {
 		logPath := filepath.Join(outDir, "compress_summary.log")
 		f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 		if err != nil {
-			fmt.Fprintf(deps.Stderr, "%s 无法写入摘要日志文件 %s: %v\n", red("警告:"), logPath, err)
+			fmt.Fprintf(deps.Stderr, "%s %s\n", red(msg("file.unreadable")), msg("err.summary_log", logPath, err))
 		} else {
-			fmt.Fprintf(f, "[%s] 开始压缩任务\n", time.Now().Format("2006-01-02 15:04:05"))
+			fmt.Fprintf(f, msg("log.start"), time.Now().Format("2006-01-02 15:04:05"))
 			for _, r := range reps {
 				switch r.Status {
 				case "success":
@@ -736,7 +740,7 @@ func Execute(args []string, deps Dependencies) int {
 					if r.SourceSize > 0 {
 						saved = float64(r.SourceSize-r.TargetSize) / float64(r.SourceSize) * 100.0
 					}
-					fmt.Fprintf(f, "成功: %s (%.1fMB -> %.1fMB, 节省 %.1f%%, 耗时 %s)\n",
+					fmt.Fprintf(f, msg("log.success"),
 						r.InputName,
 						float64(r.SourceSize)/(1024*1024),
 						float64(r.TargetSize)/(1024*1024),
@@ -744,12 +748,12 @@ func Execute(args []string, deps Dependencies) int {
 						r.Duration.Round(time.Millisecond).String(),
 					)
 				case "skipped":
-					fmt.Fprintf(f, "跳过: %s (已存在)\n", r.InputName)
+					fmt.Fprintf(f, msg("log.skipped"), r.InputName)
 				case "failed":
-					fmt.Fprintf(f, "失败: %s (错误信息: %s)\n", r.InputName, r.ErrMessage)
+					fmt.Fprintf(f, msg("log.failed"), r.InputName, r.ErrMessage)
 				}
 			}
-			fmt.Fprintln(f, "----------------------------------------")
+			fmt.Fprint(f, msg("log.separator"))
 			f.Close()
 		}
 	}
@@ -757,23 +761,23 @@ func Execute(args []string, deps Dependencies) int {
 	// 打印最后的色彩汇总表格
 	fmt.Fprintln(deps.Stdout, "\n"+magenta("================================ TASK SUMMARY ================================"))
 	fmt.Fprintf(deps.Stdout, " %s | %s | %s | %s | %s | %s\n",
-		padString("视频文件", 20, true),
-		"状态  ",
-		padString("原始大小", 12, true),
-		padString("压缩大小", 12, true),
-		padString("节省", 8, true),
-		padString("耗时", 8, true),
+		padString(msg("table.file"), 20, true),
+		padString(msg("table.status"), 8, true),
+		padString(msg("table.original"), 12, true),
+		padString(msg("table.compressed"), 12, true),
+		padString(msg("table.saved"), 8, true),
+		padString(msg("table.time"), 8, true),
 	)
 	fmt.Fprintln(deps.Stdout, magenta("------------------------------------------------------------------------------"))
 	for _, r := range allReports {
 		var statusStr string
 		switch r.Status {
 		case "success":
-			statusStr = green("成功") + "  "
+			statusStr = green(msg("table.success")) + "  "
 		case "skipped":
-			statusStr = yellow("跳过") + "  "
+			statusStr = yellow(msg("table.skipped")) + "  "
 		case "failed":
-			statusStr = red("失败") + "  "
+			statusStr = red(msg("table.failed")) + "  "
 		}
 
 		displayInput := r.InputName
@@ -809,7 +813,7 @@ func Execute(args []string, deps Dependencies) int {
 	}
 	fmt.Fprintln(deps.Stdout, magenta("=============================================================================="))
 
-	fmt.Fprintf(deps.Stdout, "处理完成: 成功 %s, 失败 %s\n", green(fmt.Sprintf("%d", successes)), red(fmt.Sprintf("%d", failures)))
+	fmt.Fprintf(deps.Stdout, msg("table.total"), green(fmt.Sprintf("%d", successes)), red(fmt.Sprintf("%d", failures)))
 
 	exitCode := 0
 	if failures > 0 || successes == 0 {
@@ -837,13 +841,13 @@ func cropScaleFlagGiven(fs *flag.FlagSet) bool {
 func parseExactCrop(s string) (*engine.CropSpec, error) {
 	parts := strings.Split(s, ":")
 	if len(parts) != 4 {
-		return nil, fmt.Errorf("裁剪格式无效: %s（应为 W:H:X:Y，例如 1600:900:160:90）", s)
+		return nil, fmt.Errorf(msg("err.crop_format"), s)
 	}
 	nums := make([]int, 4)
 	for i, p := range parts {
 		n, err := strconv.Atoi(strings.TrimSpace(p))
 		if err != nil || n < 0 {
-			return nil, fmt.Errorf("裁剪格式无效: %s（W:H:X:Y 必须为非负整数）", s)
+			return nil, fmt.Errorf(msg("err.crop_numbers"), s)
 		}
 		nums[i] = n
 	}
@@ -854,12 +858,12 @@ func parseExactCrop(s string) (*engine.CropSpec, error) {
 func parseCenterCrop(s string) (*engine.CropSpec, error) {
 	parts := strings.Split(s, ":")
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("居中裁剪比例格式无效: %s（应为 W:H，例如 16:9）", s)
+		return nil, fmt.Errorf(msg("err.crop_ratio_format"), s)
 	}
 	rw, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
 	rh, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
 	if err1 != nil || err2 != nil || rw <= 0 || rh <= 0 {
-		return nil, fmt.Errorf("居中裁剪比例格式无效: %s（W:H 必须为正整数）", s)
+		return nil, fmt.Errorf(msg("err.crop_ratio_numbers"), s)
 	}
 	return &engine.CropSpec{RatioW: rw, RatioH: rh, Scale: 1.0}, nil
 }

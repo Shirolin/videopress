@@ -48,6 +48,32 @@ func TestSystemLanguageInjection(t *testing.T) {
 	}
 }
 
+// TestMsgFollowsLanguage 验证 CLI 文案随语言切换，且每个键都有英文翻译，
+// 避免新增文案时漏填导致英文界面回落到中文。
+func TestMsgFollowsLanguage(t *testing.T) {
+	setSystemLanguageForTest("en")
+	if got := msg("usage.exit_0"); got != "All succeeded or skipped" {
+		t.Fatalf("en usage.exit_0 = %q", got)
+	}
+	if got := msg("notify.result_body", 2, 1); got != "Succeeded: 2, Failed: 1" {
+		t.Fatalf("en formatted notify.result_body = %q", got)
+	}
+
+	setSystemLanguageForTest("zh")
+	if got := msg("usage.exit_0"); got != "全部成功或全部跳过" {
+		t.Fatalf("zh usage.exit_0 = %q", got)
+	}
+	if got := msg("notify.result_body", 2, 1); got != "成功 2 个，失败 1 个" {
+		t.Fatalf("zh formatted notify.result_body = %q", got)
+	}
+
+	for key, entry := range msgTable {
+		if entry[0] == "" || entry[1] == "" {
+			t.Errorf("msgTable[%q] is missing a translation: %q", key, entry)
+		}
+	}
+}
+
 func TestExecuteUsesStandardPresetByDefault(t *testing.T) {
 	var calls []recordedCall
 	var createdDirs []string
