@@ -6,6 +6,7 @@
 
 ## 验证
 - 统一入口 `pwsh -File scripts/make.ps1 <test|vet|build|ci>`；装了 make 时 `make <target>` 等价。
+- 产物构建：生成 GUI 可执行文件必须走 `pwsh -File scripts/make.ps1 build`（自动注入图标、GUI 子系统并同步根目录 exe）；禁止裸 `go build` 根目录（会丢图标并弹黑框）。
 - 测试用替身注入：`engine.Dependencies`、`gif.Dependencies` 的函数字段就是替身入口，测试不碰本机 FFmpeg。
 
 ## 文档

@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/ELY-Open-Source/MujicaUI v0.0.0-20261022023808-e475536b6081
-	github.com/egoist/mygo v0.6.3
+	github.com/egoist/mygo v0.7.3
 	github.com/gen2brain/beeep v0.11.2
 	github.com/go-ole/go-ole v1.3.0
 	golang.org/x/sys v0.48.0
