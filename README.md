@@ -6,11 +6,90 @@
   <img src="https://img.shields.io/badge/FFmpeg-Required-green?style=flat-square&logo=ffmpeg" alt="FFmpeg">
   <img src="https://img.shields.io/badge/Framework-MyGO%20%2B%20MujicaUI-red?style=flat-square" alt="MyGO">
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License">
+  <a href="https://github.com/Shirolin/videopress/releases/latest"><img src="https://img.shields.io/github/v/release/Shirolin/videopress?display_name=tag&style=flat-square" alt="Latest release"></a>
 </p>
 
 **Videopress** 是一个专为 Windows 系统设计的、基于 FFmpeg 的高颜值视频压缩工具。
 它完美融合了**桌面图形界面 (GUI)** 与**控制台命令行 (CLI)** 双入口，不仅能满足日常拖拽和右键菜单快速压缩，还能完美适配终端效率工具流。
 它免去了记忆 FFmpeg 复杂参数的烦恼，只提供精心调校的常用预设规格，同时支持并发队列、硬件加速自动探测以及系统右键集成。
+
+<p align="center">
+  <img src="docs/screenshots/workspace-dark.png" width="640" alt="工作区">
+</p>
+
+---
+
+## 📥 下载安装
+
+[**前往 Releases 下载最新版**](https://github.com/Shirolin/videopress/releases/latest)
+
+| 方式 | 适合谁 | 下载文件 |
+| :--- | :--- | :--- |
+| 安装版 | 普通用户，想要开始菜单和卸载入口 | `videopress-setup-<版本>-amd64.exe` |
+| 便携版 | 不想安装、想放 U 盘或固定目录 | `Videopress.exe` |
+
+### 安装版
+
+1. 下载 `videopress-setup-<版本>-amd64.exe`，双击运行。
+2. 安装完成后从开始菜单启动 **Videopress**。
+3. 首次启动若没找到 FFmpeg，引导页点「自动下载并配置」即可；也可以手动选择本机的 `ffmpeg.exe`。
+
+### 便携版
+
+1. 下载 `Videopress.exe`，放到一个单独的文件夹（例如 `D:\Tools\Videopress\`）。
+2. 双击运行，无需安装、无需管理员权限。
+3. FFmpeg 处理方式同上；想在离线机器上开箱即用，把 `ffmpeg.exe` 放在与 `Videopress.exe` 相同的目录即可。
+
+### 关于 FFmpeg
+
+Videopress 不内置 FFmpeg，按以下顺序查找：
+
+1. 引导页自动下载（需要联网，来源为 npmmirror 的 ffmpeg-static）；
+2. 与 `Videopress.exe` 同目录的 `ffmpeg.exe`；
+3. 系统 `PATH` 中的 `ffmpeg.exe`；
+4. 在引导页或「配置面板 → 关于」手动指定路径。
+
+### Windows 提示与系统要求
+
+- 程序暂未做代码签名，首次运行可能出现 SmartScreen「Windows 已保护你的电脑」：点 **更多信息 → 仍要运行**。
+- 支持 Windows 10 / 11（x64）。
+- 右键菜单、发送到、Path 等集成只写当前用户，无需管理员权限。
+- 下载页附 `SHA256SUMS.txt`，可用 `Get-FileHash` 校验文件完整性。
+
+---
+
+## ⚡️ 快速上手
+
+### 拖放压缩
+
+打开程序，把视频拖进窗口或点「选择文件」，选择预设后点「开始压缩」。输出默认写入源视频旁边的 `compressed/` 文件夹，界面会显示整体进度、速度与剩余时间，支持逐个取消。
+
+### 右键集成
+
+在 **配置面板 → Windows 系统集成** 中打开需要的入口：
+
+- **右键菜单**：资源管理器中右键视频 →「使用 Videopress 压缩」；
+- **发送到菜单 (SendTo)**：右键 → 发送到 →「快速压缩视频」；
+- 桌面快捷方式、开始菜单、用户 `Path` 也在这里一键开关。
+
+多选文件右键打开时只会出现一个窗口，其余文件自动转交给已运行的实例。
+
+<details>
+<summary>命令行方式安装集成（可选）</summary>
+
+```powershell
+.\Videopress.exe --install-sendto   # 安装 SendTo 快捷方式
+.\Videopress.exe --uninstall-sendto # 移除
+.\Videopress.exe --install-path     # 把程序目录加入用户 Path
+.\Videopress.exe --uninstall-path   # 移除
+```
+</details>
+
+<p align="center">
+  <img src="docs/screenshots/batch-progress.png" width="420" alt="批量进度">
+  <img src="docs/screenshots/gif-custom.png" width="420" alt="动图自定义">
+  <img src="docs/screenshots/appearance-light.png" width="420" alt="浅色主题">
+</p>
 
 ---
 
@@ -36,37 +115,15 @@
 
 ---
 
-## ⚡️ 快速上手
-
-只需三步，即可将软件集成进你的 Windows 系统：
-
-### 1. 准备依赖
-1. 下载或编译得到 `videopress.exe`。
-2. 下载并安装 [FFmpeg](https://ffmpeg.org/download.html)。确保 `ffmpeg.exe` 已加入系统环境变量 `PATH`，或者直接将 `ffmpeg.exe` 放置在与 `videopress.exe` 相同的目录下。
-
-### 2. 集成到系统（二选一或同时配置）
-
-#### 💡 选项 A：绑定右键“发送到”菜单（适合日常交互）
-在 `videopress.exe` 所在目录打开终端，运行：
-```powershell
-.\videopress.exe --install-sendto
-```
-* **如何使用**：在资源管理器中，选择你想要压缩的视频文件（支持多选），**右键 -> 发送到 -> 快速压缩视频** 即可自动开始压缩。压缩在后台静默进行，完成后弹出 Windows 系统通知提示压缩结果，无需等待命令行窗口。
-
-#### 💻 选项 B：配置环境变量 Path（适合命令行效率用户）
-在 `videopress.exe` 所在目录打开终端，运行：
-```powershell
-.\videopress.exe --install-path
-```
-* **如何使用**：重新打开一个终端（CMD/PowerShell）后，你可以在**任意目录**下直接运行 `videopress <视频路径>` 启动命令行压缩，或直接运行 `videopress` 打开高颜值图形界面。
-
----
-
 ## ✨ 核心特性
 
 * 🖥 **双入口无缝切换**：
   * **GUI 模式**：双击程序或不带参数运行时，展示基于 MyGO + MujicaUI 的原生图形界面。支持文件拖拽、压缩队列管理、全局设置配置及 GPU 加速检测切换。
   * **CLI 模式**：在终端附带视频文件路径运行时，自动进入控制台模式，实时渲染无抖动的平滑进度条，并在完成后输出直观的压缩率摘要表格。
+* 🎨 **明暗主题**：默认跟随系统，可在「配置面板 → 外观」固定为浅色或深色。
+* 🎞 **动图导出**：把队列一键导出为 GIF / APNG / WebP，内置流畅、均衡、高清三档，也能自定义起止时间、宽度、帧率与体积目标。
+* 📊 **批量进度与取消**：整体进度、单文件速度与剩余时间、逐文件取消、按状态筛选队列。
+* 🔧 **FFmpeg 一键配置**：未检测到时可在引导页自动下载，或手动指定 `ffmpeg.exe` 并随时恢复自动检测。
 * 🚀 **GPU 硬件加速**：自动检测你显卡支持的硬编技术（NVIDIA `h264_nvenc`、Intel `h264_qsv`、AMD `h264_amf`）。检测到后自动开启加速，未检测到时安全 fallback 到 CPU 编码。
 * 🧵 **高效并发**：通过 Worker Pool 机制实现多视频文件并发压缩。CLI 模式下并发数大于 1 时，进度条展示将优雅地降级为整洁的动态状态日志，避免终端闪烁。
 * ✂️ **可选几何裁剪**：压缩前可先裁掉画面多余空边（如 AI 生成视频的安全边）。支持两种模式：精确像素裁剪 `W:H:X:Y`（与 ffmpeg crop 一致），或居中比例裁剪（如 `16:9` 的最大内接矩形，可再按百分比保留画面）；裁剪发生在缩放之前，硬编/音频/CRF 等行为不受影响。默认不裁。

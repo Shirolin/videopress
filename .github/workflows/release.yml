@@ -44,13 +44,21 @@ jobs:
           " "${{ steps.version.outputs.value }}"
       - name: Build (MyGO)
         run: go tool mygo build
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/windows-amd64/*.exe | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
+            "$hash  $($_.Name)"
+          } | Set-Content -Encoding ascii dist/windows-amd64/SHA256SUMS.txt
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/windows-amd64/Videopress.exe
-            dist/windows-amd64/Videopress Setup ${{ steps.version.outputs.value }} amd64.exe
+            dist/windows-amd64/videopress-setup-${{ steps.version.outputs.value }}-amd64.exe
+            dist/windows-amd64/SHA256SUMS.txt
           generate_release_notes: true
       - name: Upload build artifact
         if: github.event_name == 'workflow_dispatch'
