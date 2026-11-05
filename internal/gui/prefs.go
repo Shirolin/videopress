@@ -24,6 +24,8 @@ type prefs struct {
 	CRFValue     int    `json:"crfValue"`
 	OutputDir    string `json:"outputDir"`
 	Language     string `json:"language"`
+	Theme        string `json:"theme"`
+	FFmpegPath   string `json:"ffmpegPath"`
 
 	CropMode    string  `json:"cropMode"`
 	CropW       int     `json:"cropW"`
@@ -36,6 +38,15 @@ type prefs struct {
 
 	ShowAdvanced   bool `json:"showAdvanced"`
 	EnableDebugLog bool `json:"enableDebugLog"`
+
+	// 动图导出：档位与自定义参数
+	GifTier     string `json:"gifTier"`
+	GifStart    int    `json:"gifStart"`
+	GifDuration int    `json:"gifDuration"`
+	GifWidth    int    `json:"gifWidth"`
+	GifFPS      int    `json:"gifFps"`
+	GifQuality  int    `json:"gifQuality"`
+	GifBudgetMB int    `json:"gifBudgetMb"`
 }
 
 // defaultPrefs returns the recommended starting configuration.
@@ -49,6 +60,15 @@ func defaultPrefs() prefs {
 		CropCenterW: 16,
 		CropCenterH: 9,
 		CropScale:   1,
+
+		Theme: "system",
+
+		GifTier:     "balanced",
+		GifDuration: 5,
+		GifWidth:    360,
+		GifFPS:      15,
+		GifQuality:  50,
+		GifBudgetMB: 2,
 	}
 }
 
@@ -87,7 +107,31 @@ func loadPrefs() prefs {
 	if p.CropScale <= 0 || p.CropScale > 1 {
 		p.CropScale = 1
 	}
+	if p.Theme != "light" && p.Theme != "dark" {
+		p.Theme = "system"
+	}
+	p.normalizeGif()
 	return p
+}
+
+// normalizeGif clamps the animated-export preferences into their valid ranges.
+func (p *prefs) normalizeGif() {
+	validTier := false
+	for _, name := range gifTierNames() {
+		if p.GifTier == name {
+			validTier = true
+			break
+		}
+	}
+	if !validTier {
+		p.GifTier = "balanced"
+	}
+	p.GifStart = min(max(p.GifStart, 0), 600)
+	p.GifDuration = min(max(p.GifDuration, 1), 30)
+	p.GifWidth = min(max(p.GifWidth, 120), 1080)
+	p.GifFPS = min(max(p.GifFPS, 5), 30)
+	p.GifQuality = min(max(p.GifQuality, 30), 90)
+	p.GifBudgetMB = min(max(p.GifBudgetMB, 1), 50)
 }
 
 // savePrefs writes settings.json atomically.

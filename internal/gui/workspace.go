@@ -52,25 +52,34 @@ func (a *App) statsBar(c *ui.Context) {
 	k := core.Tokens(c)
 	u := core.Density(c).Unit()
 
-	var compressLeft int64
+	var running int64
 	for _, it := range a.queue {
-		switch it.Status {
-		case "waiting", "compressing":
-			compressLeft++
+		if it.Status == "compressing" {
+			running++
 		}
 	}
-	status := a.t("stats.idle")
-	if compressLeft > 0 {
-		status = a.t("stats.processing")
-	}
+	// stats() counts skipped rows as done; the bar shows the actual successes.
+	skipped := int64(a.skippedCount())
+	succeeded := done - skipped
 
 	data.Card(c, data.CardOptions{}, func() {
-		ui.Row(c).Gap(u * 6).Children(func() {
-			statCell(c, strconv.FormatInt(total, 10), a.t("stats.total"), k.Text)
-			statCell(c, strconv.FormatInt(compressLeft, 10), status, k.AccentText)
-			statCell(c, strconv.FormatInt(done, 10), a.t("stats.completed"), k.Success)
-			statCell(c, sizeText(saved), a.t("stats.saved_space"), k.Success)
-			statCell(c, ratioText(saved, original), a.t("stats.avg_ratio"), k.TextMuted)
+		ui.Column(c).Gap(u * 3).Children(func() {
+			ui.Row(c).Gap(u * 6).Children(func() {
+				statCell(c, strconv.FormatInt(total, 10), a.t("stats.total"), k.Text)
+				statCell(c, strconv.FormatInt(running, 10), a.t("stats.processing"), k.AccentText)
+				statCell(c, strconv.FormatInt(succeeded, 10), a.t("stats.completed"), k.Success)
+				if skipped > 0 {
+					statCell(c, strconv.FormatInt(skipped, 10), a.t("stats.skipped"), k.TextMuted)
+				}
+				statCell(c, sizeText(saved), a.t("stats.saved_space"), k.Success)
+				statCell(c, ratioText(saved, original), a.t("stats.savings_rate"), k.TextMuted)
+			})
+			// One bar for the batch, since each row already shows its own.
+			if a.isCompressing {
+				feedback.Progress(c, a.batchProgress(), feedback.ProgressOptions{
+					Shape: feedback.ProgressLinear, ShowValue: true, Label: a.t("stats.overall"),
+				})
+			}
 		})
 	})
 }
@@ -149,25 +158,31 @@ func (a *App) quickControls(c *ui.Context) {
 
 // advancedPanel folds the codec, frame rate, audio, CRF and crop settings.
 func (a *App) advancedPanel(c *ui.Context) {
-	u := core.Density(c).Unit()
 	open := a.showAdvanced
 	opts := data.CollapsibleOptions{Title: a.t("advanced.title")}
 	res := data.Collapsible(c, &open, opts, func() {
-		ui.Column(c).Gap(u*3).Padding(u*3, 0).Children(func() {
-			ui.Row(c).Gap(u * 4).Children(func() {
-				a.codecField(c)
-				a.fpsField(c)
-				a.audioField(c)
-			})
-			a.crfField(c)
-			a.cropField(c)
-		})
+		a.advancedFields(c)
 	})
 	if res.Changed() {
 		a.showAdvanced = open
 		a.prefs.ShowAdvanced = open
 		a.savePrefs()
 	}
+}
+
+// advancedFields is the shared body of the workspace panel and the settings
+// page, so both entry points edit the same preferences.
+func (a *App) advancedFields(c *ui.Context) {
+	u := core.Density(c).Unit()
+	ui.Column(c).Gap(u*3).Padding(u*3, 0).Children(func() {
+		ui.Row(c).Gap(u * 4).Children(func() {
+			a.codecField(c)
+			a.fpsField(c)
+			a.audioField(c)
+		})
+		a.crfField(c)
+		a.cropField(c)
+	})
 }
 
 // codecField chooses the video codec.
@@ -372,16 +387,18 @@ func (a *App) dropZone(c *ui.Context) {
 	compact := len(a.queue) > 0
 
 	e := ui.Box(c).FillWidth().Column().Gap(u*1.5).Center().Padding(u*3).
-		Radius(theme.CardRadius).Border(theme.BorderWidth, k.ControlBorder).Background(k.Surface).
-		Disabled(a.isCompressing)
+		Radius(theme.CardRadius).Border(theme.BorderWidth, k.ControlBorder).Background(k.Surface)
 	if compact {
 		e.PaddingY(u * 2.5)
 	}
-	if e.FileDragOver() {
+	// Drops anywhere else in the page land on the body, which reports its own
+	// hover; show the same target hint here so the whole window reads as one.
+	dragging := e.FileDragOver() || a.dropHover
+	if dragging {
 		e.Background(k.Selection).Border(theme.BorderWidth*2, k.AccentText)
 	}
 	var label, sub string
-	if e.FileDragOver() {
+	if dragging {
 		label, sub = a.t("dropzone.drag_hint"), a.t("dropzone.formats")
 	} else if compact || len(a.queue) > 0 {
 		label, sub = a.t("dropzone.add_more"), a.t("dropzone.formats")
@@ -389,7 +406,7 @@ func (a *App) dropZone(c *ui.Context) {
 		label, sub = a.t("dropzone.title"), a.t("dropzone.desc")
 	}
 	if a.isCompressing {
-		sub = a.t("dropzone.disabled")
+		sub = a.t("dropzone.compressing")
 	}
 
 	e.Children(func() {
@@ -399,7 +416,7 @@ func (a *App) dropZone(c *ui.Context) {
 		ui.Text(c, label).FontSize(core.FontSize(c, theme.BodySize+1)).FontWeight(600)
 		ui.Text(c, sub).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 		if input.Button(c, a.t("dropzone.browse"), input.ButtonOptions{
-			Variant: input.Outline, Icon: ic("folder"), Disabled: a.isCompressing,
+			Variant: input.Outline, Icon: ic("folder"),
 		}).Clicked() {
 			a.pickFiles()
 		}
@@ -425,6 +442,24 @@ func (a *App) queueList(c *ui.Context) {
 			ui.Text(c, strconv.Itoa(len(a.queue))).FontSize(core.FontSize(c, theme.CaptionSize)).
 				FontWeight(600).TextColor(k.TextMuted)
 			ui.Spacer(c)
+			// The filter only earns its space once the list is long enough to
+			// hide a failure, but stays while a filter is active so it can
+			// always be switched back.
+			if len(a.queue) > 3 || (a.queueFilter != "" && a.queueFilter != "all") {
+				filters := []string{"all", "failed", "done"}
+				labels := []string{a.t("queue.filter_all"), a.t("queue.filter_failed"), a.t("queue.filter_done")}
+				selected := 0
+				for i, f := range filters {
+					if f == a.queueFilter {
+						selected = i
+					}
+				}
+				before := selected
+				navigationSegments(c, &selected, labels, a.t("queue.title"))
+				if selected != before {
+					a.queueFilter = filters[selected]
+				}
+			}
 			if input.Button(c, a.t("queue.clear"), input.ButtonOptions{
 				Variant: input.Ghost, Disabled: a.isCompressing || a.isGifExporting,
 			}).Clicked() {
@@ -433,8 +468,16 @@ func (a *App) queueList(c *ui.Context) {
 		})
 
 		ui.Column(c).Gap(u * 2).Children(func() {
+			visible := 0
 			for i := range a.queue {
+				if !a.queueVisible(&a.queue[i]) {
+					continue
+				}
+				visible++
 				a.queueRow(c, i)
+			}
+			if visible == 0 {
+				ui.Text(c, a.t("queue.filter_empty")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 			}
 		})
 	})
@@ -442,6 +485,10 @@ func (a *App) queueList(c *ui.Context) {
 
 // queueRow draws one queued file.
 func (a *App) queueRow(c *ui.Context, index int) {
+	// 行内的移除按钮会在本次渲染中缩短队列。
+	if index >= len(a.queue) {
+		return
+	}
 	u := core.Density(c).Unit()
 	k := core.Tokens(c)
 	item := &a.queue[index]
@@ -459,7 +506,13 @@ func (a *App) queueRow(c *ui.Context, index int) {
 					TextColor(k.TextMuted).SingleLine()
 			})
 			ui.Text(c, status).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(tone)
-			if item.Status == "waiting" && !a.isCompressing {
+			switch {
+			case a.isCompressing && (item.Status == "compressing" || item.Status == "waiting"):
+				// One row can be stopped without ending the whole batch.
+				if input.IconButton(c, ic("x"), a.t("queue.cancel_one"), input.IconButtonOptions{Variant: input.Ghost}).Clicked() {
+					a.cancelQueueItem(item.Path)
+				}
+			case item.Status != "compressing" && !a.isCompressing:
 				if input.IconButton(c, ic("x"), a.t("queue.remove"), input.IconButtonOptions{Variant: input.Ghost}).Clicked() {
 					a.removeQueue(index)
 				}
@@ -471,20 +524,30 @@ func (a *App) queueRow(c *ui.Context, index int) {
 			}
 		})
 
-		bar := item.Percent / 100
-		switch item.Status {
-		case "success", "skipped", "failed":
-			bar = 1
-		}
-		if item.Status != "waiting" {
-			feedback.Progress(c, clamp01(bar), feedback.ProgressOptions{Shape: feedback.ProgressLinear, Label: item.Name})
+		// 只有进行中的行画进度条；终态已由状态文字和结果数据表达。
+		if item.Status == "compressing" {
+			feedback.Progress(c, clamp01(item.Percent/100), feedback.ProgressOptions{Shape: feedback.ProgressLinear})
+			if item.Speed > 0 && item.ETA > 0 {
+				ui.Text(c, a.tf("queue.progress_detail", map[string]string{
+					"speed": strconv.FormatFloat(item.Speed, 'f', 1, 64) + "x",
+					"eta":   clockFromMs(item.ETA),
+				})).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
+			}
 		}
 
 		if msg, tone := queueNote(item, a, k); msg != "" {
-			ui.Text(c, msg).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(tone)
+			ui.Row(c).Gap(u).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, msg).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(tone)
+				if item.Status == "failed" {
+					if input.IconButton(c, ic("copy"), a.t("queue.copy_error"), input.IconButtonOptions{Variant: input.Ghost}).Clicked() {
+						a.copyError(item.Error)
+					}
+				}
+			})
 		}
 
-		if item.Status == "success" || item.Status == "skipped" || item.Status == "failed" {
+		hasResult := item.Status == "success" || item.Status == "skipped" || item.Status == "failed"
+		if hasResult && (item.Size > 0 || item.TargetSize > 0) {
 			ui.Row(c).Gap(u * 4).Children(func() {
 				resultStat(c, a.t("queue.origin_size"), sizeText(item.Size), k.Text)
 				if item.TargetSize > 0 {
@@ -520,6 +583,11 @@ func (a *App) actionPanel(c *ui.Context) {
 					"num":    strconv.Itoa(len(a.queue)),
 					"preset": a.presetLabel(),
 				})).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
+				if failed := a.failedCount(); failed > 0 {
+					ui.Text(c, a.tf("action.failed", map[string]string{
+						"num": strconv.Itoa(failed),
+					})).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(k.Danger)
+				}
 			} else {
 				ui.Text(c, a.t("action.empty")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 			}
@@ -543,7 +611,24 @@ func (a *App) actionPanel(c *ui.Context) {
 				return
 			}
 			disabled := len(a.queue) == 0 || a.isGifExporting || a.ffmpegError != ""
-			if input.Button(c, a.t("btn.start_compress"), input.ButtonOptions{
+			label := a.t("btn.start_compress")
+			pending, waiting := 0, 0
+			for _, it := range a.queue {
+				if !isPendingStatus(it.Status) {
+					continue
+				}
+				pending++
+				if it.Status == "waiting" {
+					waiting++
+				}
+			}
+			switch {
+			case pending == 0 && len(a.queue) > 0:
+				label = a.t("btn.recompress_all")
+			case pending > 0 && waiting == 0:
+				label = a.t("btn.retry_failed")
+			}
+			if input.Button(c, label, input.ButtonOptions{
 				Variant: input.Primary, Icon: ic("play"), Disabled: disabled,
 			}).Clicked() && !disabled {
 				a.startCompress()
@@ -570,7 +655,17 @@ func (a *App) gifPanel(c *ui.Context) {
 
 	data.Card(c, data.CardOptions{Title: a.t("gif.title")}, func() {
 		ui.Column(c).Gap(u * 2).Children(func() {
-			ui.Text(c, a.t("gif.subtitle")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
+			// 有文件时把用途说明换成实际的导出范围。
+			subtitle := a.t("gif.subtitle")
+			if len(a.queue) > 0 {
+				if formats := a.gifFormatCount(); formats > 0 {
+					subtitle = a.tf("gif.pending", map[string]string{
+						"n": strconv.Itoa(len(a.queue)),
+						"m": strconv.Itoa(formats),
+					})
+				}
+			}
+			ui.Text(c, subtitle).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 
 			ui.Row(c).Gap(u * 4).AlignItems(ui.End).Children(func() {
 				ui.Column(c).Gap(u).Children(func() {
@@ -578,7 +673,7 @@ func (a *App) gifPanel(c *ui.Context) {
 					tiers := gifTierNames()
 					selected := 1
 					for i, t := range tiers {
-						if t == a.gifTier {
+						if t == a.prefs.GifTier {
 							selected = i
 						}
 					}
@@ -587,9 +682,11 @@ func (a *App) gifPanel(c *ui.Context) {
 						{Label: a.t("gif.tier_smooth")},
 						{Label: a.t("gif.tier_balanced")},
 						{Label: a.t("gif.tier_hd")},
+						{Label: a.t("gif.tier_custom")},
 					}, navigation.SegmentedControlOptions{Label: a.t("gif.tier"), Disabled: a.gifBusy || a.isCompressing})
 					if selected != before && !a.gifBusy {
-						a.gifTier = tiers[selected]
+						a.prefs.GifTier = tiers[selected]
+						a.savePrefs()
 					}
 				})
 
@@ -621,7 +718,18 @@ func (a *App) gifPanel(c *ui.Context) {
 				}
 			})
 
-			if spec, ok := a.gifTierSpec(a.gifTier); ok {
+			if a.prefs.GifTier == "custom" {
+				a.ensureGifDurations()
+				a.gifCustomFields(c)
+				ui.Text(c, a.gifCustomSummary()).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
+				if note, warn := a.gifDurationNote(); note != "" {
+					color := k.TextMuted
+					if warn {
+						color = k.Warning
+					}
+					ui.Text(c, note).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(color)
+				}
+			} else if spec, ok := a.gifTierSpec(a.prefs.GifTier); ok {
 				ui.Text(c, spec).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 			}
 			if a.isCompressing && !a.gifBusy {
@@ -678,16 +786,29 @@ func (a *App) gifSummary(c *ui.Context) {
 			case r.Status == "skipped":
 				tone = k.TextMuted
 			}
-			ui.Row(c).Gap(u * 2).AlignItems(ui.Center).Children(func() {
-				displayPath := fmt.Sprintf("%s → %s.%s", r.InputName, r.Tier, r.Format)
-				if r.OutputPath != "" {
-					dirName := filepath.Base(filepath.Dir(r.OutputPath))
-					displayPath = fmt.Sprintf("%s → %s/%s.%s", r.InputName, dirName, r.Tier, r.Format)
+			ui.Column(c).Gap(u).Children(func() {
+				ui.Row(c).Gap(u * 2).AlignItems(ui.Center).Children(func() {
+					displayPath := fmt.Sprintf("%s → %s.%s", r.InputName, r.Tier, r.Format)
+					if r.OutputPath != "" {
+						dirName := filepath.Base(filepath.Dir(r.OutputPath))
+						displayPath = fmt.Sprintf("%s → %s/%s", r.InputName, dirName, filepath.Base(r.OutputPath))
+					}
+					ui.Text(c, displayPath).
+						FontSize(core.FontSize(c, theme.CaptionSize)).Grow(1).MinWidth(0).
+						SingleLine()
+					switch {
+					case r.Status == "failed":
+						ui.Text(c, a.t("gif.failed")).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(k.Danger)
+					case r.OverBudget:
+						ui.Text(c, a.t("gif.over_budget")).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(k.Warning)
+					}
+					if r.Size > 0 {
+						ui.Text(c, sizeText(r.Size)).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(tone)
+					}
+				})
+				if r.Error != "" {
+					ui.Text(c, r.Error).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.Danger)
 				}
-				ui.Text(c, displayPath).
-					FontSize(core.FontSize(c, theme.CaptionSize)).Grow(1).MinWidth(0).
-					SingleLine()
-				ui.Text(c, sizeText(r.Size)).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(tone)
 			})
 		}
 	})
@@ -714,15 +835,38 @@ func (a *App) setupView(c *ui.Context) {
 						ui.Text(c, a.t("setup.download_tip")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 					})
 				} else {
-					ui.Row(c).Gap(u * 2).Children(func() {
-						if input.Button(c, a.t("setup.btn_auto"), input.ButtonOptions{Variant: input.Primary, Icon: ic("download")}).Clicked() {
-							a.downloadFFmpeg()
-						}
-						if input.Button(c, a.t("setup.btn_manual"), input.ButtonOptions{Variant: input.Secondary}).Clicked() {
-							a.page = 1
-							a.settingsPage = "integration"
-						}
+					ui.Column(c).Gap(u * 2).Children(func() {
+						ui.Row(c).Gap(u * 2).Children(func() {
+							if input.Button(c, a.t("setup.btn_auto"), input.ButtonOptions{Variant: input.Primary, Icon: ic("download")}).Clicked() {
+								a.downloadFFmpeg()
+							}
+							if input.Button(c, a.t("setup.btn_pick"), input.ButtonOptions{Variant: input.Secondary, Icon: ic("folder")}).Clicked() {
+								a.pickFFmpeg()
+							}
+						})
+						ui.Row(c).Gap(u * 2).Children(func() {
+							if input.Button(c, a.t("setup.btn_recheck"), input.ButtonOptions{Variant: input.Ghost, Icon: ic("refresh-cw")}).Clicked() {
+								a.detectFFmpeg()
+								a.detectGPU()
+							}
+							if input.Button(c, a.t("setup.btn_manual"), input.ButtonOptions{Variant: input.Ghost}).Clicked() {
+								a.page = 1
+								a.settingsPage = "integration"
+							}
+						})
 					})
+					if a.prefs.FFmpegPath != "" {
+						ui.Row(c).Gap(u).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, a.tf("setup.custom_path", map[string]string{"path": a.prefs.FFmpegPath})).
+								FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
+							if input.Button(c, a.t("setup.btn_clear_path"), input.ButtonOptions{Variant: input.Ghost, Icon: ic("refresh-cw")}).Clicked() {
+								a.prefs.FFmpegPath = ""
+								a.savePrefs()
+								a.detectFFmpeg()
+								a.detectGPU()
+							}
+						})
+					}
 				}
 
 				if a.downloadError != "" {
@@ -807,6 +951,9 @@ func queueNote(item *QueueItem, a *App, k theme.Tokens) (string, ui.Color) {
 		}
 		return "", k.TextMuted
 	}
+	if item.Status == "skipped" {
+		return a.t("queue.skip_tip"), k.TextMuted
+	}
 	return item.Error, k.Danger
 }
 
@@ -865,8 +1012,19 @@ func sepOf(path string) rune {
 	return '\\'
 }
 
+// gifFormatCount is how many output formats are selected.
+func (a *App) gifFormatCount() int {
+	n := 0
+	for _, f := range gif.AllFormats() {
+		if a.gifFormats[string(f)] {
+			n++
+		}
+	}
+	return n
+}
+
 // gifTierNames lists the animated export tiers in display order.
-func gifTierNames() []string { return []string{"smooth", "balanced", "hd"} }
+func gifTierNames() []string { return []string{"smooth", "balanced", "hd", "custom"} }
 
 // gifTierSpec describes a tier in the current language; its numbers come
 // from the engine so the copy cannot drift from the export.
@@ -875,5 +1033,177 @@ func (a *App) gifTierSpec(name string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	return fmt.Sprintf(a.t("gif.spec"), t.MaxSizeMB, t.MaxWidth, t.FPS, a.t("gif.tier_desc_"+t.Name)), true
+	return a.tf("gif.spec", map[string]string{
+		"mb":      strconv.Itoa(t.MaxSizeMB),
+		"width":   strconv.Itoa(t.MaxWidth),
+		"fps":     strconv.Itoa(t.FPS),
+		"seconds": strconv.Itoa(t.DurationSec()),
+		"desc":    a.t("gif.tier_desc_" + t.Name),
+	}), true
+}
+
+// gifCustomFields edits the custom tier parameters.
+func (a *App) gifCustomFields(c *ui.Context) {
+	u := core.Density(c).Unit()
+	disabled := a.gifBusy || a.isCompressing
+
+	field := func(key string, target *int, lo, hi int) {
+		ui.Column(c).Grow(1).Gap(u).Children(func() {
+			a.sectionLabel(c, key)
+			raw := float64(*target)
+			if input.NumberInput(c, &raw, input.NumberInputOptions{
+				Min: float64(lo), Max: float64(hi), Step: 1,
+				Label: a.t(key), Disabled: disabled,
+			}).Changed() {
+				*target = int(raw)
+				a.savePrefs()
+			}
+		})
+	}
+
+	ui.Column(c).Gap(u*2).Padding(u*2, 0).Children(func() {
+		ui.Row(c).Gap(u * 4).Children(func() {
+			field("gif.start", &a.prefs.GifStart, 0, 600)
+			field("gif.duration", &a.prefs.GifDuration, 1, 30)
+			field("gif.width", &a.prefs.GifWidth, 120, 1080)
+		})
+		ui.Row(c).Gap(u * 4).AlignItems(ui.End).Children(func() {
+			ui.Column(c).Grow(1).Gap(u).Children(func() {
+				a.sectionLabel(c, "gif.fps")
+				value := a.prefs.GifFPS
+				options := []input.SelectOption[int]{
+					{Value: 5, Label: "5 fps"}, {Value: 8, Label: "8 fps"},
+					{Value: 10, Label: "10 fps"}, {Value: 12, Label: "12 fps"},
+					{Value: 15, Label: "15 fps"}, {Value: 20, Label: "20 fps"},
+					{Value: 24, Label: "24 fps"}, {Value: 30, Label: "30 fps"},
+				}
+				if input.Select(c, &value, options, input.SelectOptions{Label: a.t("gif.fps"), Disabled: disabled}).Changed() {
+					a.prefs.GifFPS = value
+					a.savePrefs()
+				}
+			})
+			field("gif.budget", &a.prefs.GifBudgetMB, 1, 50)
+			ui.Column(c).Grow(1).Gap(u).Children(func() {
+				a.sectionLabel(c, "gif.quality")
+				raw := float64(a.prefs.GifQuality)
+				if input.NumberInput(c, &raw, input.NumberInputOptions{
+					Min: 30, Max: 90, Step: 5,
+					Label: a.t("gif.quality"), Disabled: disabled || !a.gifFormats["webp"],
+				}).Changed() {
+					a.prefs.GifQuality = int(raw)
+					a.savePrefs()
+				}
+			})
+		})
+	})
+}
+
+// gifCustomSummary states what the custom parameters produce.
+func (a *App) gifCustomSummary() string {
+	return a.tf("gif.custom_summary", map[string]string{
+		"start":  strconv.Itoa(a.prefs.GifStart),
+		"end":    strconv.Itoa(a.prefs.GifStart + a.prefs.GifDuration),
+		"width":  strconv.Itoa(a.prefs.GifWidth),
+		"fps":    strconv.Itoa(a.prefs.GifFPS),
+		"budget": strconv.Itoa(a.prefs.GifBudgetMB),
+	})
+}
+
+// gifDurationNote states the source length and flags a selection that runs
+// past its end. It returns warn=true when the note needs the warning color.
+func (a *App) gifDurationNote() (string, bool) {
+	if a.ffmpegPath == "" || len(a.queue) == 0 {
+		return "", false
+	}
+	st := a.gifDurationStats()
+	if st.known == 0 {
+		if st.pending > 0 {
+			return a.t("gif.duration_probing"), false
+		}
+		return a.t("gif.duration_unknown"), false
+	}
+	ranged := st.maxMs > st.minMs
+	var source string
+	if ranged {
+		source = a.tf("gif.source_duration_range", map[string]string{
+			"min": clockFromMs(st.minMs),
+			"max": clockFromMs(st.maxMs),
+		})
+	} else {
+		source = a.tf("gif.source_duration", map[string]string{"duration": clockFromMs(st.minMs)})
+	}
+	if st.unknown > 0 {
+		source += " · " + a.t("gif.duration_partial")
+	}
+	if st.pending > 0 {
+		source += " · " + a.t("gif.duration_pending_more")
+	}
+	startMs := int64(a.prefs.GifStart) * 1000
+	if startMs >= st.minMs {
+		key := "gif.duration_start_beyond"
+		if ranged {
+			key = "gif.duration_start_beyond_range"
+		}
+		note := a.tf(key, map[string]string{
+			"start":    strconv.Itoa(a.prefs.GifStart),
+			"duration": clockFromMs(st.minMs),
+		})
+		return source + " · " + note, true
+	}
+	endMs := startMs + int64(a.prefs.GifDuration)*1000
+	if endMs > st.minMs {
+		key := "gif.duration_overflow"
+		if ranged {
+			key = "gif.duration_overflow_range"
+		}
+		note := a.tf(key, map[string]string{
+			"end":    strconv.Itoa(a.prefs.GifStart + a.prefs.GifDuration),
+			"length": clockFromMs(st.minMs),
+		})
+		return source + " · " + note, true
+	}
+	return source, false
+}
+
+// clockFromMs renders a duration as m:ss (h:mm:ss past an hour).
+func clockFromMs(ms int64) string {
+	secs := ms / 1000
+	if secs < 0 {
+		secs = 0
+	}
+	if secs >= 3600 {
+		return fmt.Sprintf("%d:%02d:%02d", secs/3600, secs%3600/60, secs%60)
+	}
+	return fmt.Sprintf("%d:%02d", secs/60, secs%60)
+}
+
+// gifCustomTier converts the custom preferences into an engine tier.
+func (a *App) gifCustomTier() *gif.Tier {
+	t := &gif.Tier{
+		Name:        a.gifCustomName(),
+		MaxWidth:    a.prefs.GifWidth,
+		MaxSizeMB:   a.prefs.GifBudgetMB,
+		FPS:         a.prefs.GifFPS,
+		MaxDuration: clockText(a.prefs.GifDuration),
+		WebPQuality: a.prefs.GifQuality,
+	}
+	if a.prefs.GifStart > 0 {
+		t.Start = clockText(a.prefs.GifStart)
+	}
+	return t
+}
+
+// gifCustomName is the output name segment for a custom export: the window
+// range and the encode parameters, so repeated exports stay distinguishable.
+func (a *App) gifCustomName() string {
+	return fmt.Sprintf("custom-%dpx-%dfps-%d-%ds",
+		a.prefs.GifWidth, a.prefs.GifFPS, a.prefs.GifStart, a.prefs.GifStart+a.prefs.GifDuration)
+}
+
+// clockText renders whole seconds in ffmpeg's HH:MM:SS form.
+func clockText(seconds int) string {
+	if seconds < 0 {
+		seconds = 0
+	}
+	return fmt.Sprintf("%02d:%02d:%02d", seconds/3600, seconds%3600/60, seconds%60)
 }

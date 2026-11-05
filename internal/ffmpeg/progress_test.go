@@ -60,13 +60,19 @@ progress=continue`
 	r := strings.NewReader(progressOutput)
 	duration := 60 * time.Second // 30s / 60s = 50%
 
-	var calledPercent float64
-	TrackProgress(r, duration, func(percent float64) {
-		calledPercent = percent
+	var called ProgressSample
+	TrackProgress(r, duration, func(sample ProgressSample) {
+		called = sample
 	})
 
-	if calledPercent != 50.0 {
-		t.Errorf("expected progress percentage to be 50.0, got %.1f", calledPercent)
+	if called.Percent != 50.0 {
+		t.Errorf("expected progress percentage to be 50.0, got %.1f", called.Percent)
+	}
+	if called.Speed != 1.5 {
+		t.Errorf("expected speed 1.5x, got %.1f", called.Speed)
+	}
+	if called.ETA != 20*time.Second {
+		t.Errorf("expected ETA 20s (30s left at 1.5x), got %v", called.ETA)
 	}
 }
 

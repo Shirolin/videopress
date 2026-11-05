@@ -133,6 +133,62 @@ func TestEngineRunHandlesCancellation(t *testing.T) {
 	}
 }
 
+// TestEngineRunSkipsCancelledQueuedFile: a row cancelled before a worker
+// reaches it never invokes ffmpeg and reports back as cancelled, so the UI can
+// put it back in the queue.
+func TestEngineRunSkipsCancelledQueuedFile(t *testing.T) {
+	var mu sync.Mutex
+	var calls int
+	deps := Dependencies{
+		ExecutableDir: `C:\tools`,
+		ResolveBinary: func(dir string) (string, error) {
+			return `C:\ffmpeg\ffmpeg.exe`, nil
+		},
+		RunCommand: func(name string, args []string) error {
+			mu.Lock()
+			calls++
+			mu.Unlock()
+			return nil
+		},
+		Probe: func(ffmpegPath string, inputPath string) (ffmpeg.VideoInfo, error) {
+			return ffmpeg.VideoInfo{Duration: 10 * time.Second}, nil
+		},
+		DetectGPUEncoder: func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
+			return "libx264"
+		},
+		MkdirAll:        func(path string, perm os.FileMode) error { return nil },
+		PathExists:      func(path string) bool { return false },
+		InputAccessible: func(path string) bool { return true },
+	}
+
+	cancels := NewCancels()
+	cancels.Cancel(`C:\videos\b.mp4`)
+	reports, err := NewCompressEngine(deps).Run(context.Background(), JobRequest{
+		Files:       []string{`C:\videos\a.mp4`, `C:\videos\b.mp4`},
+		Preset:      "standard",
+		Concurrency: 1,
+		Cancels:     cancels,
+	}, nil)
+	if err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("expected only the uncancelled file to run, got %d calls", calls)
+	}
+	var found bool
+	for _, r := range reports {
+		if r.InputName == "b.mp4" {
+			found = true
+			if r.Status != "cancelled" {
+				t.Fatalf("b.mp4 status = %s, want cancelled", r.Status)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("no report for the cancelled file: %+v", reports)
+	}
+}
+
 func TestEngineRunAppliesCrop(t *testing.T) {
 	var runArgs [][]string
 	deps := Dependencies{

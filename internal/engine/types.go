@@ -18,6 +18,8 @@ type JobRequest struct {
 	AudioMode  string    // "" (fallback to CopyAudio) | "compress" | "copy" | "mute"
 	CRF        int       // 0 = use preset default, or positive integer override
 	Crop       *CropSpec // nil = 不裁剪，保持现有行为
+	// Cancels stops single jobs of this batch; nil disables per-file cancel.
+	Cancels *Cancels
 }
 
 // CropSpec 描述压缩前的可选几何裁剪配置。
@@ -34,11 +36,16 @@ type CropSpec struct {
 
 // ProgressEvent represents progress updates from the compression engine.
 type ProgressEvent struct {
-	File    string  // 文件 base name（用于显示）
-	Path    string  // 输入文件完整路径（用于精确匹配队列项）
-	Percent float64 // 0 ~ 100
-	Done    bool
-	Error   string
+	File    string        // 文件 base name（用于显示）
+	Path    string        // 输入文件完整路径（用于精确匹配队列项）
+	Percent float64       // 0 ~ 100
+	Speed   float64       // 编码速度倍数，0 表示未知
+	ETA     time.Duration // 预计剩余时间，0 表示未知
+	// Cancelled marks a row stopped on its own, so the UI can requeue it
+	// instead of showing a failure.
+	Cancelled bool
+	Done      bool
+	Error     string
 }
 
 // JobReport represents the summary of a completed video compression job.
@@ -46,7 +53,7 @@ type JobReport struct {
 	InputName  string
 	InputPath  string
 	OutputDir  string
-	Status     string // "success", "skipped", "failed"
+	Status     string // "success", "skipped", "failed", "cancelled"
 	SourceSize int64
 	TargetSize int64
 	Duration   time.Duration

@@ -54,12 +54,14 @@ flowchart TB
 - 压缩、动图导出、FFmpeg 下载、系统集成检测在 goroutine 里跑。
 - 回到主线程改状态并重绘用 `App.update`（内部 `Window.Update`）。
 - 压缩与导出各有 `context.CancelFunc` 和代数（`compressGen` / `gifGen`），防止旧任务回调覆盖新状态。
+- 单文件取消由 `engine.Cancels` 按输入路径跟踪各自的 context；任务启动前从主线程取好请求参数与 FFmpeg 路径，goroutine 不直接读 `App` 状态。
+- 压缩进度事件带 `Percent` / `Speed` / `ETA`；单独取消的行用 `Cancelled` 标记，界面把它放回等待态。
 
 ## 持久化
 
 | 内容 | 位置 |
 |------|------|
-| 预设、并发、编码、裁剪、输出目录、语言偏好 | `%APPDATA%\Videopress\settings.json` |
+| 预设、并发、编码、裁剪、输出目录、语言/主题、FFmpeg 路径、动图参数 | `%APPDATA%\Videopress\settings.json` |
 | 界面语言（MyGO 自己维护） | `%APPDATA%\vp\locale` |
 | 窗口尺寸与位置 | MyGO 的窗口状态，`StateKey: "main"` |
 | GPU 编码器探测缓存 | `%LOCALAPPDATA%` 下的 `videopress_gpu.cache` |

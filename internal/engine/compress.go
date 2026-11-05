@@ -42,7 +42,7 @@ func DefaultDependencies(execDir string) Dependencies {
 			util.HideConsoleWindow(cmd)
 			return cmd.Run()
 		},
-		Probe:         ffmpeg.Probe,
+		Probe: ffmpeg.Probe,
 		DetectGPUEncoder: func(ffmpegPath string, codec string, runCmd func(string, []string) error) string {
 			return ffmpeg.DetectGPUEncoder(ffmpegPath, codec, runCmd)
 		},
@@ -268,6 +268,31 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 		close(tasksChan)
 	}()
 
+	// reportStopped records a job the run gave up on: either the whole batch
+	// was cancelled ("failed") or the user stopped this row alone
+	// ("cancelled", which the UI puts back in the queue).
+	reportStopped := func(task Task, status string, cancelled bool) {
+		mu.Lock()
+		allReports = append(allReports, JobReport{
+			InputName:  filepath.Base(task.input),
+			InputPath:  task.input,
+			OutputDir:  filepath.Dir(task.output),
+			Status:     status,
+			SourceSize: util.GetFileSize(task.input),
+			ErrMessage: "任务已取消",
+		})
+		if onProgress != nil {
+			onProgress(ProgressEvent{
+				File:      filepath.Base(task.input),
+				Path:      task.input,
+				Cancelled: cancelled,
+				Done:      true,
+				Error:     "任务已取消",
+			})
+		}
+		mu.Unlock()
+	}
+
 	var wg sync.WaitGroup
 	for i := 0; i < limit; i++ {
 		wg.Add(1)
@@ -275,25 +300,23 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 			defer wg.Done()
 			for task := range tasksChan {
 				if ctx.Err() != nil {
-					mu.Lock()
-					allReports = append(allReports, JobReport{
-						InputName:  filepath.Base(task.input),
-						InputPath:  task.input,
-						OutputDir:  filepath.Dir(task.output),
-						Status:     "failed",
-						SourceSize: util.GetFileSize(task.input),
-						ErrMessage: "任务已取消",
-					})
-					if onProgress != nil {
-						onProgress(ProgressEvent{
-							File:  filepath.Base(task.input),
-							Path:  task.input,
-							Done:  true,
-							Error: "任务已取消",
-						})
-					}
-					mu.Unlock()
+					reportStopped(task, "failed", false)
 					continue
+				}
+				taskCtx := ctx
+				release := func() {}
+				if req.Cancels != nil {
+					var cancelTask context.CancelFunc
+					taskCtx, cancelTask = context.WithCancel(ctx)
+					if !req.Cancels.begin(task.input, cancelTask) {
+						cancelTask()
+						reportStopped(task, "cancelled", true)
+						continue
+					}
+					release = func() {
+						req.Cancels.end(task.input)
+						cancelTask()
+					}
 				}
 
 				startTime := time.Now()
@@ -323,13 +346,16 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 								Error: cerr.Error(),
 							})
 						}
+						release()
 						continue
 					}
 				}
 				args := ffmpeg.BuildArgs(task.input, task.output, preset, hwEncoder, req.CopyAudio, req.MaxFPS, req.AudioMode, req.CRF, cropExpr)
 
-				err := e.runCommandWithProgress(ctx, ffmpegPath, args, duration, task.input, filepath.Base(task.input), onProgress)
+				err := e.runCommandWithProgress(taskCtx, ffmpegPath, args, duration, task.input, filepath.Base(task.input), onProgress)
 				elapsed := time.Since(startTime)
+				perFileCancelled := taskCtx.Err() != nil && ctx.Err() == nil
+				release()
 				if err != nil {
 					// 失败或取消时 ffmpeg 已写出半截文件：不删的话
 					// --skip-existing 下次会把它当成有效产物跳过。
@@ -339,24 +365,30 @@ func (e *CompressEngine) Run(ctx context.Context, req JobRequest, onProgress fun
 				mu.Lock()
 				if err != nil {
 					friendlyErr := "任务已取消"
+					status := "failed"
 					if ctx.Err() == nil {
-						friendlyErr = ffmpeg.ParseFFmpegError(err.Error())
+						if perFileCancelled {
+							status = "cancelled"
+						} else {
+							friendlyErr = ffmpeg.ParseFFmpegError(err.Error())
+						}
 					}
 					allReports = append(allReports, JobReport{
 						InputName:  filepath.Base(task.input),
 						InputPath:  task.input,
 						OutputDir:  filepath.Dir(task.output),
-						Status:     "failed",
+						Status:     status,
 						SourceSize: util.GetFileSize(task.input),
 						Duration:   elapsed,
 						ErrMessage: friendlyErr,
 					})
 					if onProgress != nil {
 						onProgress(ProgressEvent{
-							File:  filepath.Base(task.input),
-							Path:  task.input,
-							Done:  true,
-							Error: friendlyErr,
+							File:      filepath.Base(task.input),
+							Path:      task.input,
+							Cancelled: perFileCancelled,
+							Done:      true,
+							Error:     friendlyErr,
 						})
 					}
 				} else {
@@ -444,15 +476,17 @@ func (e *CompressEngine) runCommandWithProgress(ctx context.Context, ffmpegPath 
 
 	if duration > 0 {
 		lastPercent := -1.0
-		ffmpeg.TrackProgress(stdoutPipe, duration, func(percent float64) {
+		ffmpeg.TrackProgress(stdoutPipe, duration, func(sample ffmpeg.ProgressSample) {
 			if onProgress != nil {
 				// 进度变化 >= 0.5% 或者达到 100% 才发送，避免频繁 IPC
-				if percent-lastPercent >= 0.5 || percent >= 100.0 {
-					lastPercent = percent
+				if sample.Percent-lastPercent >= 0.5 || sample.Percent >= 100.0 {
+					lastPercent = sample.Percent
 					onProgress(ProgressEvent{
 						File:    prefix,
 						Path:    inputPath,
-						Percent: percent,
+						Percent: sample.Percent,
+						Speed:   sample.Speed,
+						ETA:     sample.ETA,
 					})
 				}
 			}

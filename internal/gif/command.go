@@ -15,6 +15,14 @@ func scaleFilter(maxWidth int) string {
 	)
 }
 
+// seekArgs 返回输入侧的 -ss 参数；空起点表示从 0 秒开始。
+func seekArgs(t Tier) []string {
+	if t.Start == "" {
+		return nil
+	}
+	return []string{"-ss", t.Start}
+}
+
 // BuildGIFArgs 构造 GIF 动图输出参数。
 func BuildGIFArgs(inputPath string, outputPath string, t Tier) []string {
 	scale := scaleFilter(t.MaxWidth)
@@ -22,21 +30,25 @@ func BuildGIFArgs(inputPath string, outputPath string, t Tier) []string {
 		"fps=%d,%s,split[s0][s1];[s0]palettegen=128[p];[s1][p]paletteuse=dither=bayer:diff_mode=rectangle",
 		t.FPS, scale,
 	)
-	return []string{
-		"-y", "-i", inputPath,
+	args := []string{"-y"}
+	args = append(args, seekArgs(t)...)
+	return append(args,
+		"-i", inputPath,
 		"-t", t.MaxDuration,
 		"-filter_complex", filter,
 		"-loop", "0",
 		outputPath,
-	}
+	)
 }
 
 // BuildAPNGArgs 构造 APNG 动图输出参数（无损）。fps 为自适应计算后的目标帧率。
 func BuildAPNGArgs(inputPath string, outputPath string, t Tier, fps int) []string {
 	scale := scaleFilter(t.MaxWidth)
 	filter := fmt.Sprintf("fps=%d,%s", fps, scale)
-	return []string{
-		"-y", "-i", inputPath,
+	args := []string{"-y"}
+	args = append(args, seekArgs(t)...)
+	return append(args,
+		"-i", inputPath,
 		"-t", t.MaxDuration,
 		"-vf", filter,
 		"-plays", "0",
@@ -44,25 +56,30 @@ func BuildAPNGArgs(inputPath string, outputPath string, t Tier, fps int) []strin
 		"-compression_level", "6",
 		"-preset", "none",
 		outputPath,
-	}
+	)
 }
 
 // BuildWebPArgs 构造动态 WebP 输出参数（有损，按档位质量）。
 func BuildWebPArgs(inputPath string, outputPath string, t Tier) []string {
 	scale := scaleFilter(t.MaxWidth)
 	filter := fmt.Sprintf("fps=%d,%s", t.FPS, scale)
-	// 档位越低，质量越低，压缩越狠。
-	quality := 40
-	switch t.Name {
-	case "smooth":
-		quality = 35
-	case "balanced":
-		quality = 50
-	case "hd":
-		quality = 65
+	// 档位越低，质量越低，压缩越狠；自定义档位直接使用指定质量。
+	quality := t.WebPQuality
+	if quality <= 0 {
+		quality = 40
+		switch t.Name {
+		case "smooth":
+			quality = 35
+		case "balanced":
+			quality = 50
+		case "hd":
+			quality = 65
+		}
 	}
-	return []string{
-		"-y", "-i", inputPath,
+	args := []string{"-y"}
+	args = append(args, seekArgs(t)...)
+	return append(args,
+		"-i", inputPath,
 		"-t", t.MaxDuration,
 		"-vf", filter,
 		"-loop", "0",
@@ -71,7 +88,7 @@ func BuildWebPArgs(inputPath string, outputPath string, t Tier) []string {
 		"-quality", fmt.Sprintf("%d", quality),
 		"-compression_level", "6",
 		outputPath,
-	}
+	)
 }
 
 // BuildArgs 根据格式分派到对应参数构造器。APNG 使用传入的 fps。

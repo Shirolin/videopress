@@ -2,17 +2,35 @@ package gif
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
 // Tier 定义一档动图导出的体积与分辨率规格。
 type Tier struct {
-	Name        string // "smooth" | "balanced" | "hd"
+	Name        string // "smooth" | "balanced" | "hd" | "custom"
 	MaxWidth    int    // 宽度上限（px）
 	MaxSizeMB   int    // 文件大小上限（MB）
 	FPS         int    // 目标帧率
 	MaxDuration string // 截取片段时长上限（ffmpeg 时间格式，如 "00:00:06"）
+	Start       string // 截取起点（ffmpeg 时间格式），空表示从 0 秒开始
+	WebPQuality int    // 动态 WebP 质量 1-100；0 表示按档位名称取默认值
 	Description string
+}
+
+// DurationSec 返回截取时长（秒），解析失败回退 5 秒。
+func (t Tier) DurationSec() int {
+	parts := strings.Split(t.MaxDuration, ":")
+	if len(parts) != 3 {
+		return 5
+	}
+	h, err1 := strconv.Atoi(parts[0])
+	m, err2 := strconv.Atoi(parts[1])
+	s, err3 := strconv.Atoi(parts[2])
+	if err1 != nil || err2 != nil || err3 != nil || h < 0 || m < 0 || s <= 0 {
+		return 5
+	}
+	return h*3600 + m*60 + s
 }
 
 // DefaultTier 是默认模板（均衡档）。

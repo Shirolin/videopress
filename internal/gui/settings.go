@@ -13,6 +13,7 @@ import (
 	"github.com/ELY-Open-Source/MujicaUI/navigation"
 	"github.com/ELY-Open-Source/MujicaUI/theme"
 
+	"videopress/internal/ffmpeg"
 	"videopress/internal/sendto"
 )
 
@@ -20,9 +21,11 @@ import (
 func (a *App) settingsView(c *ui.Context) {
 	pages := []account.SettingsPage{
 		{ID: "general", Label: a.t("settings.title.general"), Icon: ic("sliders-horizontal")},
+		{ID: "appearance", Label: a.t("settings.title.appearance"), Icon: ic("palette")},
 		{ID: "integration", Label: a.t("settings.title.sys"), Icon: ic("layout-grid")},
 		{ID: "language", Label: a.t("settings.title.lang"), Icon: ic("globe")},
 		{ID: "debug", Label: a.t("settings.title.debug"), Icon: ic("file-text")},
+		{ID: "about", Label: a.t("settings.title.about"), Icon: ic("info")},
 	}
 	// The FFmpeg screen leaves its setup button pointing here; show the page it means.
 	if a.settingsPage == "setup" {
@@ -33,12 +36,16 @@ func (a *App) settingsView(c *ui.Context) {
 		switch id {
 		case "general":
 			a.generalSettings(c)
+		case "appearance":
+			a.appearanceSettings(c)
 		case "integration":
 			a.integrationSettings(c)
 		case "language":
 			a.languageSettings(c)
 		case "debug":
 			a.debugSettings(c)
+		case "about":
+			a.aboutSettings(c)
 		}
 	})
 	if res.Changed() {
@@ -64,7 +71,7 @@ func (a *App) generalSettings(c *ui.Context) {
 			current = i
 		}
 	}
-	account.SettingsSection(c, a.t("settings.section.preset"), func() {
+	account.SettingsSection(c, a.t("settings.section.compress"), func() {
 		account.SettingsRow(c, a.t("settings.section.preset"),
 			account.SettingsRowOptions{Description: a.t("settings.preset_desc")},
 			func() ui.Element {
@@ -151,6 +158,12 @@ func (a *App) generalSettings(c *ui.Context) {
 				return sw
 			})
 	})
+
+	// Same body as the workspace's collapsible, so settings stay readable in
+	// one place instead of two scattered panels.
+	account.SettingsSection(c, a.t("advanced.title"), func() {
+		a.advancedFields(c)
+	})
 }
 
 // hwAccelNote explains the encoder state.
@@ -201,6 +214,31 @@ func (a *App) integrationSettings(c *ui.Context) {
 					})
 				})
 		}
+	})
+}
+
+// appearanceSettings switches between system, light and dark appearance.
+func (a *App) appearanceSettings(c *ui.Context) {
+	modes := []string{"system", "light", "dark"}
+	selected := 0
+	for i, m := range modes {
+		if m == a.prefs.Theme {
+			selected = i
+		}
+	}
+	account.SettingsSection(c, a.t("settings.section.appearance"), func() {
+		account.SettingsRow(c, a.t("settings.theme"), account.SettingsRowOptions{Description: a.t("settings.theme_desc")},
+			func() ui.Element {
+				sel := selected
+				navigationSegments(c, &sel, []string{
+					a.t("theme.system"), a.t("theme.light"), a.t("theme.dark"),
+				}, a.t("settings.theme"))
+				if sel != selected {
+					a.prefs.Theme = modes[sel]
+					a.savePrefs()
+				}
+				return ui.Row(c)
+			})
 	})
 }
 
@@ -262,13 +300,28 @@ func (a *App) debugSettings(c *ui.Context) {
 			})
 	})
 
-	account.SettingsSection(c, "Videopress", func() {
+}
+
+// aboutSettings holds the engine, version and reset controls.
+func (a *App) aboutSettings(c *ui.Context) {
+	account.SettingsSection(c, a.t("settings.section.about"), func() {
 		account.SettingsRow(c, "FFmpeg", account.SettingsRowOptions{Description: a.ffmpegPath}, func() ui.Element {
 			state := a.t("status.not_installed")
 			if a.ffmpegPath != "" {
 				state = a.t("status.up_to_date")
 			}
-			return ui.Text(c, state).TextColor(core.Tokens(c).TextMuted).FontSize(core.FontSize(c, theme.CaptionSize))
+			return ui.Row(c).Gap(core.Density(c).Unit() * 2).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, state).TextColor(core.Tokens(c).TextMuted).FontSize(core.FontSize(c, theme.CaptionSize))
+				if input.Button(c, a.t("btn.change"), input.ButtonOptions{Variant: input.Ghost, Icon: ic("folder")}).Clicked() {
+					a.pickFFmpeg()
+				}
+				if a.prefs.FFmpegPath != "" && input.Button(c, a.t("setup.btn_auto_detect"), input.ButtonOptions{Variant: input.Ghost, Icon: ic("refresh-cw")}).Clicked() {
+					a.prefs.FFmpegPath = ""
+					a.savePrefs()
+					a.detectFFmpeg()
+					a.detectGPU()
+				}
+			})
 		})
 		account.SettingsRow(c, a.t("settings.version"), account.SettingsRowOptions{Description: "MyGO + MujicaUI"}, func() ui.Element {
 			v := a.Version()
@@ -277,7 +330,44 @@ func (a *App) debugSettings(c *ui.Context) {
 			}
 			return ui.Text(c, v).FontSize(core.FontSize(c, theme.CaptionSize))
 		})
+		account.SettingsRow(c, a.t("btn.reset_settings"), account.SettingsRowOptions{Description: a.t("settings.reset_desc")},
+			func() ui.Element {
+				btn := input.Button(c, a.t("btn.reset_settings"), input.ButtonOptions{Variant: input.Secondary, Icon: ic("rotate-ccw")})
+				if btn.Clicked() {
+					a.resetWorkPrefs()
+				}
+				return btn
+			})
 	})
+}
+
+// resetWorkPrefs restores the compression defaults; language, appearance and
+// a pinned FFmpeg path stay, so resetting never breaks the current session.
+func (a *App) resetWorkPrefs() {
+	go func() {
+		res, err := mygo.Dialog.Message(mygo.MessageOptions{
+			Parent:  a.win,
+			Type:    mygo.MessageWarning,
+			Title:   a.t("btn.reset_settings"),
+			Message: a.t("settings.reset_confirm"),
+			Buttons: []string{a.t("btn.cancel"), a.t("btn.reset_settings")},
+			// Escape and the default button both back out.
+			DefaultButton: 0,
+			CancelButton:  0,
+		})
+		if err != nil || res.Button != 1 {
+			return
+		}
+		a.update(func() {
+			keep := a.prefs
+			a.prefs = defaultPrefs()
+			a.prefs.Language, a.prefs.Theme, a.prefs.FFmpegPath = keep.Language, keep.Theme, keep.FFmpegPath
+			a.showAdvanced = a.prefs.ShowAdvanced
+			ffmpeg.EnableDebugLog = a.prefs.EnableDebugLog
+			a.savePrefs()
+			a.setToast(a.t("toast.reset_done"), toastSuccess)
+		})
+	}()
 }
 
 // navigationSegments is a SegmentedControl over labels; a plain row is returned
@@ -325,11 +415,6 @@ func settingsSwitch(c *ui.Context, on *bool, disabled bool) ui.Element {
 			bg, border, thumb = k.SurfaceHover, k.Text, k.Text
 		}
 		track.Background(bg).Border(theme.BorderWidth, border)
-		track.Draw(func(p *ui.Painter, r ui.Rect) {
-			if *on {
-				p.Fill(ui.Rect{X: r.X + 9, Y: r.Y + 6, W: 1.5, H: r.H - 12}, k.OnAccent, 0)
-			}
-		})
 		track.DrawOver(func(p *ui.Painter, r ui.Rect) {
 			if sw.FocusVisible() {
 				o := theme.FocusGap + theme.FocusWidth

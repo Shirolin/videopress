@@ -10,7 +10,7 @@
 
 本仓库不定义颜色常量、不自建色板、不写内联 hex。需要颜色时从 `core.Tokens` 取，需要间距时乘 `core.Density(c).Unit()`。
 
-跟随系统明暗（`core.Settings{Mode: core.System}`），默认风为酒红/象牙/衬线。
+默认跟随系统明暗，可在「配置面板 → 外观」固定为浅色或深色（`core.Settings{Mode}`）；默认风为酒红/象牙/衬线。
 
 ## 组件
 

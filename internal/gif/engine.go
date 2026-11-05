@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"videopress/internal/ffmpeg"
@@ -92,11 +91,37 @@ func New(deps Dependencies) *Engine {
 
 // ExportRequest 描述一次动图导出请求。
 type ExportRequest struct {
-	Files     []string // 输入视频
-	Tier      string   // "smooth" | "balanced" | "hd"
-	Formats   []Format // 要导出的格式，空则用全部
-	OutputDir string   // 自定义输出目录，空则输入目录下 compressed/
-	Force     bool     // 覆盖已存在输出
+	Files        []string // 输入视频
+	Tier         string   // "smooth" | "balanced" | "hd"
+	Custom       *Tier    // 自定义参数；非 nil 时覆盖 Tier
+	Formats      []Format // 要导出的格式，空则用全部
+	OutputDir    string   // 自定义输出目录，空则输入目录下 compressed/
+	Force        bool     // 覆盖已存在输出
+	SkipExisting bool     // 跳过已存在输出；两者都不设时自动加序号
+}
+
+// resolveTier 取得本次导出的档位：自定义参数优先，否则查表。
+func resolveTier(req ExportRequest) (Tier, error) {
+	if req.Custom == nil {
+		return TierByName(req.Tier)
+	}
+	t := *req.Custom
+	if t.Name == "" {
+		t.Name = "custom"
+	}
+	if t.MaxWidth <= 0 {
+		t.MaxWidth = 360
+	}
+	if t.FPS <= 0 {
+		t.FPS = 15
+	}
+	if t.MaxDuration == "" {
+		t.MaxDuration = "00:00:05"
+	}
+	if t.MaxSizeMB <= 0 {
+		t.MaxSizeMB = 2
+	}
+	return t, nil
 }
 
 // outputPathFor 生成某格式的输出路径。
@@ -112,9 +137,26 @@ func outputPathFor(inputPath string, tier string, format Format, outputDir strin
 	return filepath.Join(dir, fmt.Sprintf("%s.%s%s", base, tier, format.Ext()))
 }
 
+// uniqueOutputPath appends -1, -2 and so on before the extension while the
+// preferred name is taken, so repeated exports never overwrite by accident.
+func uniqueOutputPath(path string, exists func(string) bool) string {
+	if exists == nil || !exists(path) {
+		return path
+	}
+	ext := filepath.Ext(path)
+	stem := strings.TrimSuffix(path, ext)
+	for i := 1; i <= 10000; i++ {
+		candidate := fmt.Sprintf("%s-%d%s", stem, i, ext)
+		if !exists(candidate) {
+			return candidate
+		}
+	}
+	return path
+}
+
 // Run 执行动图导出，为每个输入文件、每个格式生成一个产物。
 func (e *Engine) Run(ctx context.Context, req ExportRequest) ([]ExportResult, error) {
-	tier, err := TierByName(req.Tier)
+	tier, err := resolveTier(req)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +204,7 @@ func (e *Engine) Run(ctx context.Context, req ExportRequest) ([]ExportResult, er
 				})
 				continue
 			}
-			if !req.Force && e.deps.PathExists(out) {
+			if !req.Force && req.SkipExisting && e.deps.PathExists(out) {
 				skippedSize := fileSize(out)
 				results = append(results, ExportResult{
 					InputName:  filepath.Base(input),
@@ -175,6 +217,9 @@ func (e *Engine) Run(ctx context.Context, req ExportRequest) ([]ExportResult, er
 					OverBudget: skippedSize > budget,
 				})
 				continue
+			}
+			if !req.Force {
+				out = uniqueOutputPath(out, e.deps.PathExists)
 			}
 
 			args := BuildArgs(input, out, tier, format, apngFPS)
@@ -192,17 +237,17 @@ func (e *Engine) Run(ctx context.Context, req ExportRequest) ([]ExportResult, er
 				})
 				continue
 			}
-		results = append(results, ExportResult{
-			InputName:  filepath.Base(input),
-			InputPath:  input,
-			OutputPath: out,
-			Format:     string(format),
-			Tier:       tier.Name,
-			Status:     "success",
-			Size:       fileSize(out),
-			OverBudget: fileSize(out) > budget,
-		})
-	}
+			results = append(results, ExportResult{
+				InputName:  filepath.Base(input),
+				InputPath:  input,
+				OutputPath: out,
+				Format:     string(format),
+				Tier:       tier.Name,
+				Status:     "success",
+				Size:       fileSize(out),
+				OverBudget: fileSize(out) > budget,
+			})
+		}
 	}
 	return results, nil
 }
@@ -238,19 +283,9 @@ func dedupeFormats(formats []Format) []Format {
 	return out
 }
 
-// tierDurationSec 解析档位时长上限（"HH:MM:SS"），解析失败回退 5 秒。
+// tierDurationSec 是档位截取时长的秒数，供 APNG 自适应帧率使用。
 func tierDurationSec(t Tier) float64 {
-	parts := strings.Split(t.MaxDuration, ":")
-	if len(parts) != 3 {
-		return 5
-	}
-	h, err1 := strconv.Atoi(parts[0])
-	m, err2 := strconv.Atoi(parts[1])
-	s, err3 := strconv.Atoi(parts[2])
-	if err1 != nil || err2 != nil || err3 != nil || h < 0 || m < 0 || s <= 0 {
-		return 5
-	}
-	return float64(h*3600 + m*60 + s)
+	return float64(t.DurationSec())
 }
 
 // adaptiveAPNGFPS 是纯函数：按 1 秒探测的每秒字节数，反推完整时长能压进
@@ -288,15 +323,17 @@ func (e *Engine) probeAPNGFPS(ctx context.Context, ffmpegPath string, input stri
 	defer os.RemoveAll(probeDir)
 	probePath := filepath.Join(probeDir, "probe.apng")
 
-	probeArgs := []string{
-		"-y", "-i", input,
+	probeArgs := []string{"-y"}
+	probeArgs = append(probeArgs, seekArgs(tier)...)
+	probeArgs = append(probeArgs,
+		"-i", input,
 		"-t", "1",
 		"-vf", fmt.Sprintf("fps=%d,%s", tier.FPS, scaleFilter(tier.MaxWidth)),
 		"-plays", "0",
 		"-pix_fmt", "rgba",
 		"-compression_level", "6",
 		probePath,
-	}
+	)
 	if err := e.deps.RunCommand(ctx, ffmpegPath, probeArgs); err != nil {
 		return tier.FPS
 	}

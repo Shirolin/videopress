@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/ELY-Open-Source/MujicaUI/core"
+	"github.com/ELY-Open-Source/MujicaUI/theme"
 
 	"videopress/internal/cli"
 	"videopress/internal/ffmpeg"
@@ -67,13 +68,31 @@ func Run(app *App) error {
 			TitleBarStyle: mygo.TitleBarHidden,
 			// The window shows before its first frame paints; without this it
 			// flashes white. These are MujicaUI's own page colors.
-			BackgroundColor: "light-dark(#F2EBDD, #191618)",
+			BackgroundColor: windowBackground(app.themeMode()),
 			Content:         ui.View(app.View),
 		})
 		_ = win.SetIcon(resources.IconPNG)
 		app.Attach(win)
 	})
 	return mygo.App.Run()
+}
+
+// windowBackground is the page color shown before the first frame, pinned to
+// the chosen appearance so a manual theme never flashes the system one.
+func windowBackground(mode core.Mode) string {
+	light := colorHex(theme.Light().Background)
+	dark := colorHex(theme.Dark().Background)
+	switch mode {
+	case core.Light:
+		return light
+	case core.Dark:
+		return dark
+	}
+	return "light-dark(" + light + ", " + dark + ")"
+}
+
+func colorHex(c ui.Color) string {
+	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
 }
 
 // enqueueForwarded adds the files handed over by a later launch, then brings

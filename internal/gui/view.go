@@ -38,7 +38,7 @@ func (a *App) setToast(msg string, kind toastKind) {
 
 // View builds the window's interface for one frame.
 func (a *App) View(c *ui.Context) {
-	core.Use(c, core.Settings{Mode: core.System, Locale: a.uiLocale()})
+	core.Use(c, core.Settings{Mode: a.themeMode(), Locale: a.uiLocale()})
 
 	if a.toast != "" && a.win != nil {
 		sev := core.SeverityInfo
@@ -52,11 +52,13 @@ func (a *App) View(c *ui.Context) {
 		a.toast = ""
 	}
 
-	ui.Column(c).Fill().Children(func() {
+	root := ui.Column(c).Fill()
+	root.Children(func() {
 		a.titleBar(c)
 		// Grow, not Fill: a 100% height here starts below the title bar and
 		// would run that far past the window's bottom edge.
-		ui.Box(c).FillWidth().Grow(1).MinHeight(0).Padding(16, 20).Children(func() {
+		body := ui.Box(c).FillWidth().Grow(1).MinHeight(0).Padding(16, 20)
+		body.Children(func() {
 			switch {
 			case a.ffmpegError != "":
 				a.setupView(c)
@@ -66,8 +68,25 @@ func (a *App) View(c *ui.Context) {
 				a.workspaceView(c)
 			}
 		})
+		// Anywhere in the window takes files, including the title bar, so a
+		// drop never has to hit the small card on a busy page.
+		if files := root.DroppedFiles(); len(files) > 0 {
+			a.addFiles(files)
+		}
+		a.dropHover = root.FileDragOver()
 	})
 	feedback.Toaster(c)
+}
+
+// themeMode maps the saved appearance preference onto MujicaUI's mode.
+func (a *App) themeMode() core.Mode {
+	switch a.prefs.Theme {
+	case "light":
+		return core.Light
+	case "dark":
+		return core.Dark
+	}
+	return core.System
 }
 
 // titleBar draws the brand, the navigation and the version badge.

@@ -13,7 +13,7 @@ var msgTable = map[string][2]string{
 	"usage.concurrency":      {"最大并发压缩任务数（默认 1）", "Max concurrent compression tasks (default 1)"},
 	"usage.hw":               {"尝试使用 GPU 硬件加速编码", "Try to use GPU hardware acceleration"},
 	"usage.force":            {"强制覆盖已存在的输出文件", "Force overwrite existing output files"},
-	"usage.skip_existing":    {"如果输出文件已存在则跳过", "Skip compression if output file exists"},
+	"usage.skip_existing":    {"输出文件已存在时跳过（压缩与动图导出）", "Skip when the output file already exists (compression and animated export)"},
 	"usage.codec":            {"视频编码格式（默认 h264）", "Video encoding codec (default h264)"},
 	"usage.max_fps":          {"限制最大帧率，0 为不限制（默认 0）", "Limit maximum frames per second, 0 for unlimited (default 0)"},
 	"usage.audio":            {"音频模式（默认 compress）", "Audio mode (default compress)"},

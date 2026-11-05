@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 
 	"videopress/internal/cli"
@@ -29,8 +30,10 @@ type QueueItem struct {
 	Size       int64
 	TargetSize int64
 	Percent    float64
-	Status     string // waiting | compressing | success | failed | skipped
-	Duration   int64  // milliseconds
+	Speed      float64 // encoding speed factor while compressing, 0 when unknown
+	ETA        int64   // estimated time left in ms, 0 when unknown
+	Status     string  // waiting | compressing | success | failed | skipped
+	Duration   int64   // milliseconds
 	Error      string
 	Warning    bool
 }
@@ -44,12 +47,15 @@ type App struct {
 	mu             sync.Mutex
 	compressCancel context.CancelFunc
 	compressGen    uint64
-	gifCancel      context.CancelFunc
-	gifGen         uint64
+	// compressCancels stops single rows of the running batch.
+	compressCancels *engine.Cancels
+	gifCancel       context.CancelFunc
+	gifGen          uint64
 
 	// View state, touched on the main thread only.
 	page            int
 	queue           []QueueItem
+	queueFilter     string // all | failed | done
 	pageScroll      *ui.ScrollState
 	settingsScroll  *ui.ScrollState
 	settingsPage    string
@@ -62,16 +68,25 @@ type App struct {
 	downloading     bool
 	downloadPercent float64
 	downloadError   string
-	gifTier         string
 	gifFormats      map[string]bool
 	gifResults      []gif.ExportResult
 	gifError        string
-	integration     map[string]bool
-	integrationBusy bool
-	gifBusy         bool
-	lastOutputDir   string
-	toast           string
-	toastKind       toastKind
+	// gifDurations caches source durations (ms, 0 = unreadable) keyed by
+	// cleaned path; only touched on the main thread.
+	gifDurations map[string]int64
+	gifProbing   map[string]bool
+	// compressBatch holds the rows this run picked up, compressBatchDone the
+	// ones that already produced a final event. Together they keep the overall
+	// progress honest when rows are added mid-run or retried.
+	compressBatch     map[string]bool
+	compressBatchDone map[string]bool
+	integration       map[string]bool
+	integrationBusy   bool
+	gifBusy           bool
+	lastOutputDir     string
+	dropHover         bool
+	toast             string
+	toastKind         toastKind
 
 	// locale is the language MyGO resolved at startup, kept so the view
 	// need not ask the app (that call waits for the main thread).
@@ -90,7 +105,6 @@ func New(execDir, execPath string, initialFiles []string) *App {
 		pageScroll:     &ui.ScrollState{},
 		settingsScroll: &ui.ScrollState{},
 		settingsPage:   "general",
-		gifTier:        gif.DefaultTier,
 		locale:         p.Language,
 		gifFormats:     map[string]bool{"gif": true, "apng": true, "webp": true},
 		integration:    map[string]bool{},
@@ -145,6 +159,10 @@ func (a *App) addFiles(paths []string) {
 		item := QueueItem{Path: p, Name: name, Status: "waiting", Warning: containsCompressed(name)}
 		a.queue = append(a.queue, item)
 	}
+	// A new waiting row would be invisible under a finished/failed filter.
+	if len(paths) > 0 {
+		a.queueFilter = "all"
+	}
 }
 
 func containsCompressed(name string) bool { return strings.Contains(name, ".compressed") }
@@ -163,6 +181,7 @@ func (a *App) clearQueue() {
 		return
 	}
 	a.queue = nil
+	a.queueFilter = "all"
 }
 
 // applyProgress updates the queue row that matches an engine event.
@@ -179,8 +198,19 @@ func (a *App) applyProgress(ev engine.ProgressEvent) {
 		if !match {
 			continue
 		}
+		if ev.Cancelled || ev.Done || ev.Error != "" {
+			a.markBatchHandled(filepath.Clean(item.Path))
+		}
 		item.Percent = ev.Percent
+		item.Speed = ev.Speed
+		item.ETA = ev.ETA.Milliseconds()
 		switch {
+		case ev.Cancelled:
+			// The row alone was stopped: it goes back to the queue.
+			item.Status = "waiting"
+			item.Percent = 0
+			item.Speed, item.ETA = 0, 0
+			item.Error = ""
 		case ev.Error != "":
 			item.Status = "failed"
 			item.Error = ev.Error
@@ -193,21 +223,62 @@ func (a *App) applyProgress(ev engine.ProgressEvent) {
 	}
 }
 
+// queueVisible applies the status filter of the queue list.
+func (a *App) queueVisible(it *QueueItem) bool {
+	switch a.queueFilter {
+	case "failed":
+		return it.Status == "failed"
+	case "done":
+		return it.Status == "success" || it.Status == "skipped"
+	}
+	return true
+}
+
 // ---- compression ----
 
-// startCompress runs the queue through the engine.
+// isPendingStatus reports the rows a run still has to handle.
+func isPendingStatus(status string) bool {
+	return status == "waiting" || status == "failed"
+}
+
+// pendingPaths lists the queue rows that still need work.
+func (a *App) pendingPaths() []string {
+	files := make([]string, 0, len(a.queue))
+	for _, it := range a.queue {
+		if isPendingStatus(it.Status) {
+			files = append(files, it.Path)
+		}
+	}
+	return files
+}
+
+// startCompress runs the unfinished rows through the engine. With nothing
+// pending it re-runs the whole queue, which the button labels accordingly.
 func (a *App) startCompress() {
 	if a.isCompressing || a.isGifExporting || len(a.queue) == 0 {
 		return
 	}
-	files := make([]string, len(a.queue))
+	rerunAll := len(a.pendingPaths()) == 0
+	files := make([]string, 0, len(a.queue))
 	for i, it := range a.queue {
-		files[i] = it.Path
+		pending := isPendingStatus(it.Status)
+		if !pending && !rerunAll {
+			continue
+		}
+		files = append(files, it.Path)
 		a.queue[i].Percent = 0
+		a.queue[i].Speed = 0
+		a.queue[i].ETA = 0
 		a.queue[i].Status = "waiting"
 		a.queue[i].TargetSize = 0
 		a.queue[i].Duration = 0
 		a.queue[i].Error = ""
+	}
+	a.queueFilter = "all"
+	a.compressBatch = make(map[string]bool, len(files))
+	a.compressBatchDone = make(map[string]bool, len(files))
+	for _, p := range files {
+		a.compressBatch[filepath.Clean(p)] = true
 	}
 
 	req := engine.JobRequest{
@@ -224,15 +295,21 @@ func (a *App) startCompress() {
 		AudioMode:    a.prefs.AudioMode,
 		CRF:          a.prefs.crf(),
 		Crop:         a.prefs.cropSpec(),
+		Cancels:      engine.NewCancels(),
 	}
+	a.compressCancels = req.Cancels
 
 	a.isCompressing = true
 	a.toast = ""
-	go a.runCompress(req)
+	customFFmpeg := a.customFFmpeg()
+	go a.runCompress(req, customFFmpeg)
 }
 
-func (a *App) runCompress(req engine.JobRequest) {
+func (a *App) runCompress(req engine.JobRequest, customFFmpeg string) {
 	deps := engine.DefaultDependencies(a.executableDir)
+	if customFFmpeg != "" {
+		deps.ResolveBinary = func(string) (string, error) { return customFFmpeg, nil }
+	}
 	deps.RunCommand = nil
 	eng := engine.NewCompressEngine(deps)
 
@@ -256,6 +333,7 @@ func (a *App) runCompress(req engine.JobRequest) {
 
 	a.update(func() {
 		a.isCompressing = false
+		a.compressCancels = nil
 		if err != nil {
 			a.setToast(err.Error(), toastError)
 			return
@@ -276,14 +354,21 @@ func (a *App) applyReports(reports []engine.JobReport) {
 			if !match {
 				continue
 			}
+			a.markBatchHandled(filepath.Clean(item.Path))
 			item.Size = r.SourceSize
 			item.TargetSize = r.TargetSize
 			item.Duration = r.Duration.Milliseconds()
 			item.Error = r.ErrMessage
+			item.Speed, item.ETA = 0, 0
 			switch r.Status {
 			case "skipped":
 				item.Status = "skipped"
 				item.Percent = 100
+			case "cancelled":
+				// The user stopped this row alone: put it back in the queue.
+				item.Status = "waiting"
+				item.Percent = 0
+				item.Size, item.TargetSize, item.Error = 0, 0, ""
 			case "failed":
 				item.Status = "failed"
 			default:
@@ -309,6 +394,19 @@ func (a *App) cancelCompress() {
 	}
 }
 
+// cancelQueueItem stops one running or queued file of the batch; the row
+// returns to waiting when the engine reports it.
+func (a *App) cancelQueueItem(path string) {
+	if a.compressCancels == nil {
+		return
+	}
+	a.compressCancels.Cancel(path)
+	// The engine only reports the row when a worker reaches it; count it as
+	// handled now so the batch bar does not sit at zero in the meantime.
+	a.markBatchHandled(filepath.Clean(path))
+	a.setToast(a.t("queue.cancel_requested"), toastInfo)
+}
+
 // ---- animated export ----
 
 // startGifExport exports the queue as animated clips.
@@ -331,21 +429,29 @@ func (a *App) startGifExport() {
 		files[i] = it.Path
 	}
 	req := gif.ExportRequest{
-		Files:     files,
-		Tier:      a.gifTier,
-		Formats:   formats,
-		OutputDir: a.prefs.OutputDir,
-		Force:     a.prefs.ForceMode,
+		Files:        files,
+		Tier:         a.prefs.GifTier,
+		Formats:      formats,
+		OutputDir:    a.prefs.OutputDir,
+		Force:        a.prefs.ForceMode,
+		SkipExisting: a.prefs.SkipExisting,
+	}
+	if a.prefs.GifTier == "custom" {
+		req.Custom = a.gifCustomTier()
 	}
 	a.isGifExporting = true
 	a.gifBusy = true
 	a.gifError = ""
 	a.gifResults = nil
-	go a.runGifExport(req)
+	customFFmpeg := a.customFFmpeg()
+	go a.runGifExport(req, customFFmpeg)
 }
 
-func (a *App) runGifExport(req gif.ExportRequest) {
+func (a *App) runGifExport(req gif.ExportRequest, customFFmpeg string) {
 	deps := gif.DefaultDependencies(a.executableDir)
+	if customFFmpeg != "" {
+		deps.ResolveBinary = func(string) (string, error) { return customFFmpeg, nil }
+	}
 	deps.RunCommand = nil
 	eng := gif.New(deps)
 
@@ -387,10 +493,104 @@ func (a *App) cancelGifExport() {
 	}
 }
 
+// ensureGifDurations probes the queued sources that have no duration yet.
+// The custom tier needs the length to warn about ranges that run past the
+// end of the video.
+func (a *App) ensureGifDurations() {
+	bin := a.ffmpegPath
+	if bin == "" {
+		return
+	}
+	if a.gifDurations == nil {
+		a.gifDurations = map[string]int64{}
+	}
+	if a.gifProbing == nil {
+		a.gifProbing = map[string]bool{}
+	}
+	for _, it := range a.queue {
+		key := filepath.Clean(it.Path)
+		if _, done := a.gifDurations[key]; done || a.gifProbing[key] {
+			continue
+		}
+		a.gifProbing[key] = true
+		go func(path, key string) {
+			info, err := ffmpeg.Probe(bin, path)
+			a.update(func() {
+				delete(a.gifProbing, key)
+				// The binary changed while probing: this answer is stale and
+				// a new set of probes is already on its way.
+				if a.ffmpegPath != bin {
+					return
+				}
+				if err != nil {
+					a.gifDurations[key] = 0
+					return
+				}
+				a.gifDurations[key] = info.Duration.Milliseconds()
+			})
+		}(it.Path, key)
+	}
+}
+
+// gifSourceStats summarizes the cached durations of the queued sources.
+type gifSourceStats struct {
+	minMs, maxMs   int64
+	known, pending int
+	unknown        int
+}
+
+// gifDurationStats summarizes the cached durations: min/max over the readable
+// sources, plus how many are still probing or unreadable.
+func (a *App) gifDurationStats() gifSourceStats {
+	var s gifSourceStats
+	for _, it := range a.queue {
+		key := filepath.Clean(it.Path)
+		if a.gifProbing[key] {
+			s.pending++
+			continue
+		}
+		ms, ok := a.gifDurations[key]
+		if !ok {
+			continue
+		}
+		if ms <= 0 {
+			s.unknown++
+			continue
+		}
+		s.known++
+		if s.minMs == 0 || ms < s.minMs {
+			s.minMs = ms
+		}
+		if ms > s.maxMs {
+			s.maxMs = ms
+		}
+	}
+	return s
+}
+
 // ---- FFmpeg ----
 
-// detectFFmpeg refreshes the FFmpeg path, the setup screen follows it.
+// customFFmpeg returns the user-picked binary, or "" when none is set.
+func (a *App) customFFmpeg() string {
+	if a.prefs.FFmpegPath == "" {
+		return ""
+	}
+	if _, err := os.Stat(a.prefs.FFmpegPath); err != nil {
+		return ""
+	}
+	return a.prefs.FFmpegPath
+}
+
+// detectFFmpeg refreshes the FFmpeg path, the setup screen follows it. Cached
+// source durations are dropped so a re-check retries probes that failed.
 func (a *App) detectFFmpeg() {
+	a.gifDurations = map[string]int64{}
+	a.gifProbing = map[string]bool{}
+	if p := a.customFFmpeg(); p != "" {
+		a.ffmpegPath = p
+		a.ffmpegError = ""
+		return
+	}
 	path, err := engine.DefaultDependencies(a.executableDir).ResolveBinary(a.executableDir)
 	if err != nil {
 		a.ffmpegPath = ""
@@ -401,15 +601,45 @@ func (a *App) detectFFmpeg() {
 	a.ffmpegError = ""
 }
 
+// pickFFmpeg lets the user point at an existing ffmpeg.exe, for machines
+// where the automatic search and the download both fail.
+func (a *App) pickFFmpeg() {
+	win := a.win
+	title := a.t("setup.btn_pick")
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Parent: win,
+			Title:  title,
+			Filters: []mygo.FileFilter{
+				{Name: "ffmpeg.exe", Extensions: []string{"exe"}},
+			},
+		})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		a.update(func() {
+			a.prefs.FFmpegPath = paths[0]
+			a.savePrefs()
+			a.detectFFmpeg()
+			a.detectGPU()
+		})
+	}()
+}
+
 // detectGPU probes the graphics encoder in the background.
 func (a *App) detectGPU() {
+	customFFmpeg := a.customFFmpeg()
+	codec := a.prefs.VideoCodec
 	go func() {
 		deps := engine.DefaultDependencies(a.executableDir)
+		if customFFmpeg != "" {
+			deps.ResolveBinary = func(string) (string, error) { return customFFmpeg, nil }
+		}
 		path, err := deps.ResolveBinary(a.executableDir)
 		if err != nil {
 			return
 		}
-		enc := deps.DetectGPUEncoder(path, a.prefs.VideoCodec, deps.RunCommand)
+		enc := deps.DetectGPUEncoder(path, codec, deps.RunCommand)
 		a.update(func() {
 			a.gpuEncoder = enc
 			if enc != "libx264" && !a.prefs.HWAccelSet {
@@ -572,6 +802,18 @@ func (a *App) applyIntegration(kind string, install bool) error {
 	return fmt.Errorf("未知的系统集成 unknown integration: %s", kind)
 }
 
+// copyError puts a failed row's FFmpeg message on the clipboard.
+func (a *App) copyError(msg string) {
+	if msg == "" {
+		return
+	}
+	if err := mygo.Clipboard.Write(transfer.TextData(msg)); err != nil {
+		a.setToast(a.tf("toast.copy_failed", map[string]string{"err": err.Error()}), toastError)
+		return
+	}
+	a.setToast(a.t("toast.copied"), toastSuccess)
+}
+
 // ---- dialogs ----
 
 // pickFiles asks for video files and queues them.
@@ -656,16 +898,74 @@ var videoExtensions = []string{"mp4", "mov", "mkv", "avi", "m4v", "wmv", "webm",
 func (a *App) stats() (total, done, saved, original int64) {
 	total = int64(len(a.queue))
 	for _, it := range a.queue {
-		if it.Status != "success" {
-			continue
-		}
-		done++
-		original += it.Size
-		if it.Size > it.TargetSize {
-			saved += it.Size - it.TargetSize
+		switch it.Status {
+		case "success":
+			done++
+			original += it.Size
+			if it.Size > it.TargetSize {
+				saved += it.Size - it.TargetSize
+			}
+		case "skipped":
+			done++
 		}
 	}
 	return total, done, saved, original
+}
+
+// failedCount counts the rows whose compression failed.
+func (a *App) failedCount() int {
+	n := 0
+	for _, it := range a.queue {
+		if it.Status == "failed" {
+			n++
+		}
+	}
+	return n
+}
+
+// markBatchHandled records that a row of the running batch reached a final
+// state, whether it succeeded or was cancelled back to waiting.
+func (a *App) markBatchHandled(key string) {
+	if a.compressBatch[key] && a.compressBatchDone != nil {
+		a.compressBatchDone[key] = true
+	}
+}
+
+// batchProgress is the share of the running batch already handled: finished
+// rows count fully, running rows contribute their own percentage. Rows added
+// after the run started are not part of its denominator.
+func (a *App) batchProgress() float64 {
+	sum, count := 0.0, 0
+	for _, it := range a.queue {
+		key := filepath.Clean(it.Path)
+		if len(a.compressBatch) > 0 && !a.compressBatch[key] {
+			continue
+		}
+		count++
+		switch {
+		case a.compressBatchDone[key]:
+			sum += 100
+		case it.Status == "success" || it.Status == "skipped" || it.Status == "failed":
+			sum += 100
+		case it.Status == "compressing":
+			sum += it.Percent
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return clamp01(sum / float64(count) / 100)
+}
+
+// skippedCount counts the rows left alone because their output already existed.
+func (a *App) skippedCount() int {
+	n := 0
+	for _, it := range a.queue {
+		if it.Status == "skipped" {
+			n++
+		}
+	}
+	return n
 }
 
 // concurrencyOptions lists plausible worker counts for this machine.
@@ -707,7 +1007,7 @@ func sizeText(bytes int64) string {
 // ratioText is the share of the source the batch saved.
 func ratioText(saved, original int64) string {
 	if original <= 0 {
-		return "0.0%"
+		return "-"
 	}
 	return strconv.FormatFloat(float64(saved)/float64(original)*100, 'f', 1, 64) + "%"
 }

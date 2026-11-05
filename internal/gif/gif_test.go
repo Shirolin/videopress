@@ -157,7 +157,7 @@ func TestRunAPNGFallsBackToFullFPSWithMock(t *testing.T) {
 			calls = append(calls, args)
 			return nil
 		},
-		MkdirAll:   func(path string, perm os.FileMode) error { return nil },
+		MkdirAll: func(path string, perm os.FileMode) error { return nil },
 	})
 	results, err := eng.Run(context.Background(), ExportRequest{
 		Files:   []string{"clip.mp4"},
@@ -263,11 +263,12 @@ func TestSkippedMarksOverBudget(t *testing.T) {
 		PathExists: func(path string) bool { return true },
 	})
 	results, err := eng.Run(context.Background(), ExportRequest{
-		Files:     []string{"clip.mp4"},
-		Tier:      "balanced",
-		Formats:   []Format{FormatGIF},
-		OutputDir: dir,
-		Force:     false,
+		Files:        []string{"clip.mp4"},
+		Tier:         "balanced",
+		Formats:      []Format{FormatGIF},
+		OutputDir:    dir,
+		Force:        false,
+		SkipExisting: true,
 	})
 	if err != nil {
 		t.Fatalf("Run error: %v", err)
@@ -279,6 +280,40 @@ func TestSkippedMarksOverBudget(t *testing.T) {
 		t.Error("3MiB skipped output should be marked OverBudget")
 	}
 }
+func TestRunNumbersExistingOutputs(t *testing.T) {
+	dir := t.TempDir()
+	existing := filepath.Join(dir, "clip.balanced.gif")
+	if err := os.WriteFile(existing, []byte("old"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	eng := New(Dependencies{
+		ResolveBinary: func(dir string) (string, error) { return "ffmpeg", nil },
+		RunCommand: func(ctx context.Context, name string, args []string) error {
+			return os.WriteFile(args[len(args)-1], []byte("new"), 0644)
+		},
+		MkdirAll:   os.MkdirAll,
+		PathExists: func(path string) bool { _, err := os.Stat(path); return err == nil },
+	})
+	results, err := eng.Run(context.Background(), ExportRequest{
+		Files:     []string{"clip.mp4"},
+		Tier:      "balanced",
+		Formats:   []Format{FormatGIF},
+		OutputDir: dir,
+	})
+	if err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	if len(results) != 1 || results[0].Status != "success" {
+		t.Fatalf("expected 1 success result, got %+v", results)
+	}
+	if want := filepath.Join(dir, "clip.balanced-1.gif"); results[0].OutputPath != want {
+		t.Fatalf("output = %s, want numbered %s", results[0].OutputPath, want)
+	}
+	if data, _ := os.ReadFile(existing); string(data) != "old" {
+		t.Fatalf("existing output was overwritten: %q", data)
+	}
+}
+
 func TestRunReportsMissingFFmpeg(t *testing.T) {
 	eng := New(Dependencies{
 		ResolveBinary: func(dir string) (string, error) {
@@ -296,5 +331,56 @@ func TestRunReportsMissingFFmpeg(t *testing.T) {
 	})
 	if !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected the resolve error to surface, got %v", err)
+	}
+}
+
+func TestCustomTierArgs(t *testing.T) {
+	tier := Tier{
+		Name: "custom", MaxWidth: 480, MaxSizeMB: 3, FPS: 12,
+		MaxDuration: "00:00:08", Start: "00:00:03", WebPQuality: 70,
+	}
+
+	gifArgs := strings.Join(BuildGIFArgs("in.mp4", "out.gif", tier), " ")
+	if !strings.Contains(gifArgs, "-ss 00:00:03 -i in.mp4") {
+		t.Errorf("GIF args should seek before the input: %s", gifArgs)
+	}
+	if !strings.Contains(gifArgs, "-t 00:00:08") {
+		t.Errorf("GIF args should use the custom duration: %s", gifArgs)
+	}
+
+	webpArgs := strings.Join(BuildWebPArgs("in.mp4", "out.webp", tier), " ")
+	if !strings.Contains(webpArgs, "-quality 70") {
+		t.Errorf("WebP args should use the custom quality: %s", webpArgs)
+	}
+}
+
+func TestRunCustomTier(t *testing.T) {
+	var calls [][]string
+	eng := New(Dependencies{
+		ResolveBinary: func(dir string) (string, error) { return "ffmpeg", nil },
+		RunCommand: func(ctx context.Context, name string, args []string) error {
+			calls = append(calls, args)
+			return nil
+		},
+		MkdirAll:   func(path string, perm os.FileMode) error { return nil },
+		PathExists: func(path string) bool { return false },
+	})
+	results, err := eng.Run(context.Background(), ExportRequest{
+		Files:   []string{"clip.mp4"},
+		Custom:  &Tier{Name: "custom", MaxWidth: 720, FPS: 24, MaxDuration: "00:00:06", Start: "00:00:02"},
+		Formats: []Format{FormatGIF},
+		Force:   true,
+	})
+	if err != nil {
+		t.Fatalf("Run(custom) error: %v", err)
+	}
+	if len(results) != 1 || results[0].Tier != "custom" {
+		t.Fatalf("Run(custom) results: %+v", results)
+	}
+	args := strings.Join(calls[0], " ")
+	for _, want := range []string{"-ss 00:00:02", "-t 00:00:06", "fps=24", "min(iw,720)"} {
+		if !strings.Contains(args, want) {
+			t.Errorf("custom encode args missing %q: %s", want, args)
+		}
 	}
 }

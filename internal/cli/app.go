@@ -166,7 +166,7 @@ func (l *gifFormatList) Set(v string) error {
 }
 
 // runGifExport 执行 GIF/APNG/WebP 动图导出。
-func runGifExport(deps Dependencies, files []string, tierName string, formats gifFormatList, force bool) int {
+func runGifExport(deps Dependencies, files []string, tierName string, formats gifFormatList, force bool, skipExisting bool) int {
 	tier, err := gif.TierByName(tierName)
 	if err != nil {
 		fmt.Fprintln(deps.Stderr, red(err.Error()))
@@ -204,10 +204,11 @@ func runGifExport(deps Dependencies, files []string, tierName string, formats gi
 	eng := gif.New(engDeps)
 
 	req := gif.ExportRequest{
-		Files:   files,
-		Tier:    tier.Name,
-		Formats: formats,
-		Force:   force,
+		Files:        files,
+		Tier:         tier.Name,
+		Formats:      formats,
+		Force:        force,
+		SkipExisting: skipExisting,
 	}
 	if len(req.Formats) == 0 {
 		req.Formats = gif.DefaultFormats()
@@ -321,7 +322,7 @@ func Execute(args []string, deps Dependencies) int {
 	hwAccel := fs.Bool("hw", false, "enable GPU hardware acceleration")
 	forceMode := fs.Bool("force", false, "force overwrite output files")
 	fs.BoolVar(forceMode, "f", false, "force overwrite output files (shorthand)")
-	skipExisting := fs.Bool("skip-existing", false, "skip compression if output file already exists")
+	skipExisting := fs.Bool("skip-existing", false, "skip if the output file already exists")
 	copyAudio := fs.Bool("copy-audio", false, "copy audio stream instead of re-encoding")
 	fs.BoolVar(copyAudio, "a", false, "copy audio stream instead of re-encoding (shorthand)")
 	codecName := fs.String("codec", "", "video encoder format (h264|h265|av1)")
@@ -465,7 +466,7 @@ func Execute(args []string, deps Dependencies) int {
 
 	// 动图导出模式：GIF/APNG/WebP 三档
 	if *gifMode {
-		return runGifExport(deps, files, *gifTier, gifFormats, *forceMode)
+		return runGifExport(deps, files, *gifTier, gifFormats, *forceMode, *skipExisting)
 	}
 	if len(gifFormats) > 0 || *gifTier != gif.DefaultTier {
 		fmt.Fprintln(deps.Stderr, yellow(msg("err.tier_format_ignored")))

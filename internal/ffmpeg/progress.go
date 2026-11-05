@@ -133,29 +133,59 @@ func ComputeCenterCrop(iw, ih, ratioW, ratioH int, scale float64) (int, int, int
 	return cw, ch, x, y
 }
 
-// TrackProgress 读取 ffmpeg -progress 输出流并回调进度百分比
-func TrackProgress(r io.Reader, duration time.Duration, onProgress func(percent float64)) {
+// ProgressSample is one update from ffmpeg's -progress stream.
+type ProgressSample struct {
+	Percent float64       // 0 ~ 100
+	Speed   float64       // encoded seconds per wall-clock second, 0 when unknown
+	ETA     time.Duration // estimated time left at Speed, 0 when unknown
+}
+
+// TrackProgress 读取 ffmpeg -progress 输出流并回调进度、速度与预计剩余时间
+func TrackProgress(r io.Reader, duration time.Duration, onProgress func(ProgressSample)) {
 	scanner := bufio.NewScanner(r)
 	var outTimeMs int64
+	var speed float64
+	// One block ends with progress=continue (or end); speed arrives after
+	// out_time_ms, so the callback belongs at the block boundary.
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "out_time_ms=") {
+		switch {
+		case strings.HasPrefix(line, "out_time_ms="):
 			valStr := strings.TrimPrefix(line, "out_time_ms=")
 			if val, err := strconv.ParseInt(valStr, 10, 64); err == nil {
 				outTimeMs = val
-				if duration > 0 {
-					percent := float64(outTimeMs) / 1000000.0 / duration.Seconds() * 100.0
-					if percent > 100 {
-						percent = 100
-					}
-					if percent < 0 {
-						percent = 0
-					}
-					onProgress(percent)
-				}
 			}
+		case strings.HasPrefix(line, "speed="):
+			// "1.5x", or "N/A" while ffmpeg has no estimate yet.
+			raw := strings.TrimSuffix(strings.TrimSpace(strings.TrimPrefix(line, "speed=")), "x")
+			if val, err := strconv.ParseFloat(raw, 64); err == nil && val > 0 {
+				speed = val
+			}
+		case strings.HasPrefix(line, "progress="):
+			if duration <= 0 {
+				continue
+			}
+			percent := float64(outTimeMs) / 1000000.0 / duration.Seconds() * 100.0
+			percent = min(100, max(0, percent))
+			onProgress(ProgressSample{
+				Percent: percent,
+				Speed:   speed,
+				ETA:     estimateETA(outTimeMs, duration, speed),
+			})
 		}
 	}
+}
+
+// estimateETA projects the remaining encode time from the speed factor.
+func estimateETA(outTimeMs int64, duration time.Duration, speed float64) time.Duration {
+	if speed <= 0 || duration <= 0 {
+		return 0
+	}
+	remaining := duration.Seconds() - float64(outTimeMs)/1000000.0
+	if remaining <= 0 {
+		return 0
+	}
+	return time.Duration(remaining / speed * float64(time.Second))
 }
 
 // RenderProgressBar 在输出端渲染动态刷新进度条

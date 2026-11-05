@@ -583,7 +583,7 @@ func TestGifExportAllSkippedExitsOne(t *testing.T) {
 		InputAccessible: accessibleInput,
 		Stdout:          stdout,
 		Stderr:          stderr,
-	}, []string{`C:\videos\clip.mp4`}, "balanced", nil, false)
+	}, []string{`C:\videos\clip.mp4`}, "balanced", nil, false, true)
 
 	if exitCode != 1 {
 		t.Fatalf("all-skipped gif export should exit 1, got %d", exitCode)
@@ -612,7 +612,7 @@ func TestGifExportDedupesRepeatedFormats(t *testing.T) {
 		InputAccessible: accessibleInput,
 		Stdout:          stdout,
 		Stderr:          stderr,
-	}, []string{`C:\videos\clip.mp4`}, "balanced", gifFormatList{gif.FormatGIF, gif.FormatGIF, gif.FormatWebP}, true)
+	}, []string{`C:\videos\clip.mp4`}, "balanced", gifFormatList{gif.FormatGIF, gif.FormatGIF, gif.FormatWebP}, true, false)
 
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d, stderr=%s", exitCode, stderr.String())
@@ -675,7 +675,7 @@ func TestGifExportPrintsOverBudgetNote(t *testing.T) {
 		InputAccessible: accessibleInput,
 		Stdout:          stdout,
 		Stderr:          stderr,
-	}, []string{input}, "balanced", gifFormatList{gif.FormatGIF}, true)
+	}, []string{input}, "balanced", gifFormatList{gif.FormatGIF}, true, false)
 
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d, stderr=%s", exitCode, stderr.String())
@@ -712,7 +712,7 @@ func TestGifExportSkippedPrintsOverBudgetNote(t *testing.T) {
 		InputAccessible: accessibleInput,
 		Stdout:          stdout,
 		Stderr:          stderr,
-	}, []string{input}, "balanced", gifFormatList{gif.FormatGIF}, false)
+	}, []string{input}, "balanced", gifFormatList{gif.FormatGIF}, false, true)
 
 	if exitCode == 0 {
 		t.Fatalf("expected non-zero exit when all skipped, stderr=%s", stderr.String())
