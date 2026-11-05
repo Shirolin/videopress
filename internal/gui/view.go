@@ -9,7 +9,17 @@ import (
 	"github.com/ELY-Open-Source/MujicaUI/layout"
 	"github.com/ELY-Open-Source/MujicaUI/navigation"
 	"github.com/ELY-Open-Source/MujicaUI/theme"
+
+	"videopress/resources"
 )
+
+var appLogo *ui.Bitmap
+
+func init() {
+	if bmp, err := ui.DecodeBitmap(resources.IconPNG); err == nil {
+		appLogo = bmp
+	}
+}
 
 // toastKind tones a toast message.
 type toastKind int
@@ -64,7 +74,11 @@ func (a *App) View(c *ui.Context) {
 func (a *App) titleBar(c *ui.Context) {
 	layout.TitleBar(c, "Videopress", layout.TitleBarOptions{
 		Leading: func() {
-			ui.Icon(c, ic("play")).Size(16, 16).TextColor(core.Tokens(c).AccentText)
+			if appLogo != nil {
+				ui.Image(c, appLogo).Size(18, 18)
+			} else {
+				ui.Icon(c, ic("play")).Size(16, 16).TextColor(core.Tokens(c).AccentText)
+			}
 		},
 		Trailing: func() {
 			selected := a.page

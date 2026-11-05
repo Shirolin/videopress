@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ELY-Open-Source/MujicaUI/core"
+	"github.com/ELY-Open-Source/MujicaUI/theme"
 	"github.com/egoist/mygo/ui"
 
 	"videopress/internal/engine"
@@ -99,4 +101,61 @@ func TestSettingsPageRenders(t *testing.T) {
 			t.Fatalf("settings page %q rendered nothing", page)
 		}
 	}
+}
+
+// TestSettingsSwitchCentered verifies that the switch thumb is centered
+// vertically and horizontally inside the track's 1px border in both states.
+func TestSettingsSwitchCentered(t *testing.T) {
+	on, off := true, false
+	var onBox, offBox ui.Rect
+	tt := ui.NewTester(func(c *ui.Context) {
+		core.Use(c, core.Settings{Mode: core.Dark})
+		ui.Column(c).Padding(16).Gap(12).AlignItems(ui.Start).Children(func() {
+			onBox = settingsSwitch(c, &on, false).Bounds()
+			offBox = settingsSwitch(c, &off, false).Bounds()
+		})
+	}, 120, 120)
+	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+	tt.Frame()
+
+	img := tt.Image()
+	k := theme.Dark()
+	// Track sits vertically centered inside the switch row (height 36 -> track Y = box.Y + (36-20)/2 = box.Y + 8).
+	checkThumb := func(name string, box ui.Rect, wantX float32, wantThumb ui.Color) {
+		trackX := int(box.X)
+		trackY := int(box.Y + (box.H-switchH)/2)
+		midX := trackX + int(theme.BorderWidth+wantX+switchK/2)
+		// Top gap (2px inside border: trackY+1 and trackY+2) and bottom gap (trackY+17 and trackY+18) must not be thumb color.
+		topGap := img.RGBAAt(midX, trackY+2)
+		botGap := img.RGBAAt(midX, trackY+int(switchH)-3)
+		topThumb := img.RGBAAt(midX, trackY+3)
+		botThumb := img.RGBAAt(midX, trackY+int(switchH)-4)
+		if topGap.R == wantThumb.R && topGap.G == wantThumb.G && topGap.B == wantThumb.B {
+			t.Fatalf("%s: top gap at y=%d painted with thumb color %v", name, trackY+2, topGap)
+		}
+		if botGap.R == wantThumb.R && botGap.G == wantThumb.G && botGap.B == wantThumb.B {
+			t.Fatalf("%s: bottom gap at y=%d painted with thumb color %v", name, trackY+int(switchH)-3, botGap)
+		}
+		if topThumb.R != wantThumb.R || botThumb.R != wantThumb.R {
+			t.Fatalf("%s: thumb vertical span mismatch: top=%v bot=%v want=%v", name, topThumb, botThumb, wantThumb)
+		}
+	}
+	checkThumb("on", onBox, 18, k.OnAccent)
+	checkThumb("off", offBox, 2, k.ControlBorder)
+}
+
+func TestTitleBarAppLogo(t *testing.T) {
+	if appLogo == nil {
+		t.Fatal("expected appLogo to be initialized from embedded resources")
+	}
+	w, h := appLogo.Size()
+	if w <= 0 || h <= 0 {
+		t.Fatalf("invalid appLogo size: %dx%d", w, h)
+	}
+
+	a := newTestApp()
+	a.locale = "zh-Hans"
+	tester := ui.NewTester(a.View, 300, 60)
+	tester.SetPreferences(ui.Preferences{ReduceMotion: true})
+	tester.Frame()
 }

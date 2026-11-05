@@ -1,6 +1,11 @@
 package gui
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
@@ -8,6 +13,8 @@ import (
 
 	"videopress/internal/cli"
 	"videopress/internal/ffmpeg"
+	"videopress/internal/sendto"
+	"videopress/resources"
 
 	// Register MyGO's own Simplified Chinese texts for built-in controls.
 	_ "github.com/egoist/mygo/locales/zh-Hans"
@@ -15,6 +22,13 @@ import (
 
 // Run opens the application window and blocks until it quits.
 func Run(app *App) error {
+	// 右键菜单按选中项逐个启动进程；只保留首个实例，后续启动把文件转交给
+	// 它再退出，避免每个文件各弹一个窗口。
+	if !mygo.App.RequestSingleInstanceLock() {
+		return nil
+	}
+	mygo.App.OnSecondInstance(app.enqueueForwarded)
+
 	mygo.App.SetLanguages("en", "zh-Hans")
 	mygo.App.SetLocale(app.prefs.Language)
 
@@ -27,6 +41,21 @@ func Run(app *App) error {
 		ffmpeg.EnableDebugLog = app.prefs.EnableDebugLog
 		app.detectFFmpeg()
 		app.detectGPU()
+
+		// 后台对已安装的系统右键菜单和快捷方式执行路径自愈
+		go func() {
+			if err := sendto.RefreshIfStale(app.executablePath, app.lang()); err != nil && app.prefs.EnableDebugLog {
+				if dir, dirErr := os.UserCacheDir(); dirErr == nil {
+					logFile := filepath.Join(dir, "videopress_debug.log")
+					msg := fmt.Sprintf("[%s] 系统快捷集成自愈失败: %v\n", time.Now().Format("2006-01-02 15:04:05"), err)
+					f, fErr := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+					if fErr == nil {
+						_, _ = f.WriteString(msg)
+						_ = f.Close()
+					}
+				}
+			}
+		}()
 
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title:         "Videopress",
@@ -41,9 +70,27 @@ func Run(app *App) error {
 			BackgroundColor: "light-dark(#F2EBDD, #191618)",
 			Content:         ui.View(app.View),
 		})
+		_ = win.SetIcon(resources.IconPNG)
 		app.Attach(win)
 	})
 	return mygo.App.Run()
+}
+
+// enqueueForwarded adds the files handed over by a later launch, then brings
+// the window forward. MyGO calls it on the main thread.
+func (a *App) enqueueForwarded(args []string, workingDir string) {
+	files := make([]string, 0, len(args))
+	for _, arg := range args {
+		if !filepath.IsAbs(arg) {
+			arg = filepath.Join(workingDir, arg)
+		}
+		files = append(files, arg)
+	}
+	a.update(func() { a.addFiles(files) })
+	if a.win != nil {
+		a.win.Show()
+		a.win.Focus()
+	}
 }
 
 // uiLocale maps the app's language to MujicaUI's.
