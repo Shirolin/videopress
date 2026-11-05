@@ -175,7 +175,7 @@ func (a *App) advancedPanel(c *ui.Context) {
 func (a *App) advancedFields(c *ui.Context) {
 	u := core.Density(c).Unit()
 	ui.Column(c).Gap(u*3).Padding(u*3, 0).Children(func() {
-		ui.Row(c).Gap(u * 4).Children(func() {
+		ui.Row(c).Gap(u * 4).Wrap().Children(func() {
 			a.codecField(c)
 			a.fpsField(c)
 			a.audioField(c)

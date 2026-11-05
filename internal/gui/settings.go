@@ -236,6 +236,7 @@ func (a *App) appearanceSettings(c *ui.Context) {
 				if sel != selected {
 					a.prefs.Theme = modes[sel]
 					a.savePrefs()
+					a.applyWindowTheme()
 				}
 				return ui.Row(c)
 			})

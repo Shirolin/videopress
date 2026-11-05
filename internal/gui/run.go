@@ -73,6 +73,7 @@ func Run(app *App) error {
 		})
 		_ = win.SetIcon(resources.IconPNG)
 		app.Attach(win)
+		app.applyWindowTheme()
 	})
 	return mygo.App.Run()
 }
@@ -93,6 +94,22 @@ func windowBackground(mode core.Mode) string {
 
 func colorHex(c ui.Color) string {
 	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
+}
+
+// applyWindowTheme matches MyGO's caption buttons to a forced appearance;
+// otherwise light glyphs land on a light page and disappear.
+func (a *App) applyWindowTheme() {
+	if a.win == nil {
+		return
+	}
+	switch a.themeMode() {
+	case core.Light:
+		a.win.SetWindowButtonsTheme(mygo.ThemeLight)
+	case core.Dark:
+		a.win.SetWindowButtonsTheme(mygo.ThemeDark)
+	default:
+		a.win.SetWindowButtonsTheme(mygo.ThemeSystem)
+	}
 }
 
 // enqueueForwarded adds the files handed over by a later launch, then brings
