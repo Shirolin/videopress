@@ -78,7 +78,7 @@ func TestWebPArgs(t *testing.T) {
 
 func TestOutputPathFor(t *testing.T) {
 	p := outputPathFor("in.mp4", "balanced", FormatGIF, "")
-	want := filepath.Join("gif_export", "in.balanced.gif")
+	want := filepath.Join("compressed", "in.balanced.gif")
 	if !strings.HasSuffix(p, want) {
 		t.Errorf("output path wrong: %s", p)
 	}

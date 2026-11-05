@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"videopress/internal/gif"
@@ -320,6 +321,7 @@ func TestExecuteGPUAccel(t *testing.T) {
 }
 
 func TestExecuteConcurrency(t *testing.T) {
+	var mu sync.Mutex
 	var calls []recordedCall
 	stdout := &bytes.Buffer{}
 
@@ -330,6 +332,8 @@ func TestExecuteConcurrency(t *testing.T) {
 			return `C:\ffmpeg\bin\ffmpeg.exe`, nil
 		},
 		RunCommand: func(name string, args []string) error {
+			mu.Lock()
+			defer mu.Unlock()
 			calls = append(calls, recordedCall{name: name, args: args})
 			return nil
 		},
@@ -684,7 +688,7 @@ func TestGifExportPrintsOverBudgetNote(t *testing.T) {
 func TestGifExportSkippedPrintsOverBudgetNote(t *testing.T) {
 	dir := t.TempDir()
 	input := filepath.Join(dir, "clip.mp4")
-	outDir := filepath.Join(dir, "gif_export")
+	outDir := filepath.Join(dir, "compressed")
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		t.Fatal(err)
 	}

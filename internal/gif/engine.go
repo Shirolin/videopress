@@ -95,7 +95,7 @@ type ExportRequest struct {
 	Files     []string // 输入视频
 	Tier      string   // "smooth" | "balanced" | "hd"
 	Formats   []Format // 要导出的格式，空则用全部
-	OutputDir string   // 自定义输出目录，空则输入目录下 gif_export/
+	OutputDir string   // 自定义输出目录，空则输入目录下 compressed/
 	Force     bool     // 覆盖已存在输出
 }
 
@@ -107,7 +107,7 @@ func outputPathFor(inputPath string, tier string, format Format, outputDir strin
 	if outputDir != "" {
 		dir = outputDir
 	} else {
-		dir = filepath.Join(dir, "gif_export")
+		dir = filepath.Join(dir, "compressed")
 	}
 	return filepath.Join(dir, fmt.Sprintf("%s.%s%s", base, tier, format.Ext()))
 }

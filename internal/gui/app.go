@@ -630,6 +630,24 @@ func (a *App) openResultFolder() {
 	}
 }
 
+// openGifResultFolder opens the folder containing exported animated clips.
+func (a *App) openGifResultFolder() {
+	if a.prefs.OutputDir != "" {
+		a.openFolder(a.prefs.OutputDir)
+		return
+	}
+	for _, r := range a.gifResults {
+		if r.OutputPath != "" {
+			a.openFolder(filepath.Dir(r.OutputPath))
+			return
+		}
+	}
+	for _, it := range a.queue {
+		a.openFolder(filepath.Join(filepath.Dir(it.Path), "compressed"))
+		return
+	}
+}
+
 var videoExtensions = []string{"mp4", "mov", "mkv", "avi", "m4v", "wmv", "webm", "ts", "flv", "mpg", "mpeg", "3gp"}
 
 // ---- stats ----

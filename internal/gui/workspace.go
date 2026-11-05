@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -656,10 +657,19 @@ func (a *App) gifSummary(c *ui.Context) {
 			failed++
 		}
 	}
+	hasSuccess := ok > 0 || skipped > 0 || over > 0
 	ui.Column(c).Gap(u).Children(func() {
-		ui.Text(c, fmt.Sprintf("%s %d · %s %d · %s %d · %s %d",
-			a.t("gif.ok"), ok, a.t("gif.skipped"), skipped, a.t("gif.over_budget"), over, a.t("gif.failed"), failed)).
-			FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600)
+		ui.Row(c).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, fmt.Sprintf("%s %d · %s %d · %s %d · %s %d",
+				a.t("gif.ok"), ok, a.t("gif.skipped"), skipped, a.t("gif.over_budget"), over, a.t("gif.failed"), failed)).
+				FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600)
+			ui.Spacer(c)
+			if hasSuccess && input.Button(c, a.t("btn.open_output_folder"), input.ButtonOptions{
+				Variant: input.Secondary, Icon: ic("folder"),
+			}).Clicked() {
+				a.openGifResultFolder()
+			}
+		})
 		for _, r := range a.gifResults {
 			tone := k.Success
 			switch {
@@ -668,8 +678,13 @@ func (a *App) gifSummary(c *ui.Context) {
 			case r.Status == "skipped":
 				tone = k.TextMuted
 			}
-			ui.Row(c).Gap(u * 2).Children(func() {
-				ui.Text(c, fmt.Sprintf("%s → %s.%s", r.InputName, r.Tier, r.Format)).
+			ui.Row(c).Gap(u * 2).AlignItems(ui.Center).Children(func() {
+				displayPath := fmt.Sprintf("%s → %s.%s", r.InputName, r.Tier, r.Format)
+				if r.OutputPath != "" {
+					dirName := filepath.Base(filepath.Dir(r.OutputPath))
+					displayPath = fmt.Sprintf("%s → %s/%s.%s", r.InputName, dirName, r.Tier, r.Format)
+				}
+				ui.Text(c, displayPath).
 					FontSize(core.FontSize(c, theme.CaptionSize)).Grow(1).MinWidth(0).
 					SingleLine()
 				ui.Text(c, sizeText(r.Size)).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(tone)
