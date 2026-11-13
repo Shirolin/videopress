@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ELY-Open-Source/MujicaUI/core"
+	"github.com/ELY-Open-Source/MujicaUI/input"
 	"github.com/ELY-Open-Source/MujicaUI/theme"
 	"github.com/egoist/mygo/ui"
 
@@ -102,16 +103,20 @@ func TestSettingsPageRenders(t *testing.T) {
 	}
 }
 
-// TestSettingsSwitchCentered verifies that the switch thumb is centered
+// TestSettingsSwitchCentered verifies that MujicaUI's switch thumb is centered
 // vertically and horizontally inside the track's 1px border in both states.
 func TestSettingsSwitchCentered(t *testing.T) {
+	const (
+		switchH float32 = 20
+		switchK float32 = 14
+	)
 	on, off := true, false
 	var onBox, offBox ui.Rect
 	tt := ui.NewTester(func(c *ui.Context) {
 		core.Use(c, core.Settings{Mode: core.Dark})
 		ui.Column(c).Padding(16).Gap(12).AlignItems(ui.Start).Children(func() {
-			onBox = settingsSwitch(c, &on, false).Bounds()
-			offBox = settingsSwitch(c, &off, false).Bounds()
+			onBox = input.Switch(c, &on, "", input.SwitchOptions{}).Bounds()
+			offBox = input.Switch(c, &off, "", input.SwitchOptions{}).Bounds()
 		})
 	}, 120, 120)
 	tt.SetPreferences(ui.Preferences{ReduceMotion: true})

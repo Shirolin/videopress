@@ -116,7 +116,7 @@ func (a *App) generalSettings(c *ui.Context) {
 		account.SettingsRow(c, a.t("settings.hw_accel"), account.SettingsRowOptions{Description: a.hwAccelNote()},
 			func() ui.Element {
 				on := a.prefs.HWAccel
-				sw := settingsSwitch(c, &on, a.isCompressing)
+				sw := input.Switch(c, &on, "", input.SwitchOptions{Disabled: a.isCompressing})
 				if sw.Changed() {
 					a.prefs.HWAccel = on
 					a.prefs.HWAccelSet = true
@@ -128,7 +128,7 @@ func (a *App) generalSettings(c *ui.Context) {
 		account.SettingsRow(c, a.t("settings.copy_audio"), account.SettingsRowOptions{Description: a.t("settings.copy_audio_desc")},
 			func() ui.Element {
 				on := a.prefs.CopyAudio
-				sw := settingsSwitch(c, &on, a.isCompressing)
+				sw := input.Switch(c, &on, "", input.SwitchOptions{Disabled: a.isCompressing})
 				if sw.Changed() {
 					a.prefs.CopyAudio = on
 					a.savePrefs()
@@ -139,7 +139,7 @@ func (a *App) generalSettings(c *ui.Context) {
 		account.SettingsRow(c, a.t("settings.force_mode"), account.SettingsRowOptions{Description: a.t("settings.force_mode_desc")},
 			func() ui.Element {
 				on := a.prefs.ForceMode
-				sw := settingsSwitch(c, &on, a.isCompressing)
+				sw := input.Switch(c, &on, "", input.SwitchOptions{Disabled: a.isCompressing})
 				if sw.Changed() {
 					a.prefs.ForceMode = on
 					a.savePrefs()
@@ -150,7 +150,7 @@ func (a *App) generalSettings(c *ui.Context) {
 		account.SettingsRow(c, a.t("settings.skip_existing"), account.SettingsRowOptions{Description: a.t("settings.skip_existing_desc")},
 			func() ui.Element {
 				on := a.prefs.SkipExisting
-				sw := settingsSwitch(c, &on, a.isCompressing)
+				sw := input.Switch(c, &on, "", input.SwitchOptions{Disabled: a.isCompressing})
 				if sw.Changed() {
 					a.prefs.SkipExisting = on
 					a.savePrefs()
@@ -279,7 +279,7 @@ func (a *App) debugSettings(c *ui.Context) {
 		account.SettingsRow(c, a.t("settings.debug.toggle"), account.SettingsRowOptions{Description: a.t("settings.debug.desc")},
 			func() ui.Element {
 				on := a.prefs.EnableDebugLog
-				sw := settingsSwitch(c, &on, false)
+				sw := input.Switch(c, &on, "", input.SwitchOptions{})
 				if sw.Changed() {
 					a.setDebug(on)
 				}
@@ -379,58 +379,6 @@ func navigationSegments(c *ui.Context, selected *int, labels []string, label str
 		segs[i] = navigation.Segment{Label: l}
 	}
 	navigation.SegmentedControl(c, selected, segs, navigation.SegmentedControlOptions{Label: label})
-}
-
-const (
-	switchW float32 = 36
-	switchH float32 = 20
-	switchK float32 = 14
-)
-
-// settingsSwitch renders MujicaUI's switch with its thumb centered inside the
-// track's padding box (accounting for theme.BorderWidth on each edge).
-func settingsSwitch(c *ui.Context, on *bool, disabled bool) ui.Element {
-	k := core.Tokens(c)
-	d := core.Density(c)
-	var sw ui.Element
-	ui.Row(c).Shrink(0).Disabled(disabled).Children(func() {
-		sw = ui.SwitchBase(c, on).Gap(d.Unit() * 2).AlignItems(ui.Center).
-			MinHeight(d.ControlHeight()).FocusRing(false)
-	})
-	hover := sw.Hovered()
-	target := float32(0)
-	if *on {
-		target = 1
-	}
-	pos := sw.Animate("on", target, core.Motion(c, theme.StateDuration))
-	sw.Children(func() {
-		track := ui.Box(c).Size(switchW, switchH).Shrink(0).Radius(theme.CardRadius)
-		bg, border := k.Surface, k.ControlBorder
-		thumb := k.ControlBorder
-		if *on {
-			bg, border, thumb = k.Accent, k.Accent, k.OnAccent
-			if hover {
-				bg, border = k.AccentHover, k.AccentHover
-			}
-		} else if hover {
-			bg, border, thumb = k.SurfaceHover, k.Text, k.Text
-		}
-		track.Background(bg).Border(theme.BorderWidth, border)
-		track.DrawOver(func(p *ui.Painter, r ui.Rect) {
-			if sw.FocusVisible() {
-				o := theme.FocusGap + theme.FocusWidth
-				p.Stroke(ui.Rect{X: r.X - o, Y: r.Y - o, W: r.W + 2*o, H: r.H + 2*o}, k.Focus, theme.CardRadius+o, theme.FocusWidth)
-			}
-		})
-		innerW := switchW - 2*theme.BorderWidth
-		innerH := switchH - 2*theme.BorderWidth
-		inset := (innerH - switchK) / 2
-		x := inset + pos*(innerW-switchK-2*inset)
-		track.Children(func() {
-			ui.Box(c).Absolute().Left(x).Top(inset).Size(switchK, switchK).Radius(theme.ControlRadius).Background(thumb)
-		})
-	})
-	return sw
 }
 
 // sendtoLang maps a locale tag to the language the context menu is written in.
