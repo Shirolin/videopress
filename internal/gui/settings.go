@@ -187,31 +187,16 @@ func (a *App) integrationSettings(c *ui.Context) {
 				account.SettingsRowOptions{Description: a.t("integration." + kind + "_desc")},
 				func() ui.Element {
 					installed, known := a.integration[kind]
-					state := a.t("status.checking")
-					if known {
-						if installed {
-							state = a.t("status.enabled")
-						} else {
-							state = a.t("status.disabled")
-						}
-					}
-					label := a.t("btn.enable")
-					variant := input.Primary
-					if installed {
-						label = a.t("btn.disable")
-						variant = input.Secondary
-					}
-					if a.integrationBusy {
-						state = a.t("status.checking")
-					}
-					return ui.Row(c).Gap(core.Density(c).Unit() * 2).AlignItems(ui.Center).Children(func() {
-						ui.Text(c, state).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(core.Tokens(c).TextMuted)
-						if input.Button(c, label, input.ButtonOptions{
-							Variant: variant, Disabled: a.integrationBusy, Loading: a.integrationBusy,
-						}).Clicked() && !a.integrationBusy {
-							a.toggleIntegration(kind)
-						}
+					on := installed
+					pending := a.integrationBusy || !known
+					sw := input.Switch(c, &on, "", input.SwitchOptions{
+						Disabled: pending, Loading: pending, Description: a.t("integration." + kind),
 					})
+					sw.Label(a.t("integration." + kind))
+					if sw.Changed() && known && !a.integrationBusy {
+						a.toggleIntegration(kind)
+					}
+					return sw
 				})
 		}
 	})
@@ -309,7 +294,7 @@ func (a *App) aboutSettings(c *ui.Context) {
 		account.SettingsRow(c, "FFmpeg", account.SettingsRowOptions{Description: a.ffmpegPath}, func() ui.Element {
 			state := a.t("status.not_installed")
 			if a.ffmpegPath != "" {
-				state = a.t("status.up_to_date")
+				state = a.t("status.installed")
 			}
 			return ui.Row(c).Gap(core.Density(c).Unit() * 2).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, state).TextColor(core.Tokens(c).TextMuted).FontSize(core.FontSize(c, theme.CaptionSize))
@@ -324,7 +309,7 @@ func (a *App) aboutSettings(c *ui.Context) {
 				}
 			})
 		})
-		account.SettingsRow(c, a.t("settings.version"), account.SettingsRowOptions{Description: "MyGO + MujicaUI"}, func() ui.Element {
+		account.SettingsRow(c, a.t("settings.version"), account.SettingsRowOptions{}, func() ui.Element {
 			v := a.Version()
 			if v == "" {
 				v = "dev"

@@ -20,6 +20,10 @@ import (
 	"videopress/internal/gif"
 )
 
+// workspaceMaxWidth keeps the page readable on wide monitors instead of
+// stretching every card to the window edge.
+const workspaceMaxWidth float32 = 1120
+
 // workspaceView is the main page: a scrolling body with the actions pinned below.
 func (a *App) workspaceView(c *ui.Context) {
 	u := core.Density(c).Unit()
@@ -27,19 +31,25 @@ func (a *App) workspaceView(c *ui.Context) {
 		sc := layout.ScrollArea(c, a.pageScroll, layout.ScrollAreaOptions{
 			Direction: layout.ScrollVertical, Label: a.t("nav.workspace"),
 		}, func() {
-			ui.Column(c).Gap(u * 3).Children(func() {
-				a.statsBar(c)
-				a.quickControls(c)
-				a.dropZone(c)
-				a.queueList(c)
-				a.advancedPanel(c)
-				a.gifPanel(c)
+			ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
+				ui.Column(c).Grow(1).MaxWidth(workspaceMaxWidth).Gap(u * 3).Children(func() {
+					a.statsBar(c)
+					a.quickControls(c)
+					a.dropZone(c)
+					a.queueList(c)
+					a.advancedPanel(c)
+					a.gifPanel(c)
+				})
 			})
 		})
-		// Leave the overlay scrollbar its own gutter so it does not draw
-		// across the cards' right edges.
-		sc.Grow(1).Shrink(1).MinHeight(0).Padding(0, u*3, 0, 0)
-		a.actionPanel(c)
+		// The overlay scrollbar takes no layout space; keeping the body's own
+		// padding centred leaves the cards and the action bar aligned.
+		sc.Grow(1).Shrink(1).MinHeight(0)
+		ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
+			ui.Column(c).Grow(1).MaxWidth(workspaceMaxWidth).Children(func() {
+				a.actionPanel(c)
+			})
+		})
 	})
 }
 
@@ -64,15 +74,26 @@ func (a *App) statsBar(c *ui.Context) {
 
 	data.Card(c, data.CardOptions{}, func() {
 		ui.Column(c).Gap(u * 3).Children(func() {
-			ui.Row(c).Gap(u * 6).Children(func() {
-				statCell(c, strconv.FormatInt(total, 10), a.t("stats.total"), k.Text)
-				statCell(c, strconv.FormatInt(running, 10), a.t("stats.processing"), k.AccentText)
-				statCell(c, strconv.FormatInt(succeeded, 10), a.t("stats.completed"), k.Success)
-				if skipped > 0 {
-					statCell(c, strconv.FormatInt(skipped, 10), a.t("stats.skipped"), k.TextMuted)
-				}
-				statCell(c, sizeText(saved), a.t("stats.saved_space"), k.Success)
-				statCell(c, ratioText(saved, original), a.t("stats.savings_rate"), k.TextMuted)
+			ui.Row(c).Gap(u * 4).AlignItems(ui.End).Children(func() {
+				// Counts stay compact and even; the saved space carries the
+				// emphasis because it is the outcome of the batch.
+				ui.Row(c).Gap(u * 4).AlignItems(ui.End).Children(func() {
+					statCell(c, strconv.FormatInt(total, 10), a.t("stats.total"), k.Text, theme.H3Size)
+					runningColor := k.TextMuted
+					if running > 0 {
+						runningColor = k.AccentText
+					}
+					statCell(c, strconv.FormatInt(running, 10), a.t("stats.processing"), runningColor, theme.H3Size)
+					statCell(c, strconv.FormatInt(succeeded, 10), a.t("stats.completed"), k.Success, theme.H3Size)
+					statCell(c, strconv.FormatInt(skipped, 10), a.t("stats.skipped"), k.TextMuted, theme.H3Size)
+				})
+				ui.Spacer(c)
+				ui.Box(c).Width(1).Height(34).Background(k.Border)
+				ui.Spacer(c)
+				ui.Row(c).Gap(u * 4).AlignItems(ui.End).Children(func() {
+					statCellEnd(c, sizeText(saved), a.t("stats.saved_space"), k.Success, theme.H2Size)
+					statCellEnd(c, ratioText(saved, original), a.t("stats.savings_rate"), k.TextMuted, theme.H3Size)
+				})
 			})
 			// One bar for the batch, since each row already shows its own.
 			if a.isCompressing {
@@ -85,9 +106,18 @@ func (a *App) statsBar(c *ui.Context) {
 }
 
 // statCell is one number with its caption.
-func statCell(c *ui.Context, value, label string, color ui.Color) {
-	ui.Column(c).Gap(2).MinWidth(90).Children(func() {
-		ui.Text(c, value).FontSize(core.FontSize(c, theme.H3Size)).FontWeight(600).TextColor(color)
+func statCell(c *ui.Context, value, label string, color ui.Color, size float32) {
+	ui.Column(c).Gap(2).MinWidth(84).Children(func() {
+		ui.Text(c, value).Font(theme.SerifFont).FontSize(core.FontSize(c, size)).FontWeight(600).TextColor(color)
+		ui.Text(c, label).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(core.Tokens(c).TextMuted)
+	})
+}
+
+// statCellEnd is a statCell whose text hugs the right edge, for the group at
+// the end of the bar.
+func statCellEnd(c *ui.Context, value, label string, color ui.Color, size float32) {
+	ui.Column(c).Gap(2).AlignItems(ui.End).Children(func() {
+		ui.Text(c, value).Font(theme.SerifFont).FontSize(core.FontSize(c, size)).FontWeight(600).TextColor(color)
 		ui.Text(c, label).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(core.Tokens(c).TextMuted)
 	})
 }
@@ -100,7 +130,11 @@ func (a *App) quickControls(c *ui.Context) {
 	data.Card(c, data.CardOptions{}, func() {
 		ui.Row(c).Gap(u * 5).AlignItems(ui.End).Children(func() {
 			ui.Column(c).Gap(u).Children(func() {
-				a.sectionLabel(c, "controls.preset")
+				presetLabelKey := "controls.preset"
+				if a.prefs.CRFEnabled {
+					presetLabelKey = "controls.preset_resolution_only"
+				}
+				a.sectionLabel(c, presetLabelKey)
 				values, labels := a.presetOptions()
 				selected := 1
 				for i, v := range values {
@@ -121,12 +155,7 @@ func (a *App) quickControls(c *ui.Context) {
 			})
 
 			ui.Column(c).Grow(1).MinWidth(0).Gap(u).Children(func() {
-				ui.Row(c).Gap(u).AlignItems(ui.Center).Children(func() {
-					a.sectionLabel(c, "controls.output")
-					if a.prefs.CRFEnabled {
-						display.Tag(c, a.t("advanced.crf.preset_override"), display.TagOptions{})
-					}
-				})
+				a.sectionLabel(c, "controls.output")
 				ui.Row(c).Gap(u * 2).AlignItems(ui.Center).Children(func() {
 					path := a.prefs.OutputDir
 					text := path
@@ -135,9 +164,18 @@ func (a *App) quickControls(c *ui.Context) {
 						text = a.t("controls.default_output_path")
 						color = k.TextMuted
 					}
-					ui.Row(c).Grow(1).MinWidth(0).Gap(u).AlignItems(ui.Center).Padding(0, u*2).
+					pathBox := ui.Row(c).Grow(1).MinWidth(0).Gap(u).AlignItems(ui.Center).Padding(0, u*2).
 						Height(core.Density(c).ControlHeight()).Radius(theme.ControlRadius).
-						Border(theme.BorderWidth, k.ControlBorder).Background(k.Background).Children(func() {
+						Border(theme.BorderWidth, k.ControlBorder).Background(k.Background)
+					if !a.isCompressing {
+						// The whole field opens the folder picker, not just the
+						// button beside it.
+						pathBox.Cursor(ui.CursorPointer).OnClick(a.pickOutputDir)
+						if pathBox.Hovered() {
+							pathBox.Background(k.SurfaceHover)
+						}
+					}
+					pathBox.Children(func() {
 						ui.Icon(c, ic("folder")).Size(16, 16)
 						ui.Text(c, text).TextColor(color).SingleLine().Grow(1).Shrink(1).MinWidth(0)
 					})
@@ -159,9 +197,13 @@ func (a *App) quickControls(c *ui.Context) {
 // advancedPanel folds the codec, frame rate, audio, CRF and crop settings.
 func (a *App) advancedPanel(c *ui.Context) {
 	open := a.showAdvanced
-	opts := data.CollapsibleOptions{Title: a.t("advanced.title")}
-	res := data.Collapsible(c, &open, opts, func() {
-		a.advancedFields(c)
+	var res core.ChoiceResult
+	// Same surface as the export card, so the page has two peers rather than a
+	// card next to a bare block.
+	data.Card(c, data.CardOptions{}, func() {
+		res = data.Collapsible(c, &open, data.CollapsibleOptions{Title: a.t("advanced.title")}, func() {
+			a.advancedFields(c)
+		})
 	})
 	if res.Changed() {
 		a.showAdvanced = open
@@ -305,7 +347,7 @@ func (a *App) crfField(c *ui.Context) {
 		raw := float64(a.prefs.CRFValue)
 		res := input.Slider(c, &raw, input.SliderOptions{
 			Min: float64(lo), Max: float64(hi), Step: 1, ShowValue: true,
-			Marks:    []input.SliderMark{{Value: float64(d), Label: a.t("btn.reset")}},
+			Marks:    []input.SliderMark{{Value: float64(d), Label: a.t("advanced.crf.recommended")}},
 			Disabled: a.isCompressing, Label: a.t("advanced.crf.title"),
 		})
 		if res.Changed() {
@@ -380,44 +422,69 @@ func (a *App) intField(c *ui.Context, labelKey string, target *int, lo, hi int, 
 	})
 }
 
-// dropZone takes dropped files; compact when the queue has rows.
+// dropZone takes dropped files; a slim bar once the queue has rows, a
+// centred invitation when it is empty.
 func (a *App) dropZone(c *ui.Context) {
 	u := core.Density(c).Unit()
 	k := core.Tokens(c)
 	compact := len(a.queue) > 0
 
-	e := ui.Box(c).FillWidth().Column().Gap(u*1.5).Center().Padding(u*3).
-		Radius(theme.CardRadius).Border(theme.BorderWidth, k.ControlBorder).Background(k.Surface)
+	var e ui.Element
 	if compact {
-		e.PaddingY(u * 2.5)
+		e = ui.Row(c).FillWidth().Gap(u*3).Padding(u*2.5, u*4).AlignItems(ui.Center)
+	} else {
+		// The empty page gets a canvas-sized target rather than a strip, so the
+		// first action reads as the page's purpose.
+		e = ui.Column(c).FillWidth().Gap(u*2).Padding(u*7, u*4).Center().MinHeight(250)
 	}
+	e = e.Radius(theme.CardRadius).Border(theme.BorderWidth, k.ControlBorder).
+		Background(k.Surface).Cursor(ui.CursorPointer)
 	// Drops anywhere else in the page land on the body, which reports its own
 	// hover; show the same target hint here so the whole window reads as one.
 	dragging := e.FileDragOver() || a.dropHover
 	if dragging {
 		e.Background(k.Selection).Border(theme.BorderWidth*2, k.AccentText)
+	} else if e.Hovered() {
+		e.Background(k.SurfaceHover)
 	}
 	var label, sub string
 	if dragging {
 		label, sub = a.t("dropzone.drag_hint"), a.t("dropzone.formats")
-	} else if compact || len(a.queue) > 0 {
+	} else if compact {
 		label, sub = a.t("dropzone.add_more"), a.t("dropzone.formats")
 	} else {
-		label, sub = a.t("dropzone.title"), a.t("dropzone.desc")
+		label, sub = a.t("dropzone.title"), a.t("dropzone.formats")
 	}
 	if a.isCompressing {
 		sub = a.t("dropzone.compressing")
 	}
 
+	e.OnClick(a.pickFiles)
 	e.Children(func() {
-		if !compact {
-			ui.Icon(c, ic("file")).Size(28, 28).TextColor(k.TextMuted)
+		if compact {
+			if !dragging {
+				ui.Icon(c, ic("file")).Size(18, 18).TextColor(k.TextMuted)
+			}
+			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+				ui.Text(c, label).FontSize(core.FontSize(c, theme.BodySize+1)).FontWeight(600)
+				ui.Text(c, sub).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted).SingleLine()
+			})
+		} else {
+			ui.Icon(c, ic("file")).Size(36, 36).TextColor(k.TextMuted)
+			ui.Text(c, label).FontSize(core.FontSize(c, theme.BodySize+1)).FontWeight(600)
+			ui.Text(c, sub).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 		}
-		ui.Text(c, label).FontSize(core.FontSize(c, theme.BodySize+1)).FontWeight(600)
-		ui.Text(c, sub).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
-		if input.Button(c, a.t("dropzone.browse"), input.ButtonOptions{
-			Variant: input.Outline, Icon: ic("folder"),
-		}).Clicked() {
+		browseVariant := input.Outline
+		if !compact && !dragging {
+			browseVariant = input.Primary
+		}
+		browse := input.Button(c, a.t("dropzone.browse"), input.ButtonOptions{
+			Variant: browseVariant, Icon: ic("folder"),
+		})
+		if !compact {
+			browse.Margin(u*2, 0, 0, 0)
+		}
+		if browse.Clicked() {
 			a.pickFiles()
 		}
 	})
@@ -467,17 +534,24 @@ func (a *App) queueList(c *ui.Context) {
 			}
 		})
 
-		ui.Column(c).Gap(u * 2).Children(func() {
-			visible := 0
+		visible := 0
+		for i := range a.queue {
+			if !a.queueVisible(&a.queue[i]) {
+				continue
+			}
+			visible++
+		}
+		if visible == 0 {
+			ui.Text(c, a.t("queue.filter_empty")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
+			return
+		}
+		ui.Column(c).Radius(theme.CardRadius).Background(k.Surface).
+			Border(theme.BorderWidth, k.Border).Dividers(theme.BorderWidth, k.Border).Children(func() {
 			for i := range a.queue {
 				if !a.queueVisible(&a.queue[i]) {
 					continue
 				}
-				visible++
 				a.queueRow(c, i)
-			}
-			if visible == 0 {
-				ui.Text(c, a.t("queue.filter_empty")).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 			}
 		})
 	})
@@ -493,8 +567,10 @@ func (a *App) queueRow(c *ui.Context, index int) {
 	k := core.Tokens(c)
 	item := &a.queue[index]
 
-	row := ui.Column(c).Gap(u).Padding(u*2, u*3).Radius(theme.CardRadius).
-		Border(theme.BorderWidth, k.Border).Background(k.Surface).Key(strconv.Itoa(index))
+	row := ui.Column(c).Gap(u).Padding(u*2.5, u*4).Key(strconv.Itoa(index))
+	if row.Hovered() {
+		row.Background(k.SurfaceHover)
+	}
 
 	status, tone, glyph := queueStatus(c, item, a)
 	row.Children(func() {
@@ -506,6 +582,13 @@ func (a *App) queueRow(c *ui.Context, index int) {
 					TextColor(k.TextMuted).SingleLine()
 			})
 			ui.Text(c, status).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(tone)
+			// Opening the result comes before the destructive action, so the
+			// remove button sits at the row's outer edge.
+			if item.Status == "success" || item.Status == "skipped" {
+				if input.IconButton(c, ic("folder"), a.t("queue.open_folder"), input.IconButtonOptions{Variant: input.Ghost}).Clicked() {
+					a.openFolder(outputDirFor(item.Path, a.prefs.OutputDir))
+				}
+			}
 			switch {
 			case a.isCompressing && (item.Status == "compressing" || item.Status == "waiting"):
 				// One row can be stopped without ending the whole batch.
@@ -515,11 +598,6 @@ func (a *App) queueRow(c *ui.Context, index int) {
 			case item.Status != "compressing" && !a.isCompressing:
 				if input.IconButton(c, ic("x"), a.t("queue.remove"), input.IconButtonOptions{Variant: input.Ghost}).Clicked() {
 					a.removeQueue(index)
-				}
-			}
-			if item.Status == "success" || item.Status == "skipped" {
-				if input.IconButton(c, ic("folder"), a.t("queue.open_folder"), input.IconButtonOptions{Variant: input.Ghost}).Clicked() {
-					a.openFolder(outputDirFor(item.Path, a.prefs.OutputDir))
 				}
 			}
 		})
@@ -657,13 +735,13 @@ func (a *App) gifPanel(c *ui.Context) {
 		ui.Column(c).Gap(u * 2).Children(func() {
 			// 有文件时把用途说明换成实际的导出范围。
 			subtitle := a.t("gif.subtitle")
-			if len(a.queue) > 0 {
-				if formats := a.gifFormatCount(); formats > 0 {
-					subtitle = a.tf("gif.pending", map[string]string{
-						"n": strconv.Itoa(len(a.queue)),
-						"m": strconv.Itoa(formats),
-					})
-				}
+			if len(a.queue) == 0 {
+				subtitle = a.t("gif.empty_hint")
+			} else if formats := a.gifFormatCount(); formats > 0 {
+				subtitle = a.tf("gif.pending", map[string]string{
+					"n": strconv.Itoa(len(a.queue)),
+					"m": strconv.Itoa(formats),
+				})
 			}
 			ui.Text(c, subtitle).FontSize(core.FontSize(c, theme.CaptionSize)).TextColor(k.TextMuted)
 
@@ -801,6 +879,8 @@ func (a *App) gifSummary(c *ui.Context) {
 						ui.Text(c, a.t("gif.failed")).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(k.Danger)
 					case r.OverBudget:
 						ui.Text(c, a.t("gif.over_budget")).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(k.Warning)
+					case r.Status == "skipped":
+						ui.Text(c, a.t("gif.skipped")).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(k.TextMuted)
 					}
 					if r.Size > 0 {
 						ui.Text(c, sizeText(r.Size)).FontSize(core.FontSize(c, theme.CaptionSize)).FontWeight(600).TextColor(tone)

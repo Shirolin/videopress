@@ -60,10 +60,12 @@ func (a *App) View(c *ui.Context) {
 		body := ui.Box(c).FillWidth().Grow(1).MinHeight(0).Padding(16, 20)
 		body.Children(func() {
 			switch {
-			case a.ffmpegError != "":
-				a.setupView(c)
+			// Settings stay reachable while the engine is missing, so the
+			// setup screen's own pointer to the integration page works.
 			case a.page == 1:
 				a.settingsView(c)
+			case a.ffmpegError != "":
+				a.setupView(c)
 			default:
 				a.workspaceView(c)
 			}
