@@ -118,6 +118,10 @@
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span data-i18n="hero.cta_download">前往 Releases 下载</span>
             </a>
+            <a class="btn btn-secondary btn-lg" href="#interface" id="hero-demo-btn">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+              <span data-i18n="hero.cta_demo">观看演示 (0:26)</span>
+            </a>
             <a class="btn btn-secondary btn-lg" href="#cli">
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
               <span data-i18n="hero.cta_cli">命令行生成器</span>
@@ -308,19 +312,26 @@
             <p class="section-subtitle" data-i18n="showcase.subtitle">基于 MyGO 与 MujicaUI 纯 Go 自绘，无 WebView 开销；遵循同一套酒红与象牙配色，默认跟随系统明暗。</p>
           </div>
           <div class="segmented" role="tablist" aria-label="界面场景切换" data-i18n-aria="a11y.showcase_tabs" id="showcase-tabs">
-            <button type="button" class="seg-btn" role="tab" id="tab-workspace" aria-selected="true" aria-controls="showcase-panel" data-scene="workspace" data-i18n="showcase.tab.workspace">主工作区</button>
+            <button type="button" class="seg-btn" role="tab" id="tab-demo" aria-selected="true" aria-controls="showcase-panel" data-scene="demo" data-i18n="showcase.tab.demo">宣传片演示</button>
+            <button type="button" class="seg-btn" role="tab" id="tab-workspace" aria-selected="false" aria-controls="showcase-panel" data-scene="workspace" data-i18n="showcase.tab.workspace">主工作区</button>
             <button type="button" class="seg-btn" role="tab" id="tab-batch" aria-selected="false" aria-controls="showcase-panel" data-scene="batch" data-i18n="showcase.tab.batch">批量进度</button>
             <button type="button" class="seg-btn" role="tab" id="tab-gif" aria-selected="false" aria-controls="showcase-panel" data-scene="gif" data-i18n="showcase.tab.gif">动图自定义</button>
             <button type="button" class="seg-btn" role="tab" id="tab-theme" aria-selected="false" aria-controls="showcase-panel" data-scene="theme" data-i18n="showcase.tab.theme">外观主题</button>
           </div>
         </div>
 
-        <div class="card showcase-card" id="showcase-panel" role="tabpanel" aria-labelledby="tab-workspace">
+        <div class="card showcase-card" id="showcase-panel" role="tabpanel" aria-labelledby="tab-demo">
           <div class="showcase-sidebar">
             <div class="sidebar-group-label" data-i18n="showcase.sidebar_label">界面视角</div>
             <ul class="sidebar-nav" aria-label="界面视角列表" data-i18n-aria="a11y.showcase_tabs">
               <li>
-                <button type="button" class="sidebar-item is-active" data-scene="workspace">
+                <button type="button" class="sidebar-item is-active" data-scene="demo">
+                  <span class="sidebar-item-title" data-i18n="showcase.tab.demo">宣传片演示</span>
+                  <span class="sidebar-item-desc" data-i18n="showcase.cap.demo">26 秒完整功能演示（含配乐与音效）：涵盖批量队列、GPU 硬编探测、动图导出、几何裁剪与 CLI 终端工作流。</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" class="sidebar-item" data-scene="workspace">
                   <span class="sidebar-item-title" data-i18n="showcase.tab.workspace">主工作区</span>
                   <span class="sidebar-item-desc" data-i18n="showcase.cap.workspace">拖放添加任务，顶部汇总任务数、已节省空间与整体压缩率；队列支持按全部、失败、已完成筛选。</span>
                 </button>
@@ -347,6 +358,18 @@
           </div>
 
           <div class="showcase-stage">
+            <video
+              id="showcase-video"
+              controls
+              playsinline
+              preload="metadata"
+              poster="assets/workspace-dark.png"
+              width="1280"
+              height="720"
+            >
+              <source src="https://media.shirolin.site/projects/videopress/demo.mp4" type="video/mp4">
+              <span data-i18n="showcase.video_unsupported">当前浏览器不支持内嵌 MP4 播放，可直接访问视频链接观看。</span>
+            </video>
             <img
               id="showcase-img"
               src="assets/workspace-dark.png"
@@ -354,6 +377,7 @@
               height="820"
               alt="Videopress 主工作区截图"
               decoding="async"
+              hidden
             >
           </div>
         </div>

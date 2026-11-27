@@ -37,6 +37,7 @@
       'hero.title': '面向 Windows 的本地视频压缩工具',
       'hero.subtitle': '基于 FFmpeg，单文件集成原生桌面界面与命令行。提供三档实测预设、并发队列、GPU 硬件编码、几何裁剪以及 GIF / APNG / WebP 动图导出。',
       'hero.cta_download': '前往 Releases 下载',
+      'hero.cta_demo': '观看演示 (0:26)',
       'hero.cta_cli': '命令行生成器',
       'hero.spec.os': 'Windows 10 / 11 (x64)',
       'hero.spec.dual': 'GUI + CLI 单文件',
@@ -82,14 +83,17 @@
       'showcase.title': '真实工作区与动图导出',
       'showcase.subtitle': '基于 MyGO 与 MujicaUI 纯 Go 自绘，无 WebView 开销；遵循同一套酒红与象牙配色，默认跟随系统明暗。',
       'showcase.sidebar_label': '界面视角',
+      'showcase.tab.demo': '宣传片演示',
       'showcase.tab.workspace': '主工作区',
       'showcase.tab.batch': '批量进度',
       'showcase.tab.gif': '动图自定义',
       'showcase.tab.theme': '外观主题',
+      'showcase.cap.demo': '26 秒完整功能演示（含配乐与音效）：涵盖批量队列、GPU 硬编探测、动图导出、几何裁剪与 CLI 终端工作流。',
       'showcase.cap.workspace': '拖放添加任务，顶部汇总任务数、已节省空间与整体压缩率；队列支持按全部、失败、已完成筛选。',
       'showcase.cap.batch': '多任务并发执行时显示整体进度条、单文件编码倍速（如 2.4x）与预计剩余时间，支持逐个取消单个文件而不中断其余队列。',
       'showcase.cap.gif': '内置流畅、均衡、高清三档与自定义参数，可同时勾选导出 GIF、APNG、WebP，并自动读取源视频时长提示截断与超体积。',
       'showcase.cap.theme': '配置面板按功能分区，外观支持跟随系统或固定浅色 / 深色，界面语言切换后同步更新中英文与系统右键菜单名称。',
+      'showcase.video_unsupported': '当前浏览器不支持内嵌 MP4 播放，可直接访问视频链接观看。',
       'showcase.alt.workspace': 'Videopress 主工作区截图',
       'showcase.alt.batch': 'Videopress 批量压缩进度截图',
       'showcase.alt.gif': 'Videopress 动图自定义导出界面截图',
@@ -215,6 +219,7 @@
       'hero.title': 'Local video compression for Windows',
       'hero.subtitle': 'Built on FFmpeg with both a native desktop GUI and CLI in one binary. Includes three calibrated presets, concurrent batch queues, GPU hardware encoding, geometry cropping, and GIF / APNG / WebP export.',
       'hero.cta_download': 'Download from Releases',
+      'hero.cta_demo': 'Watch Demo (0:26)',
       'hero.cta_cli': 'CLI Builder',
       'hero.spec.os': 'Windows 10 / 11 (x64)',
       'hero.spec.dual': 'Single-binary GUI + CLI',
@@ -260,14 +265,17 @@
       'showcase.title': 'Workspace & Animated Export',
       'showcase.subtitle': 'Drawn natively in Go with MyGO and MujicaUI—no WebView overhead. Uses one burgundy-and-ivory theme that follows system appearance by default.',
       'showcase.sidebar_label': 'Views',
+      'showcase.tab.demo': 'Video Demo',
       'showcase.tab.workspace': 'Workspace',
       'showcase.tab.batch': 'Batch Progress',
       'showcase.tab.gif': 'Animated Export',
       'showcase.tab.theme': 'Appearance',
+      'showcase.cap.demo': '26-second full walkthrough with soundtrack: batch queue, GPU encoder probing, animated export, geometry crop, and CLI workflow.',
       'showcase.cap.workspace': 'Drop files to queue them. The top summary tracks task counts, space saved, and overall ratio, with All / Failed / Done queue filters.',
       'showcase.cap.batch': 'Concurrent batches display overall progress, per-file speed (e.g. 2.4x), and ETA, with per-file cancellation that leaves the rest of the queue running.',
       'showcase.cap.gif': 'Includes Smooth, Balanced, HD, and Custom tiers to export GIF, APNG, and WebP together, checking source duration for truncation and size budgets.',
       'showcase.cap.theme': 'Settings are organized by section. Pin Light or Dark or follow the system, and switch Chinese/English with live updates to the context menu label.',
+      'showcase.video_unsupported': 'Your browser cannot play inline MP4 video; open the direct link instead.',
       'showcase.alt.workspace': 'Videopress Workspace screenshot',
       'showcase.alt.batch': 'Videopress batch compression progress screenshot',
       'showcase.alt.gif': 'Videopress custom animated export panel screenshot',
@@ -366,17 +374,18 @@
   };
 
   var SCENES = {
-    workspace: { src: 'assets/workspace-dark.png', width: 900, height: 820, altKey: 'showcase.alt.workspace' },
-    batch:     { src: 'assets/batch-progress.png', width: 900, height: 820, altKey: 'showcase.alt.batch' },
-    gif:       { src: 'assets/gif-custom.png',     width: 900, height: 1250, altKey: 'showcase.alt.gif' },
-    theme:     { src: 'assets/appearance-light.png', width: 900, height: 820, altKey: 'showcase.alt.theme' }
+    demo:      { kind: 'video', src: 'https://media.shirolin.site/projects/videopress/demo.mp4', poster: 'assets/workspace-dark.png' },
+    workspace: { kind: 'image', src: 'assets/workspace-dark.png',   width: 900, height: 820,  altKey: 'showcase.alt.workspace' },
+    batch:     { kind: 'image', src: 'assets/batch-progress.png',   width: 900, height: 820,  altKey: 'showcase.alt.batch' },
+    gif:       { kind: 'image', src: 'assets/gif-custom.png',       width: 900, height: 1250, altKey: 'showcase.alt.gif' },
+    theme:     { kind: 'image', src: 'assets/appearance-light.png', width: 900, height: 820,  altKey: 'showcase.alt.theme' }
   };
 
   var state = {
     themeMode: document.documentElement.dataset.themePref || 'system',
     resolvedTheme: document.documentElement.dataset.theme || 'light',
     lang: document.documentElement.dataset.lang || 'zh',
-    scene: 'workspace',
+    scene: 'demo',
     cli: {
       preset: 'standard',
       codec: 'h264',
@@ -522,16 +531,34 @@
      ========================================================================== */
   function syncShowcaseImage() {
     var img = document.getElementById('showcase-img');
+    var video = document.getElementById('showcase-video');
     var panel = document.getElementById('showcase-panel');
-    var spec = SCENES[state.scene] || SCENES.workspace;
-    if (img) {
-      if (img.getAttribute('src') !== spec.src) {
-        img.setAttribute('src', spec.src);
+    var spec = SCENES[state.scene] || SCENES.demo;
+    var isVideo = spec.kind === 'video';
+
+    if (video) {
+      if (isVideo) {
+        video.hidden = false;
+      } else {
+        if (!video.paused) video.pause();
+        video.hidden = true;
       }
-      img.setAttribute('width', String(spec.width));
-      img.setAttribute('height', String(spec.height));
-      img.setAttribute('alt', t(spec.altKey));
     }
+
+    if (img) {
+      if (isVideo) {
+        img.hidden = true;
+      } else {
+        img.hidden = false;
+        if (img.getAttribute('src') !== spec.src) {
+          img.setAttribute('src', spec.src);
+        }
+        img.setAttribute('width', String(spec.width));
+        img.setAttribute('height', String(spec.height));
+        img.setAttribute('alt', t(spec.altKey));
+      }
+    }
+
     if (panel) {
       panel.setAttribute('aria-labelledby', 'tab-' + state.scene);
     }
@@ -910,6 +937,18 @@
         };
         syncCliControls();
         showToast(t('cli.toast.reset'));
+      });
+    }
+
+    var heroDemoBtn = document.getElementById('hero-demo-btn');
+    if (heroDemoBtn) {
+      heroDemoBtn.addEventListener('click', function () {
+        selectScene('demo');
+        var video = document.getElementById('showcase-video');
+        if (video && video.play) {
+          var p = video.play();
+          if (p && typeof p.catch === 'function') p.catch(function () {});
+        }
       });
     }
 

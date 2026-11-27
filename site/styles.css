@@ -896,6 +896,21 @@ a:hover {
   border: var(--border-w) solid var(--border);
 }
 
+.showcase-stage video {
+  width: 100%;
+  max-width: 100%;
+  max-height: 560px;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  border-radius: var(--radius-control);
+  border: var(--border-w) solid var(--border);
+  background-color: var(--surface);
+}
+
+.showcase-stage [hidden] {
+  display: none;
+}
+
 .gif-card {
   margin-top: 20px;
 }
