@@ -9,6 +9,10 @@
   <a href="https://github.com/Shirolin/videopress/releases/latest"><img src="https://img.shields.io/github/v/release/Shirolin/videopress?display_name=tag&style=flat-square" alt="Latest release"></a>
 </p>
 
+<p align="center">
+  <a href="https://shirolin.github.io/videopress/"><strong>产品介绍页</strong>（参数对照、界面预览与命令行生成器）</a>
+</p>
+
 **Videopress** 是一个专为 Windows 系统设计的、基于 FFmpeg 的高颜值视频压缩工具。
 它完美融合了**桌面图形界面 (GUI)** 与**控制台命令行 (CLI)** 双入口，不仅能满足日常拖拽和右键菜单快速压缩，还能完美适配终端效率工具流。
 它免去了记忆 FFmpeg 复杂参数的烦恼，只提供精心调校的常用预设规格，同时支持并发队列、硬件加速自动探测以及系统右键集成。
