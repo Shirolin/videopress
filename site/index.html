@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F2EBDD" id="meta-theme-color">
+  <meta name="description" content="面向 Windows 的本地 FFmpeg 视频压缩工具，支持桌面界面、命令行、并发队列、GPU 硬件加速与 GIF/APNG/WebP 动图导出。" id="meta-desc">
+  <title>Videopress — Windows 视频压缩与动图导出工具</title>
+  <link rel="icon" type="image/png" href="assets/icon.png">
+  <script>
+    (function () {
+      try {
+        var mode = localStorage.getItem('videopress-theme') || 'system';
+        if (mode !== 'light' && mode !== 'dark' && mode !== 'system') mode = 'system';
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var resolved = mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode;
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.dataset.themePref = mode;
+        var lang = localStorage.getItem('videopress-lang') || 'zh';
+        if (lang !== 'zh' && lang !== 'en') lang = 'zh';
+        document.documentElement.dataset.lang = lang;
+        document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+        var tc = document.getElementById('meta-theme-color');
+        if (tc) tc.setAttribute('content', resolved === 'dark' ? '#191618' : '#F2EBDD');
+      } catch (_) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body id="top">
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">跳到主要内容</a>
+
+  <!-- MujicaUI TitleBar-style sticky header -->
+  <header class="titlebar" role="banner">
+    <div class="wrap titlebar-inner">
+      <a class="brand" href="#top" aria-label="Videopress">
+        <img class="brand-icon" src="assets/icon.png" alt="" width="24" height="24">
+        <span class="brand-name">Videopress</span>
+      </a>
+
+      <nav class="primary-nav" aria-label="Primary" data-i18n-aria="a11y.nav">
+        <a class="nav-link" href="#specs" data-i18n="nav.features">参数与能力</a>
+        <a class="nav-link" href="#interface" data-i18n="nav.interface">界面预览</a>
+        <a class="nav-link" href="#cli" data-i18n="nav.cli">命令行</a>
+        <a class="nav-link" href="#integration" data-i18n="nav.integration">系统集成</a>
+        <a class="nav-link" href="#download" data-i18n="nav.download">下载</a>
+      </nav>
+
+      <div class="titlebar-controls">
+        <div class="segmented segmented-compact" role="group" aria-label="主题切换" data-i18n-aria="a11y.theme_group" data-theme-control>
+          <button type="button" class="seg-btn" data-theme-mode="system" aria-pressed="true" title="跟随系统">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span class="seg-label" data-i18n="theme.system">跟随系统</span>
+          </button>
+          <button type="button" class="seg-btn" data-theme-mode="light" aria-pressed="false" title="浅色">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.34" y2="17.66"/><line x1="17.66" y1="6.34" x2="19.07" y2="4.93"/></svg>
+            <span class="seg-label" data-i18n="theme.light">浅色</span>
+          </button>
+          <button type="button" class="seg-btn" data-theme-mode="dark" aria-pressed="false" title="深色">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <span class="seg-label" data-i18n="theme.dark">深色</span>
+          </button>
+        </div>
+
+        <div class="segmented segmented-compact" role="group" aria-label="语言切换" data-i18n-aria="a11y.lang_group" data-lang-control>
+          <button type="button" class="seg-btn" data-lang-set="zh" aria-pressed="true" data-i18n="lang.zh">中文</button>
+          <button type="button" class="seg-btn" data-lang-set="en" aria-pressed="false" data-i18n="lang.en">EN</button>
+        </div>
+
+        <button type="button" class="btn btn-secondary menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="mobile-drawer" aria-label="打开菜单" data-i18n-aria="a11y.menu_open">
+          <svg class="icon icon-menu" viewBox="0 0 24 24" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          <svg class="icon icon-close" viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="mobile-drawer" id="mobile-drawer" hidden>
+      <div class="wrap mobile-drawer-inner">
+        <nav class="mobile-nav" aria-label="Mobile" data-i18n-aria="a11y.nav">
+          <a class="mobile-nav-link" href="#specs" data-i18n="nav.features">参数与能力</a>
+          <a class="mobile-nav-link" href="#interface" data-i18n="nav.interface">界面预览</a>
+          <a class="mobile-nav-link" href="#cli" data-i18n="nav.cli">命令行</a>
+          <a class="mobile-nav-link" href="#integration" data-i18n="nav.integration">系统集成</a>
+          <a class="mobile-nav-link" href="#download" data-i18n="nav.download">下载</a>
+        </nav>
+        <div class="mobile-controls">
+          <div class="mobile-control-row">
+            <span class="caption-label" data-i18n="a11y.theme_group">主题切换</span>
+            <div class="segmented" role="group" aria-label="主题切换" data-i18n-aria="a11y.theme_group" data-theme-control>
+              <button type="button" class="seg-btn" data-theme-mode="system" aria-pressed="true" data-i18n="theme.system">跟随系统</button>
+              <button type="button" class="seg-btn" data-theme-mode="light" aria-pressed="false" data-i18n="theme.light">浅色</button>
+              <button type="button" class="seg-btn" data-theme-mode="dark" aria-pressed="false" data-i18n="theme.dark">深色</button>
+            </div>
+          </div>
+          <div class="mobile-control-row">
+            <span class="caption-label" data-i18n="a11y.lang_group">语言切换</span>
+            <div class="segmented" role="group" aria-label="语言切换" data-i18n-aria="a11y.lang_group" data-lang-control>
+              <button type="button" class="seg-btn" data-lang-set="zh" aria-pressed="true" data-i18n="lang.zh">中文</button>
+              <button type="button" class="seg-btn" data-lang-set="en" aria-pressed="false" data-i18n="lang.en">EN</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- 1. Hero -->
+    <section class="section hero" aria-labelledby="hero-heading">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <h1 id="hero-heading" class="hero-title" data-i18n="hero.title">面向 Windows 的本地视频压缩工具</h1>
+          <p class="hero-subtitle" data-i18n="hero.subtitle">基于 FFmpeg，单文件集成原生桌面界面与命令行。提供三档实测预设、并发队列、GPU 硬件编码、几何裁剪以及 GIF / APNG / WebP 动图导出。</p>
+
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="https://github.com/Shirolin/videopress/releases/latest" target="_blank" rel="noopener noreferrer">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span data-i18n="hero.cta_download">前往 Releases 下载</span>
+            </a>
+            <a class="btn btn-secondary btn-lg" href="#cli">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              <span data-i18n="hero.cta_cli">命令行生成器</span>
+            </a>
+          </div>
+
+          <ul class="fact-strip" aria-label="基本规格" data-i18n-aria="a11y.facts">
+            <li class="fact-item">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <span data-i18n="hero.spec.os">Windows 10 / 11 (x64)</span>
+            </li>
+            <li class="fact-item">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              <span data-i18n="hero.spec.dual">GUI + CLI 单文件</span>
+            </li>
+            <li class="fact-item">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+              <span data-i18n="hero.spec.engine">调用本机 FFmpeg</span>
+            </li>
+            <li class="fact-item">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <span data-i18n="hero.spec.license">MIT 开源许可</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="hero-visual">
+          <div class="window-frame">
+            <img
+              id="hero-screenshot"
+              src="assets/appearance-light.png"
+              width="900"
+              height="820"
+              alt="Videopress 配置面板与外观设置（浅色主题）"
+              decoding="async"
+              fetchpriority="high"
+            >
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Presets & Encoding Specs -->
+    <section class="section" id="specs" aria-labelledby="specs-heading">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="specs-heading" class="section-title" data-i18n="specs.title">预设参数与编码能力</h2>
+          <p class="section-subtitle" data-i18n="specs.subtitle">所有预设对应确定的缩放、CRF 与音频码率参数，无需记忆 FFmpeg 命令，也支持在高级面板中逐项覆盖。</p>
+        </div>
+
+        <div class="card card-table">
+          <div class="card-header">
+            <h3 class="card-title" data-i18n="specs.presets_heading">内置三档压缩预设</h3>
+          </div>
+          <div class="table-scroll">
+            <table class="spec-table">
+              <thead>
+                <tr>
+                  <th scope="col" data-i18n="specs.col.preset">预设</th>
+                  <th scope="col" data-i18n="specs.col.scale">缩放比例</th>
+                  <th scope="col" data-i18n="specs.col.max_dim">分辨率上限</th>
+                  <th scope="col" data-i18n="specs.col.crf">默认 CRF</th>
+                  <th scope="col" data-i18n="specs.col.encoder_preset">编码速度档</th>
+                  <th scope="col" data-i18n="specs.col.audio">音频码率 (AAC)</th>
+                  <th scope="col" data-i18n="specs.col.usecase">适用场景</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="cell-strong" data-i18n="specs.preset.small_name">小文件 (small)</td>
+                  <td class="num">33%</td>
+                  <td class="num">480px</td>
+                  <td class="num">30</td>
+                  <td class="mono">veryfast / SVT-AV1 8</td>
+                  <td class="num mono">64k</td>
+                  <td class="cell-muted" data-i18n="specs.preset.small_use">聊天发送、低流量预览</td>
+                </tr>
+                <tr class="row-highlight">
+                  <td class="cell-strong" data-i18n="specs.preset.standard_name">标准 (standard · 默认)</td>
+                  <td class="num">50%</td>
+                  <td class="num">720px</td>
+                  <td class="num">27</td>
+                  <td class="mono">faster / SVT-AV1 6</td>
+                  <td class="num mono">96k</td>
+                  <td class="cell-muted" data-i18n="specs.preset.standard_use">网页嵌入、文档附带与日常归档</td>
+                </tr>
+                <tr>
+                  <td class="cell-strong" data-i18n="specs.preset.quality_name">高画质 (quality)</td>
+                  <td class="num">100%</td>
+                  <td data-i18n="specs.no_cap">保持原分辨率</td>
+                  <td class="num">24</td>
+                  <td class="mono">medium / SVT-AV1 4</td>
+                  <td class="num mono">128k</td>
+                  <td class="cell-muted" data-i18n="specs.preset.quality_use">保留原始分辨率的长期存档</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-footer">
+            <p class="card-note" data-i18n="specs.mp4_note">默认输出 MP4（附加 -movflags +faststart），保存于源视频同目录的 compressed/ 文件夹。</p>
+          </div>
+        </div>
+
+        <div class="specs-subgrid">
+          <div class="card card-table">
+            <div class="card-header">
+              <h3 class="card-title" data-i18n="specs.gpu_heading">GPU 硬件加速与编码器</h3>
+              <p class="card-desc" data-i18n="specs.gpu_desc">按 NVENC → QSV → AMF 顺序并发探测本机显卡编码器（单项超时 1.5s），结果缓存至本地，不可用时自动回退 CPU 软编。</p>
+            </div>
+            <div class="table-scroll">
+              <table class="spec-table spec-table-compact">
+                <thead>
+                  <tr>
+                    <th scope="col" data-i18n="specs.gpu.col_codec">视频编码</th>
+                    <th scope="col" data-i18n="specs.gpu.col_hw">硬件编码器</th>
+                    <th scope="col" data-i18n="specs.gpu.col_cpu">CPU 回退</th>
+                    <th scope="col" data-i18n="specs.gpu.col_crf">建议 CRF</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="cell-strong">H.264</td>
+                    <td class="mono">h264_nvenc / qsv / amf</td>
+                    <td class="mono">libx264</td>
+                    <td class="num">18–28</td>
+                  </tr>
+                  <tr>
+                    <td class="cell-strong">H.265 (HEVC)</td>
+                    <td class="mono">hevc_nvenc / qsv / amf</td>
+                    <td class="mono">libx265</td>
+                    <td class="num">20–30</td>
+                  </tr>
+                  <tr>
+                    <td class="cell-strong">AV1</td>
+                    <td class="mono">av1_nvenc / qsv / amf</td>
+                    <td class="mono">libsvtav1</td>
+                    <td class="num">24–38</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card card-list">
+            <div class="card-header">
+              <h3 class="card-title" data-i18n="specs.adv_heading">高级参数与前处理</h3>
+            </div>
+            <ul class="settings-list">
+              <li class="settings-row">
+                <div class="settings-icon" aria-hidden="true">
+                  <svg class="icon" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                </div>
+                <div class="settings-text">
+                  <div class="settings-title" data-i18n="specs.adv.crf_title">自定义质量 (CRF)</div>
+                  <p class="settings-desc" data-i18n="specs.adv.crf_desc">可覆盖预设默认值，按编码格式提供建议参考区间，硬件编码自动映射至 QP / global_quality。</p>
+                </div>
+              </li>
+              <li class="settings-row">
+                <div class="settings-icon" aria-hidden="true">
+                  <svg class="icon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                </div>
+                <div class="settings-text">
+                  <div class="settings-title" data-i18n="specs.adv.audio_title">音频三模式与帧率上限</div>
+                  <p class="settings-desc" data-i18n="specs.adv.audio_desc">支持 AAC 重编码、音频流无损直通（copy）或静音移除音轨（mute），并可限制最大帧率（如 30fps）缩减录屏体积。</p>
+                </div>
+              </li>
+              <li class="settings-row">
+                <div class="settings-icon" aria-hidden="true">
+                  <svg class="icon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+                </div>
+                <div class="settings-text">
+                  <div class="settings-title" data-i18n="specs.adv.crop_title">可选几何裁剪</div>
+                  <p class="settings-desc" data-i18n="specs.adv.crop_desc">在缩放前裁除画面多余边栏，支持精确像素（W:H:X:Y）或居中比例（如 16:9 配合 0.5–1.0 保留比例），默认关闭。</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Workspace Showcase & Animated Export -->
+    <section class="section" id="interface" aria-labelledby="interface-heading">
+      <div class="wrap">
+        <div class="section-head section-head-row">
+          <div>
+            <h2 id="interface-heading" class="section-title" data-i18n="showcase.title">真实工作区与动图导出</h2>
+            <p class="section-subtitle" data-i18n="showcase.subtitle">基于 MyGO 与 MujicaUI 纯 Go 自绘，无 WebView 开销；遵循同一套酒红与象牙配色，默认跟随系统明暗。</p>
+          </div>
+          <div class="segmented" role="tablist" aria-label="界面场景切换" data-i18n-aria="a11y.showcase_tabs" id="showcase-tabs">
+            <button type="button" class="seg-btn" role="tab" id="tab-workspace" aria-selected="true" aria-controls="showcase-panel" data-scene="workspace" data-i18n="showcase.tab.workspace">主工作区</button>
+            <button type="button" class="seg-btn" role="tab" id="tab-batch" aria-selected="false" aria-controls="showcase-panel" data-scene="batch" data-i18n="showcase.tab.batch">批量进度</button>
+            <button type="button" class="seg-btn" role="tab" id="tab-gif" aria-selected="false" aria-controls="showcase-panel" data-scene="gif" data-i18n="showcase.tab.gif">动图自定义</button>
+            <button type="button" class="seg-btn" role="tab" id="tab-theme" aria-selected="false" aria-controls="showcase-panel" data-scene="theme" data-i18n="showcase.tab.theme">外观主题</button>
+          </div>
+        </div>
+
+        <div class="card showcase-card" id="showcase-panel" role="tabpanel" aria-labelledby="tab-workspace">
+          <div class="showcase-sidebar">
+            <div class="sidebar-group-label" data-i18n="showcase.sidebar_label">界面视角</div>
+            <ul class="sidebar-nav" aria-label="界面视角列表" data-i18n-aria="a11y.showcase_tabs">
+              <li>
+                <button type="button" class="sidebar-item is-active" data-scene="workspace">
+                  <span class="sidebar-item-title" data-i18n="showcase.tab.workspace">主工作区</span>
+                  <span class="sidebar-item-desc" data-i18n="showcase.cap.workspace">拖放添加任务，顶部汇总任务数、已节省空间与整体压缩率；队列支持按全部、失败、已完成筛选。</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" class="sidebar-item" data-scene="batch">
+                  <span class="sidebar-item-title" data-i18n="showcase.tab.batch">批量进度</span>
+                  <span class="sidebar-item-desc" data-i18n="showcase.cap.batch">多任务并发执行时显示整体进度条、单文件编码倍速（如 2.4x）与预计剩余时间，支持逐个取消单个文件而不中断其余队列。</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" class="sidebar-item" data-scene="gif">
+                  <span class="sidebar-item-title" data-i18n="showcase.tab.gif">动图自定义</span>
+                  <span class="sidebar-item-desc" data-i18n="showcase.cap.gif">内置流畅、均衡、高清三档与自定义参数，可同时勾选导出 GIF、APNG、WebP，并自动读取源视频时长提示截断与超体积。</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" class="sidebar-item" data-scene="theme">
+                  <span class="sidebar-item-title" data-i18n="showcase.tab.theme">外观主题</span>
+                  <span class="sidebar-item-desc" data-i18n="showcase.cap.theme">配置面板按功能分区，外观支持跟随系统或固定浅色 / 深色，界面语言切换后同步更新中英文与系统右键菜单名称。</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <div class="showcase-stage">
+            <img
+              id="showcase-img"
+              src="assets/workspace-dark.png"
+              width="900"
+              height="820"
+              alt="Videopress 主工作区截图"
+              decoding="async"
+            >
+          </div>
+        </div>
+
+        <div class="card card-table gif-card">
+          <div class="card-header">
+            <h3 class="card-title" data-i18n="gif.table_heading">动图导出规格</h3>
+            <p class="card-desc" data-i18n="gif.formats_note">支持同时导出 GIF（128 色调色板）、APNG（无损 RGBA 自适应帧率）与 WebP（libwebp_anim）。</p>
+          </div>
+          <div class="table-scroll">
+            <table class="spec-table">
+              <thead>
+                <tr>
+                  <th scope="col" data-i18n="gif.col.tier">档位</th>
+                  <th scope="col" data-i18n="gif.col.width">宽度上限</th>
+                  <th scope="col" data-i18n="gif.col.budget">体积目标</th>
+                  <th scope="col" data-i18n="gif.col.fps">帧率</th>
+                  <th scope="col" data-i18n="gif.col.duration">片段时长</th>
+                  <th scope="col" data-i18n="gif.col.webp_q">WebP 质量</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="cell-strong" data-i18n="gif.tier.smooth">流畅 (smooth)</td>
+                  <td class="num">240px</td>
+                  <td class="num">≤ 1 MB</td>
+                  <td class="num">15 fps</td>
+                  <td class="num">5s</td>
+                  <td class="num">35</td>
+                </tr>
+                <tr class="row-highlight">
+                  <td class="cell-strong" data-i18n="gif.tier.balanced">均衡 (balanced · 默认)</td>
+                  <td class="num">360px</td>
+                  <td class="num">≤ 2 MB</td>
+                  <td class="num">15 fps</td>
+                  <td class="num">5s</td>
+                  <td class="num">50</td>
+                </tr>
+                <tr>
+                  <td class="cell-strong" data-i18n="gif.tier.hd">高清 (hd)</td>
+                  <td class="num">480px</td>
+                  <td class="num">≤ 5 MB</td>
+                  <td class="num">15 fps</td>
+                  <td class="num">5s</td>
+                  <td class="num">65</td>
+                </tr>
+                <tr>
+                  <td class="cell-strong" data-i18n="gif.tier.custom">自定义 (GUI)</td>
+                  <td class="num">120–1080px</td>
+                  <td class="num">1–50 MB</td>
+                  <td class="num">5–30 fps</td>
+                  <td class="num" data-i18n="gif.custom_dur">1–30s（起点 0–600s）</td>
+                  <td class="num">30–90</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. GUI + CLI Dual Entry & Command Builder -->
+    <section class="section" id="cli" aria-labelledby="cli-heading">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="cli-heading" class="section-title" data-i18n="cli.title">图形界面与命令行共用同一程序</h2>
+          <p class="section-subtitle" data-i18n="cli.subtitle">双击或无选项启动进入图形界面；在终端传入任意选项即进入控制台模式，输出进度条、压缩汇总表，并在输出目录追加 compress_summary.log。</p>
+        </div>
+
+        <div class="card cli-builder">
+          <div class="card-header">
+            <h3 class="card-title" data-i18n="cli.builder_title">命令行生成器</h3>
+            <p class="card-desc" data-i18n="cli.builder_desc">勾选所需参数，实时生成可直接运行的 videopress.exe 命令。</p>
+          </div>
+
+          <div class="builder-grid">
+            <div class="field">
+              <span class="field-label" id="lbl-preset" data-i18n="cli.lbl.preset">压缩预设</span>
+              <div class="segmented" role="group" aria-labelledby="lbl-preset" id="cli-preset">
+                <button type="button" class="seg-btn" data-value="small" aria-pressed="false" data-i18n="cli.opt.preset_small">小文件</button>
+                <button type="button" class="seg-btn" data-value="standard" aria-pressed="true" data-i18n="cli.opt.preset_standard">标准</button>
+                <button type="button" class="seg-btn" data-value="quality" aria-pressed="false" data-i18n="cli.opt.preset_quality">高画质</button>
+              </div>
+            </div>
+
+            <div class="field">
+              <span class="field-label" id="lbl-codec" data-i18n="cli.lbl.codec">视频编码</span>
+              <div class="segmented" role="group" aria-labelledby="lbl-codec" id="cli-codec">
+                <button type="button" class="seg-btn" data-value="h264" aria-pressed="true" data-i18n="cli.opt.codec_auto">默认 (H.264)</button>
+                <button type="button" class="seg-btn" data-value="h265" aria-pressed="false">H.265</button>
+                <button type="button" class="seg-btn" data-value="av1" aria-pressed="false">AV1</button>
+              </div>
+            </div>
+
+            <div class="field">
+              <span class="field-label" id="lbl-audio" data-i18n="cli.lbl.audio">音频处理</span>
+              <div class="segmented" role="group" aria-labelledby="lbl-audio" id="cli-audio">
+                <button type="button" class="seg-btn" data-value="compress" aria-pressed="true" data-i18n="cli.opt.audio_compress">重编码 (默认)</button>
+                <button type="button" class="seg-btn" data-value="copy" aria-pressed="false" data-i18n="cli.opt.audio_copy">直通 (-a)</button>
+                <button type="button" class="seg-btn" data-value="mute" aria-pressed="false" data-i18n="cli.opt.audio_mute">静音 (--audio mute)</button>
+              </div>
+            </div>
+
+            <div class="field">
+              <span class="field-label" id="lbl-conflict" data-i18n="cli.lbl.conflict">同名文件策略</span>
+              <div class="segmented" role="group" aria-labelledby="lbl-conflict" id="cli-conflict">
+                <button type="button" class="seg-btn" data-value="number" aria-pressed="true" data-i18n="cli.opt.conflict_number">自动编号 (默认)</button>
+                <button type="button" class="seg-btn" data-value="force" aria-pressed="false" data-i18n="cli.opt.conflict_force">强制覆盖 (--force)</button>
+                <button type="button" class="seg-btn" data-value="skip" aria-pressed="false" data-i18n="cli.opt.conflict_skip">增量跳过 (--skip-existing)</button>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="cli-concurrency-val" data-i18n="cli.lbl.concurrency">并发任务数 (-c)</label>
+              <div class="number-input">
+                <input
+                  id="cli-concurrency-val"
+                  class="number-field num"
+                  type="number"
+                  min="1"
+                  max="8"
+                  value="1"
+                  inputmode="numeric"
+                >
+                <button type="button" class="stepper-btn" id="concurrency-dec" aria-label="减少并发数" data-i18n-aria="a11y.dec_concurrency">−</button>
+                <button type="button" class="stepper-btn" id="concurrency-inc" aria-label="增加并发数" data-i18n-aria="a11y.inc_concurrency">+</button>
+              </div>
+            </div>
+
+            <div class="field field-switch-wrap">
+              <span class="field-label" id="lbl-hw" data-i18n="cli.lbl.hw">启用 GPU 硬件加速 (--hw)</span>
+              <div class="switch-row">
+                <button
+                  type="button"
+                  class="mujica-switch"
+                  id="cli-hw"
+                  role="switch"
+                  aria-checked="false"
+                  aria-labelledby="lbl-hw"
+                >
+                  <span class="switch-indicator" aria-hidden="true"></span>
+                  <span class="switch-thumb" aria-hidden="true"></span>
+                </button>
+                <span class="switch-state" id="cli-hw-state" data-i18n="cli.state.off">关闭</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <span class="field-label" id="lbl-crop" data-i18n="cli.lbl.crop">居中比例裁剪</span>
+              <div class="segmented" role="group" aria-labelledby="lbl-crop" id="cli-crop">
+                <button type="button" class="seg-btn" data-value="off" aria-pressed="true" data-i18n="cli.opt.crop_off">不裁剪</button>
+                <button type="button" class="seg-btn" data-value="16:9" aria-pressed="false">16:9</button>
+                <button type="button" class="seg-btn" data-value="9:16" aria-pressed="false">9:16</button>
+                <button type="button" class="seg-btn" data-value="1:1" aria-pressed="false">1:1</button>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="field-label-row">
+                <label class="field-label" for="cli-crop-scale" data-i18n="cli.lbl.crop_scale">保留画面比例 (--crop-scale)</label>
+                <span class="scale-readout num" id="cli-crop-scale-readout">1.00</span>
+              </div>
+              <input
+                id="cli-crop-scale"
+                class="mujica-range"
+                type="range"
+                min="0.5"
+                max="1.0"
+                step="0.05"
+                value="1.0"
+                disabled
+              >
+            </div>
+          </div>
+
+          <div class="cli-output-area">
+            <div class="cli-terminal" role="region" aria-label="生成的命令" data-i18n-aria="a11y.generated_cmd">
+              <code class="cli-code" id="cli-command-output">videopress.exe --preset standard "C:\videos\clip.mp4"</code>
+            </div>
+            <div class="cli-output-actions">
+              <button type="button" class="btn btn-primary" id="cli-copy-btn">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span data-i18n="cli.btn.copy">复制命令</span>
+              </button>
+              <button type="button" class="btn btn-secondary" id="cli-reset-btn">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                <span data-i18n="cli.btn.reset">重置选项</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-list cli-examples">
+          <div class="card-header">
+            <h3 class="card-title" data-i18n="cli.examples_title">常用命令参考</h3>
+          </div>
+          <ul class="command-list">
+            <li class="command-row">
+              <div class="command-info">
+                <div class="command-desc" data-i18n="cli.ex1_label">启用 GPU 加速与音频直通，按 small 预设压缩</div>
+                <code class="command-snippet">videopress.exe --preset small --hw -a "C:\videos\clip.mp4"</code>
+              </div>
+              <button type="button" class="btn btn-secondary btn-copy-inline" data-copy-text='videopress.exe --preset small --hw -a "C:\videos\clip.mp4"'>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span data-i18n="cli.btn.copy">复制命令</span>
+              </button>
+            </li>
+            <li class="command-row">
+              <div class="command-info">
+                <div class="command-desc" data-i18n="cli.ex2_label">居中裁至 16:9 并保留 90% 画面后压缩</div>
+                <code class="command-snippet">videopress.exe --crop-center 16:9 --crop-scale 0.9 "C:\videos\recording.mp4"</code>
+              </div>
+              <button type="button" class="btn btn-secondary btn-copy-inline" data-copy-text='videopress.exe --crop-center 16:9 --crop-scale 0.9 "C:\videos\recording.mp4"'>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span data-i18n="cli.btn.copy">复制命令</span>
+              </button>
+            </li>
+            <li class="command-row">
+              <div class="command-info">
+                <div class="command-desc" data-i18n="cli.ex3_label">3 并发批量处理并跳过已存在输出</div>
+                <code class="command-snippet">videopress.exe -c 3 --skip-existing "C:\videos\a.mp4" "C:\videos\b.mp4" "C:\videos\c.mp4"</code>
+              </div>
+              <button type="button" class="btn btn-secondary btn-copy-inline" data-copy-text='videopress.exe -c 3 --skip-existing "C:\videos\a.mp4" "C:\videos\b.mp4" "C:\videos\c.mp4"'>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span data-i18n="cli.btn.copy">复制命令</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Windows Integration & FFmpeg Setup -->
+    <section class="section" id="integration" aria-labelledby="integration-heading">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="integration-heading" class="section-title" data-i18n="sys.title">Windows 系统集成与 FFmpeg 准备</h2>
+          <p class="section-subtitle" data-i18n="sys.subtitle">所有系统入口均只写入当前用户配置，无需管理员权限；右键多选视频时自动合并到同一窗口队列。</p>
+        </div>
+
+        <div class="two-col">
+          <div class="card card-list">
+            <div class="card-header">
+              <h3 class="card-title" data-i18n="sys.int_heading">五项当前用户集成</h3>
+            </div>
+            <ul class="settings-list">
+              <li class="settings-row">
+                <div class="settings-icon" aria-hidden="true">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <div class="settings-text">
+                  <div class="settings-title" data-i18n="sys.int.ctx_title">右键菜单压缩</div>
+                  <p class="settings-desc" data-i18n="sys.int.ctx_desc">资源管理器右键视频选择「使用 Videopress 压缩」，切换界面语言时自动同步菜单名称。</p>
+                </div>
+              </li>
+              <li class="settings-row">
+                <div class="settings-icon" aria-hidden="true">
+                  <svg class="icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </div>
+                <div class="settings-text">
+                  <div class="settings-title" data-i18n="sys.int.sendto_title">发送到菜单 (SendTo)</div>
+                  <p class="settings-desc" data-i18n="sys.int.sendto_desc">右键 → 发送到 →「快速压缩视频」，完成后弹出系统通知。</p>
+                </div>
+              </li>
+              <li class="settings-row">
+                <div class="settings-icon" aria-hidden="true">
+                  <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                </div>
+                <div class="settings-text">
+                  <div class="settings-title" data-i18n="sys.int.shortcuts_title">桌面与开始菜单快捷方式</div>
+                  <p class="settings-desc" data-i18n="sys.int.shortcuts_desc">在配置面板按需开关，方便搜索启动或拖放图标。</p>
+                </div>
+              </li>
+              <li class="settings-row">
+                <div class="settings-icon" aria-hidden="true">
+                  <svg class="icon" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                </div>
+                <div class="settings-text">
+                  <div class="settings-title" data-i18n="sys.int.path_title">用户 Path 环境变量</div>
+                  <p class="settings-desc" data-i18n="sys.int.path_desc">将程序目录加入当前用户 Path，随后可在任意终端直接调用 videopress。</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="card card-collapsibles">
+            <div class="collapsible" data-collapsible>
+              <button type="button" class="collapsible-trigger" aria-expanded="true" aria-controls="col-ffmpeg">
+                <svg class="icon collapsible-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                <span class="collapsible-title" data-i18n="sys.col.ffmpeg_title">FFmpeg 查找顺序与自动配置</span>
+              </button>
+              <div class="collapsible-body" id="col-ffmpeg">
+                <ol class="ordered-list">
+                  <li data-i18n="sys.col.ffmpeg_1">首次启动若未检测到 FFmpeg，可在引导页点击「自动下载并配置」，从 npmmirror 获取 ffmpeg-static v6.0（约 28 MB），解压并校验可执行性。</li>
+                  <li data-i18n="sys.col.ffmpeg_2">与 Videopress.exe 同目录的 ffmpeg.exe（适合离线环境随身使用）。</li>
+                  <li data-i18n="sys.col.ffmpeg_3">系统 PATH 中的 ffmpeg.exe。</li>
+                  <li data-i18n="sys.col.ffmpeg_4">在引导页或「配置面板 → 关于」手动指定 ffmpeg.exe 路径，随时可切回自动检测。</li>
+                </ol>
+              </div>
+            </div>
+
+            <div class="collapsible" data-collapsible>
+              <button type="button" class="collapsible-trigger" aria-expanded="false" aria-controls="col-cli-int">
+                <svg class="icon collapsible-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                <span class="collapsible-title" data-i18n="sys.col.cli_int_title">命令行开关系统集成</span>
+              </button>
+              <div class="collapsible-body" id="col-cli-int" hidden>
+                <p class="body-muted" data-i18n="sys.col.cli_int_desc">除配置面板外，也可直接通过终端管理 SendTo 与用户 Path：</p>
+                <div class="code-stack">
+                  <code class="inline-block-code">videopress.exe --install-sendto / --uninstall-sendto</code>
+                  <code class="inline-block-code">videopress.exe --install-path / --uninstall-path</code>
+                </div>
+              </div>
+            </div>
+
+            <div class="collapsible" data-collapsible>
+              <button type="button" class="collapsible-trigger" aria-expanded="false" aria-controls="col-formats">
+                <svg class="icon collapsible-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                <span class="collapsible-title" data-i18n="sys.col.formats_title">支持的输入格式与日志归档</span>
+              </button>
+              <div class="collapsible-body" id="col-formats" hidden>
+                <p class="body-muted" data-i18n="sys.col.formats_body">支持 MP4、MOV、MKV、AVI、M4V、WMV、WEBM、TS、FLV、MPG、MPEG、3GP。每次批处理会在输出目录追加 compress_summary.log，记录原始大小、压缩后大小、节省比例与耗时。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Download & System Requirements -->
+    <section class="section" id="download" aria-labelledby="download-heading">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="download-heading" class="section-title" data-i18n="dl.title">获取 Videopress</h2>
+          <p class="section-subtitle" data-i18n="dl.subtitle">在 GitHub Releases 提供安装版与便携版两种分发包，均附 SHA256SUMS.txt 校验文件。</p>
+        </div>
+
+        <div class="two-col">
+          <article class="card download-card">
+            <div class="download-card-head">
+              <h3 class="card-title" data-i18n="dl.installer.title">安装版</h3>
+              <code class="file-tag" data-i18n="dl.installer.file">videopress-setup-&lt;版本&gt;-amd64.exe</code>
+            </div>
+            <p class="download-desc" data-i18n="dl.installer.desc">包含开始菜单入口与标准卸载流程，适合日常固定使用。</p>
+            <p class="download-steps" data-i18n="dl.installer.steps">双击安装 → 从开始菜单启动 → 按引导自动配置或指定 FFmpeg。</p>
+            <div class="download-card-footer">
+              <a class="btn btn-primary" href="https://github.com/Shirolin/videopress/releases/latest" target="_blank" rel="noopener noreferrer">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span data-i18n="dl.btn.releases">前往 GitHub Releases</span>
+              </a>
+            </div>
+          </article>
+
+          <article class="card download-card">
+            <div class="download-card-head">
+              <h3 class="card-title" data-i18n="dl.portable.title">便携版</h3>
+              <code class="file-tag" data-i18n="dl.portable.file">Videopress.exe</code>
+            </div>
+            <p class="download-desc" data-i18n="dl.portable.desc">单文件可执行程序，无需安装或管理员权限，适合放工具目录或移动硬盘。</p>
+            <p class="download-steps" data-i18n="dl.portable.steps">放入独立目录直接运行；离线机器可将 ffmpeg.exe 置于同目录。</p>
+            <div class="download-card-footer">
+              <a class="btn btn-secondary" href="https://github.com/Shirolin/videopress/releases/latest" target="_blank" rel="noopener noreferrer">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                <span data-i18n="dl.btn.releases">前往 GitHub Releases</span>
+              </a>
+            </div>
+          </article>
+        </div>
+
+        <div class="card card-collapsibles dl-notes">
+          <div class="collapsible" data-collapsible>
+            <button type="button" class="collapsible-trigger" aria-expanded="false" aria-controls="col-smartscreen">
+              <svg class="icon collapsible-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+              <span class="collapsible-title" data-i18n="dl.col.smartscreen_title">关于 Windows SmartScreen 提示与校验</span>
+            </button>
+            <div class="collapsible-body" id="col-smartscreen" hidden>
+              <p class="body-muted" data-i18n="dl.col.smartscreen_body">当前发布包暂未进行代码签名，首次运行可能弹出 SmartScreen「Windows 已保护你的电脑」，点击「更多信息 → 仍要运行」即可。可使用 PowerShell 运行 Get-FileHash 核对下载页附带的 SHA256SUMS.txt。</p>
+              <div class="inline-copy-row">
+                <code class="inline-block-code">Get-FileHash .\Videopress.exe -Algorithm SHA256</code>
+                <button type="button" class="btn btn-secondary btn-copy-inline" data-copy-text="Get-FileHash .\Videopress.exe -Algorithm SHA256">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span data-i18n="cli.btn.copy">复制命令</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="collapsible" data-collapsible>
+            <button type="button" class="collapsible-trigger" aria-expanded="false" aria-controls="col-req">
+              <svg class="icon collapsible-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+              <span class="collapsible-title" data-i18n="dl.col.req_title">系统要求与本地配置路径</span>
+            </button>
+            <div class="collapsible-body" id="col-req" hidden>
+              <p class="body-muted" data-i18n="dl.col.req_body">支持 Windows 10 / 11（x64）。用户偏好保存在 %APPDATA%\Videopress\settings.json，GPU 探测缓存保存在 %LOCALAPPDATA%\videopress_gpu.cache。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <div class="wrap footer-inner">
+      <div class="footer-brand">
+        <img class="brand-icon" src="assets/icon.png" alt="" width="20" height="20">
+        <span class="brand-name">Videopress</span>
+        <span class="footer-sep" aria-hidden="true">·</span>
+        <span class="footer-tagline" data-i18n="footer.tagline">Windows 本地视频压缩与动图导出工具</span>
+      </div>
+      <div class="footer-meta">
+        <a class="footer-link" href="https://github.com/Shirolin/videopress" target="_blank" rel="noopener noreferrer" data-i18n="footer.link.repo">GitHub 仓库</a>
+        <a class="footer-link" href="https://github.com/Shirolin/videopress/releases/latest" target="_blank" rel="noopener noreferrer" data-i18n="footer.link.releases">Releases</a>
+        <span class="footer-license" data-i18n="footer.license">MIT License · Copyright © 2026 Shirolin</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MujicaUI Toaster container -->
+  <div class="toaster" id="toaster" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
