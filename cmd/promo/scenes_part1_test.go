@@ -44,6 +44,7 @@ func TestBuildPart1RenderKeyframes(t *testing.T) {
 		name  string
 		frame int
 	}{
+		{"act0-cover", 0},
 		{"act1-reveal", 96},
 		{"act2-workspace", 165},
 		{"act2-batch-swap", 210},
@@ -59,6 +60,21 @@ func TestBuildPart1RenderKeyframes(t *testing.T) {
 			}
 			if b := img.Bounds(); b.Dx() != Width || b.Dy() != Height {
 				t.Fatalf("unexpected image bounds %v, want %dx%d", b, Width, Height)
+			}
+			if kf.frame == 0 {
+				bg := img.RGBAAt(10, 10)
+				diffPixels := 0
+				for y := 200; y < Height-200; y += 8 {
+					for x := 300; x < Width-300; x += 8 {
+						px := img.RGBAAt(x, y)
+						if px != bg {
+							diffPixels++
+						}
+					}
+				}
+				if diffPixels < 200 {
+					t.Fatalf("frame 0 cover appears blank (only %d non-background sampled pixels)", diffPixels)
+				}
 			}
 			if dumpDir != "" {
 				out := filepath.Join(dumpDir, fmt.Sprintf("%s-f%04d.png", kf.name, kf.frame))

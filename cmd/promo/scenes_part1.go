@@ -29,6 +29,11 @@ func renderScene1(c *ui.Context, f render.Frame, assets *Assets) {
 	p := DarkPalette()
 	fonts := assets.Fonts
 
+	// Frame 0 serves as a crisp, fully resolved poster/cover frame for players,
+	// file explorers, and social previews, while frames 1..119 play the normal
+	// editorial entrance without shifting total duration or audio cues.
+	isCoverFrame := f.Exact() < 0.5
+
 	// Keep the canvas grounded in charcoal from frame 0, then dissolve out cleanly
 	// over the final CrossfadeFrames into Act 2.
 	stageAlpha := SceneFade(f, 0, CrossfadeFrames)
@@ -44,6 +49,15 @@ func renderScene1(c *ui.Context, f render.Frame, assets *Assets) {
 
 	subOp, subY := EnterOffset(f, 32, 24, 18)
 	descOp, descY := EnterOffset(f, 44, 22, 14)
+
+	if isCoverFrame {
+		frameAlpha = 1
+		markOp, markY, markScale = 1, 0, 1
+		titleOp, titleY = 1, 0
+		ruleW = 440
+		subOp, subY = 1, 0
+		descOp, descY = 1, 0
+	}
 
 	SceneStage(c, p.Background, stageAlpha, func() {
 		// Editorial margin frame and subtle architectural metadata on its own full-bleed layer
@@ -166,6 +180,9 @@ func renderScene1(c *ui.Context, f render.Frame, assets *Assets) {
 					Children(func() {
 						for _, b := range badges {
 							op, dy := EnterOffset(f, b.start, 20, 16)
+							if isCoverFrame {
+								op, dy = 1, 0
+							}
 							ui.Row(c).
 								Padding(12, 24).
 								Gap(12).
